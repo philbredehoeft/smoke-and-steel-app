@@ -38,6 +38,13 @@
     .animate-dice {
       animation: diceTumble 0.45s cubic-bezier(0.22, 1, 0.36, 1);
     }
+    @keyframes emberPulse {
+      0%, 100% { transform: scale(0.94); opacity: 0.75; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+    .animate-ember {
+      animation: emberPulse 1.5s ease-in-out infinite;
+    }
   </style>
 </head>
 <body class="bg-canvas text-stone-100 font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
@@ -200,6 +207,20 @@
     </nav>
   </div>
 
+  <!-- THINKING OVERLAY MODAL -->
+  <div id="thinking-overlay" class="hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="w-full max-w-xs rounded-2xl bg-surface border border-amber-500/40 p-6 text-center space-y-4 shadow-2xl">
+      <div class="mx-auto h-16 w-16 rounded-2xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center animate-ember">
+        <span class="font-display text-2xl text-amber-300">&#9876;</span>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-widest text-amber-400 font-semibold">Turn In Progress</p>
+        <h3 id="thinking-title" class="font-display text-base text-stone-100 mt-1">Consulting the Dungeon Master...</h3>
+        <p id="thinking-sub" class="text-xs text-stone-400 mt-1">Keeping screen awake during turn</p>
+      </div>
+    </div>
+  </div>
+
   <!-- ROLL OVERLAY MODAL -->
   <div id="roll-overlay" class="hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
     <div class="w-full max-w-sm rounded-2xl bg-surface border border-amber-500/40 p-6 text-center space-y-5 shadow-2xl">
@@ -287,6 +308,7 @@
       skillLabel: 'd20 Check',
       lastRoll: null,
       pendingRoll: null,
+      wakeLock: null,
       files: {
         rules: { path: 'DM_INSTRUCTIONS.md', content: '', sha: null },
         campaign: { path: 'CAMPAIGN_STATE.md', content: '', sha: null },
@@ -294,6 +316,45 @@
         character: { path: 'Character/Kraven_Hexblade.md', content: '', sha: null },
       }
     };
+
+    const thinkingOverlay = document.getElementById('thinking-overlay');
+    const thinkingTitle = document.getElementById('thinking-title');
+    const thinkingSub = document.getElementById('thinking-sub');
+
+    async function acquireWakeLock() {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        state.wakeLock = await navigator.wakeLock.request('screen');
+      } catch (_) {
+        // Ignore if blocked by browser power saver
+      }
+    }
+
+    async function releaseWakeLock() {
+      if (state.wakeLock) {
+        try {
+          await state.wakeLock.release();
+        } catch (_) {}
+        state.wakeLock = null;
+      }
+    }
+
+    async function beginBusyState(title, sub = 'Keeping screen awake during turn') {
+      thinkingTitle.textContent = title;
+      thinkingSub.textContent = sub;
+      thinkingOverlay.classList.remove('hidden');
+      await acquireWakeLock();
+    }
+
+    function updateBusyState(title, sub) {
+      if (title) thinkingTitle.textContent = title;
+      if (sub) thinkingSub.textContent = sub;
+    }
+
+    async function endBusyState() {
+      thinkingOverlay.classList.add('hidden');
+      await releaseWakeLock();
+    }
 
     function getConfig() {
       try {
@@ -675,11 +736,14 @@ ${state.files.character.content}`;
       updateBadge();
       settingsModal.classList.add('hidden');
       if (payload.ghToken) {
+        await beginBusyState('Loading Campaign...', 'Reading Markdown files from GitHub');
         try {
           await loadCampaignFromGitHub();
           appendStoryCard('System', '<p class="text-xs text-emerald-300">Loaded campaign Markdown files from GitHub.</p>', false);
         } catch (err) {
           appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+        } finally {
+          await endBusyState();
         }
       }
     });
@@ -690,11 +754,14 @@ ${state.files.character.content}`;
         openSettingsModal();
         return;
       }
+      await beginBusyState('Loading Campaign...', 'Reading Markdown files from GitHub');
       try {
         await loadCampaignFromGitHub();
         appendStoryCard('System', '<p class="text-xs text-emerald-300">Refreshed campaign files from GitHub.</p>', false);
       } catch (err) {
         appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+      } finally {
+        await endBusyState();
       }
     });
 
@@ -726,9 +793,12 @@ ${state.files.character.content}`;
 
       sendBtn.disabled = true;
       sendBtn.textContent = '...';
+      await beginBusyState('Consulting the Dungeon Master...', 'Keeping screen awake during turn');
       try {
         if (cfg.ghToken && !state.files.campaign.content) {
+          updateBusyState('Loading Campaign...', 'Pulling state files from GitHub');
           await loadCampaignFromGitHub();
+          updateBusyState('Consulting the Dungeon Master...', 'Keeping screen awake during turn');
         }
         const dmResult = await callGeminiDM(cfg, text, rollToSend);
         const paragraphs = (dmResult.narrative || '')
@@ -737,11 +807,11 @@ ${state.files.character.content}`;
           .map((p) => `<p>${p}</p>`)
           .join('');
 
-        // Render the DM reply first so you can read immediately
         appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
 
         const dirtyKeys = applyUpdatesToMarkdown(dmResult);
         if (cfg.ghToken && dirtyKeys.size > 0) {
+          updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
           await persistMarkdownToGitHub(cfg, dirtyKeys);
         }
       } catch (err) {
@@ -749,6 +819,7 @@ ${state.files.character.content}`;
       } finally {
         sendBtn.disabled = false;
         sendBtn.textContent = 'Send';
+        await endBusyState();
       }
     });
 
