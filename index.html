@@ -249,7 +249,7 @@
         </div>
         <div>
           <label class="block text-stone-300 mb-1">Gemini Model</label>
-          <input id="cfg-gemini-model" type="text" placeholder="gemini-2.0-flash" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+          <input id="cfg-gemini-model" type="text" placeholder="gemini-3.8-flash" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
         </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
@@ -300,14 +300,14 @@
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
         return {
           geminiKey: (saved.geminiKey || '').trim(),
-          geminiModel: (saved.geminiModel || 'gemini-2.0-flash').trim(),
+          geminiModel: (saved.geminiModel || 'gemini-3.8-flash').trim(),
           ghOwner: (saved.ghOwner || 'philbredehoeft').trim(),
           ghRepo: (saved.ghRepo || 'smoke-and-steel-campaign').trim(),
           charPath: (saved.charPath || 'Character/Kraven_Hexblade.md').trim(),
           ghToken: (saved.ghToken || '').trim(),
         };
       } catch (_) {
-        return { geminiKey: '', geminiModel: 'gemini-2.0-flash', ghOwner: 'philbredehoeft', ghRepo: 'smoke-and-steel-campaign', charPath: 'Character/Kraven_Hexblade.md', ghToken: '' };
+        return { geminiKey: '', geminiModel: 'gemini-3.8-flash', ghOwner: 'philbredehoeft', ghRepo: 'smoke-and-steel-campaign', charPath: 'Character/Kraven_Hexblade.md', ghToken: '' };
       }
     }
 
@@ -389,10 +389,10 @@
         ['character', cfg.charPath],
       ];
 
-      for (const [key, path] of entries) {
+      await Promise.all(entries.map(async ([key, path]) => {
         const fileData = await ghGetFile(cfg, path);
         state.files[key] = { path, content: fileData.content, sha: fileData.sha };
-      }
+      }));
 
       const locMatch = state.files.campaign.content.match(/Current Location:\*\*\s*(.+)/i);
       if (locMatch) {
@@ -407,7 +407,7 @@
 
       const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
 Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise (2-3 paragraphs), and responsive to dice rolls.
-Return ONLY valid JSON matching the requested schema.
+Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
 
 === DM_INSTRUCTIONS.md ===
 ${state.files.rules.content || 'Gritty sword-and-sorcery tone. Prompt skill checks with clear DCs. Track combat HP.'}
@@ -435,7 +435,7 @@ ${state.files.character.content}`;
         required: ['narrative', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
 
-      const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-2.0-flash');
+      const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-3.8-flash');
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
       const res = await fetch(url, {
         method: 'POST',
@@ -460,41 +460,63 @@ ${state.files.character.content}`;
       return JSON.parse(rawJson);
     }
 
-    function applyUpdatesToMarkdown(cfg, dmResult) {
-      if (dmResult.location) {
-        document.getElementById('scene-location').textContent = dmResult.location;
+    function applyUpdatesToMarkdown(dmResult) {
+      const dirtyKeys = new Set();
+      const nextLocation = (dmResult.location || '').trim();
+      const currentHeaderLoc = document.getElementById('scene-location').textContent.trim();
+
+      if (nextLocation && nextLocation !== currentHeaderLoc) {
+        document.getElementById('scene-location').textContent = nextLocation;
         if (state.files.campaign.content) {
-          state.files.campaign.content = state.files.campaign.content.replace(
+          const updatedCampaign = state.files.campaign.content.replace(
             /(\*\*Current Location:\*\*\s*).*/i,
-            `$1${dmResult.location}`
+            `$1${nextLocation}`
           );
+          if (updatedCampaign !== state.files.campaign.content) {
+            state.files.campaign.content = updatedCampaign;
+            dirtyKeys.add('campaign');
+          }
         }
       }
-      if (dmResult.campaign_note) {
-        state.files.campaign.content = `${state.files.campaign.content.trim()}\n- Turn Update: ${dmResult.campaign_note}\n`;
+
+      const campaignNote = (dmResult.campaign_note || '').trim();
+      if (campaignNote && campaignNote.toLowerCase() !== 'none') {
+        state.files.campaign.content = `${state.files.campaign.content.trim()}\n- Turn Update: ${campaignNote}\n`;
+        dirtyKeys.add('campaign');
       }
-      if (dmResult.story_note) {
-        state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${dmResult.story_note}\n`;
+
+      const storyNote = (dmResult.story_note || '').trim();
+      if (storyNote && storyNote.toLowerCase() !== 'none') {
+        state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${storyNote}\n`;
+        dirtyKeys.add('story');
       }
-      if (dmResult.character_note || dmResult.hp_delta || dmResult.gold_delta) {
+
+      const hpDelta = Number(dmResult.hp_delta) || 0;
+      const goldDelta = Number(dmResult.gold_delta) || 0;
+      const charNote = (dmResult.character_note || '').trim();
+      if (charNote && charNote.toLowerCase() !== 'none' || hpDelta !== 0 || goldDelta !== 0) {
         const notes = [];
-        if (dmResult.hp_delta) notes.push(`HP delta ${dmResult.hp_delta > 0 ? '+' : ''}${dmResult.hp_delta}`);
-        if (dmResult.gold_delta) notes.push(`Gold delta ${dmResult.gold_delta > 0 ? '+' : ''}${dmResult.gold_delta} gp`);
-        if (dmResult.character_note) notes.push(dmResult.character_note);
+        if (hpDelta) notes.push(`HP delta ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
+        if (goldDelta) notes.push(`Gold delta ${goldDelta > 0 ? '+' : ''}${goldDelta} gp`);
+        if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
         state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
+        dirtyKeys.add('character');
       }
+
+      return dirtyKeys;
     }
 
-    async function persistMarkdownToGitHub(cfg) {
-      if (!cfg.ghToken) return;
-      const targets = [
-        ['campaign', 'Update CAMPAIGN_STATE.md from DM turn'],
-        ['story', 'Update STORY_ENGINE.md from DM turn'],
-        ['character', `Update ${state.files.character.path} from DM turn`],
-      ];
-      for (const [key, msg] of targets) {
-        if (state.files[key].content) {
-          state.files[key].sha = await ghPutFile(cfg, state.files[key].path, state.files[key].content, state.files[key].sha, msg);
+    async function persistMarkdownToGitHub(cfg, dirtyKeys) {
+      if (!cfg.ghToken || !dirtyKeys || dirtyKeys.size === 0) return;
+      const messages = {
+        campaign: 'Update CAMPAIGN_STATE.md from DM turn',
+        story: 'Update STORY_ENGINE.md from DM turn',
+        character: `Update ${state.files.character.path} from DM turn`,
+      };
+      for (const key of dirtyKeys) {
+        const fileObj = state.files[key];
+        if (fileObj && fileObj.content) {
+          fileObj.sha = await ghPutFile(cfg, fileObj.path, fileObj.content, fileObj.sha, messages[key]);
         }
       }
     }
@@ -643,7 +665,7 @@ ${state.files.character.content}`;
     document.getElementById('btn-save-settings').addEventListener('click', async () => {
       const payload = {
         geminiKey: document.getElementById('cfg-gemini-key').value.trim(),
-        geminiModel: document.getElementById('cfg-gemini-model').value.trim() || 'gemini-2.0-flash',
+        geminiModel: document.getElementById('cfg-gemini-model').value.trim() || 'gemini-3.8-flash',
         ghOwner: document.getElementById('cfg-gh-owner').value.trim() || 'philbredehoeft',
         ghRepo: document.getElementById('cfg-gh-repo').value.trim() || 'smoke-and-steel-campaign',
         charPath: document.getElementById('cfg-char-path').value.trim() || 'Character/Kraven_Hexblade.md',
@@ -714,11 +736,13 @@ ${state.files.character.content}`;
           .filter(Boolean)
           .map((p) => `<p>${p}</p>`)
           .join('');
+
+        // Render the DM reply first so you can read immediately
         appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
 
-        applyUpdatesToMarkdown(cfg, dmResult);
-        if (cfg.ghToken) {
-          await persistMarkdownToGitHub(cfg);
+        const dirtyKeys = applyUpdatesToMarkdown(dmResult);
+        if (cfg.ghToken && dirtyKeys.size > 0) {
+          await persistMarkdownToGitHub(cfg, dirtyKeys);
         }
       } catch (err) {
         appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
