@@ -35,99 +35,6 @@
     .animate-ember {
       animation: emberPulse 1.5s ease-in-out infinite;
     }
-
-    /* BG3-inspired floating 3D die stage */
-    .die-stage-3d {
-      perspective: 950px;
-      perspective-origin: 50% 38%;
-    }
-    .die-float-3d {
-      position: relative;
-      width: 118px;
-      height: 118px;
-      transform-style: preserve-3d;
-      transform: translateY(0px) rotateX(18deg) rotateY(-22deg) rotateZ(0deg);
-      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .die-face-3d {
-      position: absolute;
-      inset: 0;
-      border-radius: 22px;
-      background:
-        radial-gradient(circle at 28% 22%, rgba(251, 191, 36, 0.28), transparent 55%),
-        linear-gradient(145deg, #2b303c 0%, #171a22 58%, #101218 100%);
-      border: 1px solid rgba(251, 191, 36, 0.55);
-      box-shadow:
-        inset 0 1px 1px rgba(255, 255, 255, 0.22),
-        inset 0 -10px 20px rgba(0, 0, 0, 0.65),
-        0 18px 34px rgba(0, 0, 0, 0.72),
-        0 0 24px rgba(245, 158, 11, 0.16);
-      backface-visibility: hidden;
-    }
-    .die-face-front {
-      transform: translateZ(26px);
-    }
-    .die-face-back {
-      transform: rotateY(180deg) translateZ(26px);
-      opacity: 0.7;
-    }
-    .die-face-left {
-      transform: rotateY(-90deg) translateZ(26px);
-      opacity: 0.75;
-    }
-    .die-face-right {
-      transform: rotateY(90deg) translateZ(26px);
-      opacity: 0.75;
-    }
-    .die-face-top {
-      transform: rotateX(90deg) translateZ(26px);
-      opacity: 0.75;
-    }
-    .die-face-bottom {
-      transform: rotateX(-90deg) translateZ(26px);
-      opacity: 0.65;
-    }
-    .die-readout-3d {
-      position: relative;
-      z-index: 10;
-      transform: translateZ(34px);
-    }
-    .die-shadow-3d {
-      width: 84px;
-      height: 16px;
-      border-radius: 9999px;
-      background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.34) 0%, rgba(0, 0, 0, 0.85) 68%, transparent 100%);
-      filter: blur(4px);
-      transition: transform 0.35s ease, opacity 0.35s ease;
-    }
-
-    @keyframes bg3Tumble {
-      0% {
-        transform: translateY(6px) scale(0.96) rotateX(18deg) rotateY(-22deg) rotateZ(0deg);
-      }
-      22% {
-        transform: translateY(-22px) scale(1.14) rotateX(155deg) rotateY(95deg) rotateZ(28deg);
-      }
-      50% {
-        transform: translateY(-30px) scale(1.2) rotateX(295deg) rotateY(235deg) rotateZ(-22deg);
-      }
-      78% {
-        transform: translateY(-12px) scale(1.08) rotateX(410deg) rotateY(340deg) rotateZ(14deg);
-      }
-      100% {
-        transform: translateY(-4px) scale(1.03) rotateX(374deg) rotateY(346deg) rotateZ(0deg);
-      }
-    }
-    @keyframes shadowPulse {
-      0%, 100% { transform: scale(1); opacity: 0.85; }
-      45% { transform: scale(0.68); opacity: 0.45; }
-    }
-    .animate-bg3-tumble {
-      animation: bg3Tumble 0.78s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    }
-    .animate-shadow-pulse {
-      animation: shadowPulse 0.78s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    }
   </style>
 </head>
 <body class="bg-canvas text-stone-100 font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
@@ -304,33 +211,24 @@
     </div>
   </div>
 
-  <!-- FLOATING 3D ROLL OVERLAY MODAL -->
+  <!-- FLOATING 3D CANVAS ROLL OVERLAY MODAL -->
   <div id="roll-overlay" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-surface/95 border border-amber-500/40 p-6 text-center space-y-5 shadow-2xl">
+    <div class="w-full max-w-sm rounded-2xl bg-surface/95 border border-amber-500/40 p-6 text-center space-y-4 shadow-2xl">
       <div>
         <p id="overlay-label" class="text-xs uppercase tracking-widest text-amber-400 font-semibold">d20 Check</p>
         <h3 id="overlay-title" class="font-display text-xl text-stone-100 mt-1">Tap or Press Space to Roll</h3>
       </div>
 
-      <div class="die-stage-3d flex flex-col items-center justify-center py-2 space-y-3">
+      <div class="flex flex-col items-center justify-center">
         <button
           id="overlay-die-btn"
           type="button"
-          class="die-float-3d flex flex-col items-center justify-center cursor-pointer focus:outline-none"
+          class="rounded-2xl focus:outline-none cursor-pointer"
           aria-label="Roll 3D Die"
         >
-          <span class="die-face-3d die-face-back"></span>
-          <span class="die-face-3d die-face-left"></span>
-          <span class="die-face-3d die-face-right"></span>
-          <span class="die-face-3d die-face-top"></span>
-          <span class="die-face-3d die-face-bottom"></span>
-          <span class="die-face-3d die-face-front"></span>
-          <span class="die-readout-3d flex flex-col items-center justify-center pointer-events-none px-2">
-            <span id="overlay-die-value" class="font-display text-3xl font-bold text-amber-300 drop-shadow">d20</span>
-            <span id="overlay-die-sub" class="text-[11px] text-stone-300/90 mt-1 leading-tight">Click to tumble</span>
-          </span>
+          <canvas id="die-canvas" width="200" height="180" class="w-[180px] h-[162px] block"></canvas>
         </button>
-        <div id="die-shadow" class="die-shadow-3d"></div>
+        <p id="overlay-die-sub" class="text-xs text-stone-300 mt-1">Tap the die to roll</p>
       </div>
 
       <div class="flex justify-center gap-2">
@@ -704,18 +602,126 @@ ${state.files.character.content}`;
       });
     });
 
+    // 3D Isometric Cube Die Renderer on HTML5 Canvas
     const rollOverlay = document.getElementById('roll-overlay');
     const dieBtn = document.getElementById('overlay-die-btn');
-    const dieShadow = document.getElementById('die-shadow');
-    const dieValEl = document.getElementById('overlay-die-value');
+    const dieCanvas = document.getElementById('die-canvas');
+    const dieCtx = dieCanvas.getContext('2d');
     const dieSubEl = document.getElementById('overlay-die-sub');
     const useRollBtn = document.getElementById('btn-use-roll');
 
-    function resetDieVisual(sides, mod) {
-      dieBtn.classList.remove('animate-bg3-tumble');
-      dieShadow.classList.remove('animate-shadow-pulse');
-      dieValEl.textContent = `d${sides}`;
-      dieSubEl.textContent = mod ? `Modifier ${mod >= 0 ? '+' + mod : mod}` : 'Click to tumble';
+    const die3d = {
+      rx: 0.42,
+      ry: -0.58,
+      rz: 0.12,
+      lift: 0,
+      animId: null,
+      displayText: 'd20',
+    };
+
+    const CUBE_VERTS = [
+      [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+      [-1, -1,  1], [1, -1,  1], [1, 1,  1], [-1, 1,  1],
+    ];
+    const CUBE_FACES = [
+      { idx: [4, 5, 6, 7], shade: 1.0 },   // front
+      { idx: [1, 0, 3, 2], shade: 0.45 },  // back
+      { idx: [0, 4, 7, 3], shade: 0.72 },  // left
+      { idx: [5, 1, 2, 6], shade: 0.84 },  // right
+      { idx: [3, 7, 6, 2], shade: 0.92 },  // top
+      { idx: [0, 1, 5, 4], shade: 0.35 },  // bottom
+    ];
+
+    function rotatePoint([x, y, z], rx, ry, rz) {
+      // X rotation
+      let y1 = y * Math.cos(rx) - z * Math.sin(rx);
+      let z1 = y * Math.sin(rx) + z * Math.cos(rx);
+      let x1 = x;
+      // Y rotation
+      let x2 = x1 * Math.cos(ry) + z1 * Math.sin(ry);
+      let z2 = -x1 * Math.sin(ry) + z1 * Math.cos(ry);
+      let y2 = y1;
+      // Z rotation
+      let x3 = x2 * Math.cos(rz) - y2 * Math.sin(rz);
+      let y3 = x2 * Math.sin(rz) + y2 * Math.cos(rz);
+      return [x3, y3, z2];
+    }
+
+    function draw3dDie() {
+      const w = dieCanvas.width;
+      const h = dieCanvas.height;
+      dieCtx.clearRect(0, 0, w, h);
+
+      const cx = w / 2;
+      const cy = h / 2 - die3d.lift;
+      const size = 34;
+      const fov = 240;
+
+      // Floating shadow below die
+      const shadowScale = Math.max(0.55, 1 - die3d.lift / 95);
+      dieCtx.save();
+      dieCtx.beginPath();
+      dieCtx.ellipse(cx, h - 18, 38 * shadowScale, 9 * shadowScale, 0, 0, Math.PI * 2);
+      dieCtx.fillStyle = `rgba(245, 158, 11, ${0.22 * shadowScale})`;
+      dieCtx.fill();
+      dieCtx.restore();
+
+      const transformed = CUBE_VERTS.map((v) => {
+        const [rx, ry, rz] = rotatePoint(v, die3d.rx, die3d.ry, die3d.rz);
+        const scale = fov / (fov + rz * size + 90);
+        return {
+          x: cx + rx * size * scale,
+          y: cy + ry * size * scale,
+          z: rz,
+        };
+      });
+
+      const facesWithDepth = CUBE_FACES.map((f) => {
+        const pts = f.idx.map((i) => transformed[i]);
+        const avgZ = (pts[0].z + pts[1].z + pts[2].z + pts[3].z) / 4;
+        return { pts, shade: f.shade, avgZ };
+      }).sort((a, b) => a.avgZ - b.avgZ);
+
+      facesWithDepth.forEach((face) => {
+        dieCtx.beginPath();
+        face.pts.forEach((p, idx) => {
+          if (idx === 0) dieCtx.moveTo(p.x, p.y);
+          else dieCtx.lineTo(p.x, p.y);
+        });
+        dieCtx.closePath();
+
+        const r = Math.round(36 + 34 * face.shade);
+        const g = Math.round(40 + 36 * face.shade);
+        const b = Math.round(52 + 42 * face.shade);
+        dieCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        dieCtx.fill();
+
+        dieCtx.lineWidth = 1.6;
+        dieCtx.strokeStyle = 'rgba(251, 191, 36, 0.68)';
+        dieCtx.stroke();
+      });
+
+      // Front readout badge centered on the die
+      dieCtx.save();
+      dieCtx.font = '700 26px Cinzel, Georgia, serif';
+      dieCtx.textAlign = 'center';
+      dieCtx.textBaseline = 'middle';
+      dieCtx.fillStyle = '#fcd34d';
+      dieCtx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      dieCtx.shadowBlur = 8;
+      dieCtx.fillText(die3d.displayText, cx, cy + 1);
+      dieCtx.restore();
+    }
+
+    function setIdleDie(sides, mod) {
+      if (die3d.animId) cancelAnimationFrame(die3d.animId);
+      die3d.rx = 0.42;
+      die3d.ry = -0.58;
+      die3d.rz = 0.1;
+      die3d.lift = 6;
+      die3d.displayText = `d${sides}`;
+      dieSubEl.textContent = mod ? `Modifier ${mod >= 0 ? '+' + mod : mod} · Tap to roll` : 'Tap die to roll';
+      draw3dDie();
     }
 
     function openRollOverlay({ label = 'd20 Check', title = 'Tap or Press Space to Roll', sides = 20, mod = 0 }) {
@@ -726,39 +732,59 @@ ${state.files.character.content}`;
       useRollBtn.disabled = true;
       document.getElementById('overlay-label').textContent = label;
       document.getElementById('overlay-title').textContent = title;
-      resetDieVisual(sides, mod);
+      setIdleDie(sides, mod);
       rollOverlay.classList.remove('hidden');
     }
 
     function performDieRoll() {
-      dieBtn.classList.remove('animate-bg3-tumble');
-      dieShadow.classList.remove('animate-shadow-pulse');
-      void dieBtn.offsetWidth;
-      void dieShadow.offsetWidth;
-      dieBtn.classList.add('animate-bg3-tumble');
-      dieShadow.classList.add('animate-shadow-pulse');
+      if (die3d.animId) cancelAnimationFrame(die3d.animId);
 
       const raw = Math.floor(Math.random() * state.dieSides) + 1;
       const total = raw + state.modifier;
       state.lastRoll = { raw, total, sides: state.dieSides, mod: state.modifier, label: state.skillLabel };
-
-      dieValEl.textContent = '...';
-      dieSubEl.textContent = 'Tumbling...';
       useRollBtn.disabled = true;
+      dieSubEl.textContent = 'Tumbling...';
 
-      window.clearTimeout(state.rollTimer);
-      state.rollTimer = window.setTimeout(() => {
-        dieValEl.textContent = state.modifier ? `${total}` : `${raw}`;
-        dieSubEl.textContent = state.modifier
-          ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
-          : `Rolled d${state.dieSides}`;
-        useRollBtn.disabled = false;
-      }, 620);
+      const duration = 700;
+      const start = performance.now();
+      const startRx = die3d.rx;
+      const startRy = die3d.ry;
+      const targetRx = startRx + Math.PI * 3.5;
+      const targetRy = startRy + Math.PI * 4;
+
+      function step(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const ease = 1 - Math.pow(1 - t, 3);
+        die3d.rx = startRx + (targetRx - startRx) * ease;
+        die3d.ry = startRy + (targetRy - startRy) * ease;
+        die3d.lift = Math.sin(t * Math.PI) * 26 + 4;
+        die3d.displayText = t < 0.85
+          ? String(Math.floor(Math.random() * state.dieSides) + 1)
+          : String(state.modifier ? total : raw);
+        draw3dDie();
+
+        if (t < 1) {
+          die3d.animId = requestAnimationFrame(step);
+        } else {
+          die3d.lift = 6;
+          die3d.displayText = state.modifier ? `${total}` : `${raw}`;
+          draw3dDie();
+          dieSubEl.textContent = state.modifier
+            ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
+            : `Rolled d${state.dieSides}`;
+          useRollBtn.disabled = false;
+        }
+      }
+
+      die3d.animId = requestAnimationFrame(step);
     }
 
     dieBtn.addEventListener('click', performDieRoll);
     document.getElementById('btn-open-roll').addEventListener('click', () => openRollOverlay({}));
-    document.getElementById('btn-close-roll').addEventListener('click', () => rollOverlay.classList.add('hidden'));
+    document.getElementById('btn-close-roll').addEventListener('click', () => {
+      if (die3d.animId) cancelAnimationFrame(die3d.animId);
+      rollOverlay.classList.add('hidden');
+    });
 
     document.querySelectorAll('.die-select').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -768,7 +794,7 @@ ${state.files.character.content}`;
         state.lastRoll = null;
         useRollBtn.disabled = true;
         document.getElementById('overlay-label').textContent = state.skillLabel;
-        resetDieVisual(state.dieSides, 0);
+        setIdleDie(state.dieSides, 0);
       });
     });
 
@@ -815,6 +841,7 @@ ${state.files.character.content}`;
           performDieRoll();
         }
       } else if (e.key === 'Escape') {
+        if (die3d.animId) cancelAnimationFrame(die3d.animId);
         rollOverlay.classList.add('hidden');
       }
     });
