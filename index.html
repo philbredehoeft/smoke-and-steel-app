@@ -486,13 +486,15 @@
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    async function callGeminiDM(cfg, actionText, rollObj) {
+   async function callGeminiDM(cfg, actionText, rollObj) {
       const rollLine = rollObj
         ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
         : 'Dice Roll: None';
 
       const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
-Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise (2-3 paragraphs), and responsive to dice rolls.
+Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise, and responsive to dice rolls.
+For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's gritty sword-and-sorcery tone. Preserve the player's intent and agency—never decide major outcomes or override choices—but enrich body language, atmosphere, and natural spoken dialogue or brief back-and-forth exchanges when fitting.
+For "narrative": write 2-3 paragraphs as the Dungeon Master showing how the world, NPCs, and consequences respond after that beat.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
 
 === DM_INSTRUCTIONS.md ===
@@ -510,6 +512,7 @@ ${state.files.character.content}`;
       const schema = {
         type: 'OBJECT',
         properties: {
+          player_beat: { type: 'STRING' },
           narrative: { type: 'STRING' },
           location: { type: 'STRING' },
           hp_delta: { type: 'INTEGER' },
@@ -518,7 +521,7 @@ ${state.files.character.content}`;
           story_note: { type: 'STRING' },
           character_note: { type: 'STRING' }
         },
-        required: ['narrative', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
+        required: ['player_beat', 'narrative', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
 
       const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-3.8-flash');
@@ -529,7 +532,7 @@ ${state.files.character.content}`;
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: schema,
-          temperature: 0.75,
+          temperature: 0.8,
         }
       });
 
@@ -1099,6 +1102,20 @@ ${state.files.character.content}`;
           updateBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
         }
         const dmResult = await callGeminiDM(cfg, text, rollToSend);
+
+        if ((dmResult.player_beat || '').trim()) {
+          const beatParagraphs = dmResult.player_beat
+            .split(/\n+/)
+            .filter(Boolean)
+            .map((p) => `<p>${p}</p>`)
+            .join('');
+          appendStoryCard(
+            'Kraven · Embellished',
+            `${rollSummary}<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5">${beatParagraphs}</div>`,
+            false
+          );
+        }
+
         const paragraphs = (dmResult.narrative || '')
           .split(/\n+/)
           .filter(Boolean)
@@ -1106,7 +1123,6 @@ ${state.files.character.content}`;
           .join('');
 
         appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
-
         const dirtyKeys = applyUpdatesToMarkdown(dmResult);
         if (cfg.ghToken && dirtyKeys.size > 0) {
           updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
