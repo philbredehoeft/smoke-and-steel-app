@@ -22,8 +22,6 @@
             canvas: '#111318',
             surface: '#181b22',
             surfaceAlt: '#20242e',
-            ember: '#d97706',
-            emberSoft: '#f59e0b',
           }
         }
       }
@@ -51,6 +49,9 @@
         <h1 class="font-display text-sm sm:text-base tracking-wider text-amber-400 font-bold">SMOKE & STEEL</h1>
       </div>
       <div class="flex items-center gap-2">
+        <button id="btn-pull-repo" type="button" class="px-3 py-1.5 rounded-lg bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700 text-stone-200 text-xs font-medium min-h-[38px]">
+          Load Repo
+        </button>
         <button id="btn-open-roll" type="button" class="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium min-h-[38px]">
           Roll Die
         </button>
@@ -60,16 +61,16 @@
       </div>
     </header>
 
-    <!-- Main 3-Page Body (Single view on mobile, 3 columns on large desktop) -->
+    <!-- Main 3-Page Body -->
     <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 pb-24 lg:pb-6">
       <!-- PAGE 1: STORY -->
       <section id="view-story" class="page-view lg:col-span-6 flex flex-col bg-surface rounded-2xl border border-stone-800 overflow-hidden">
-        <div class="px-4 py-3 border-b border-stone-800/80 flex items-center justify-between">
+        <div class="px-4 py-3 border-b border-stone-800/80 flex items-center justify-between gap-2">
           <div>
             <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Current Scene</p>
             <h2 id="scene-location" class="font-display text-base text-stone-100">The Rusted Anchor</h2>
           </div>
-          <span id="connection-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-stone-800 text-stone-300 border border-stone-700">
+          <span id="connection-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-stone-800 text-stone-300 border border-stone-700 shrink-0">
             Local Mode
           </span>
         </div>
@@ -98,8 +99,9 @@
               class="flex-1 min-h-[46px] px-3.5 rounded-xl bg-canvas border border-stone-700 focus:border-amber-500 focus:outline-none text-sm text-stone-100 placeholder:text-stone-500"
             />
             <button
+              id="btn-send-turn"
               type="submit"
-              class="px-4 min-h-[46px] rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-semibold text-sm shrink-0 transition"
+              class="px-4 min-h-[46px] rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-stone-950 font-semibold text-sm shrink-0 transition"
             >
               Send
             </button>
@@ -151,7 +153,7 @@
         <div class="text-xs text-stone-300 space-y-1.5 pt-2 border-t border-stone-800/80">
           <p><span class="text-stone-400">Weapon:</span> Sorrow's Edge (+5, 1d8+3)</p>
           <p><span class="text-stone-400">Pact Slots:</span> 2 / 2 (1st Level)</p>
-          <p class="text-stone-400 text-[11px] pt-1">Repo file: <code class="text-stone-300">Character/Kraven_Hexblade.md</code></p>
+          <p class="text-stone-400 text-[11px] pt-1">Repo file: <code id="char-file-label" class="text-stone-300">Character/Kraven_Hexblade.md</code></p>
         </div>
       </section>
 
@@ -160,12 +162,12 @@
         <div class="border-b border-stone-800 pb-3">
           <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Campaign Tracker</p>
           <h2 class="font-display text-lg text-stone-100 mt-0.5">Act I & Clocks</h2>
-          <p class="text-xs text-stone-400">Synced with <code class="text-stone-300">smoke-and-steel-campaign</code></p>
+          <p id="sync-status-text" class="text-xs text-stone-400">Synced with smoke-and-steel-campaign</p>
         </div>
 
-        <div class="space-y-2.5">
+        <div id="clocks-box" class="space-y-2.5 text-xs">
           <div class="p-3 rounded-xl bg-surfaceAlt border border-stone-800">
-            <div class="flex justify-between text-xs mb-1.5">
+            <div class="flex justify-between mb-1.5">
               <span class="font-medium text-stone-200">Harbor Watch Lockdown</span>
               <span class="text-amber-400 font-semibold">2 / 6</span>
             </div>
@@ -173,19 +175,9 @@
               <div class="h-full w-1/3 bg-amber-500 rounded-full"></div>
             </div>
           </div>
-
-          <div class="p-3 rounded-xl bg-surfaceAlt border border-stone-800">
-            <div class="flex justify-between text-xs mb-1.5">
-              <span class="font-medium text-stone-200">Syndicate Search Net</span>
-              <span class="text-rose-400 font-semibold">1 / 6</span>
-            </div>
-            <div class="h-2 rounded-full bg-canvas overflow-hidden">
-              <div class="h-full w-1/6 bg-rose-500 rounded-full"></div>
-            </div>
-          </div>
         </div>
 
-        <div class="space-y-2 pt-2 border-t border-stone-800/80 text-xs">
+        <div id="milestones-box" class="space-y-2 pt-2 border-t border-stone-800/80 text-xs">
           <p class="font-semibold text-stone-300">Act I Milestones</p>
           <p class="text-amber-300">1. [ACTIVE] Secure smuggler passage with Mara Thorne.</p>
           <p class="text-stone-400">2. [UPCOMING] Infiltrate the Sunken Archive at low tide.</p>
@@ -194,7 +186,7 @@
       </section>
     </main>
 
-    <!-- Phone Bottom Navigation (Hidden on Desktop lg+) -->
+    <!-- Phone Bottom Navigation -->
     <nav class="lg:hidden fixed bottom-0 inset-x-0 z-20 grid grid-cols-3 bg-surface/95 backdrop-blur border-t border-stone-800">
       <button type="button" data-page="story" class="nav-btn min-h-[56px] flex flex-col items-center justify-center text-xs font-medium text-amber-400">
         <span>Story</span>
@@ -266,6 +258,10 @@
           </div>
         </div>
         <div>
+          <label class="block text-stone-300 mb-1">Character File Path in Repo</label>
+          <input id="cfg-char-path" type="text" placeholder="Character/Kraven_Hexblade.md" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+        </div>
+        <div>
           <label class="block text-stone-300 mb-1">GitHub Fine-Grained Token</label>
           <input id="cfg-gh-token" type="password" placeholder="github_pat_..." class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
         </div>
@@ -278,6 +274,8 @@
   </div>
 
   <script>
+    const STORAGE_KEY = 'smoke_and_steel_cfg_v1';
+
     const state = {
       activePage: 'story',
       dieSides: 20,
@@ -285,7 +283,228 @@
       skillLabel: 'd20 Check',
       lastRoll: null,
       pendingRoll: null,
+      files: {
+        rules: { path: 'DM_INSTRUCTIONS.md', content: '', sha: null },
+        campaign: { path: 'CAMPAIGN_STATE.md', content: '', sha: null },
+        story: { path: 'STORY_ENGINE.md', content: '', sha: null },
+        character: { path: 'Character/Kraven_Hexblade.md', content: '', sha: null },
+      }
     };
+
+    function getConfig() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        return {
+          geminiKey: (saved.geminiKey || '').trim(),
+          ghOwner: (saved.ghOwner || 'philbredehoeft').trim(),
+          ghRepo: (saved.ghRepo || 'smoke-and-steel-campaign').trim(),
+          charPath: (saved.charPath || 'Character/Kraven_Hexblade.md').trim(),
+          ghToken: (saved.ghToken || '').trim(),
+        };
+      } catch (_) {
+        return { geminiKey: '', ghOwner: 'philbredehoeft', ghRepo: 'smoke-and-steel-campaign', charPath: 'Character/Kraven_Hexblade.md', ghToken: '' };
+      }
+    }
+
+    function updateBadge() {
+      const cfg = getConfig();
+      const badge = document.getElementById('connection-badge');
+      document.getElementById('char-file-label').textContent = cfg.charPath;
+      document.getElementById('sync-status-text').textContent = `Repo: ${cfg.ghOwner}/${cfg.ghRepo}`;
+      if (cfg.geminiKey && cfg.ghToken) {
+        badge.textContent = 'Ready to Sync';
+        badge.className = 'text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shrink-0';
+      } else if (cfg.geminiKey) {
+        badge.textContent = 'Gemini Only';
+        badge.className = 'text-[11px] px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40 shrink-0';
+      } else {
+        badge.textContent = 'Local Mode';
+        badge.className = 'text-[11px] px-2.5 py-1 rounded-full bg-stone-800 text-stone-300 border border-stone-700 shrink-0';
+      }
+    }
+
+    // UTF-8 safe Base64 helpers for GitHub Contents API
+    function decodeBase64Utf8(b64) {
+      const bin = atob(b64.replace(/\n/g, ''));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder().decode(bytes);
+    }
+    function encodeBase64Utf8(str) {
+      const bytes = new TextEncoder().encode(str);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    }
+
+    async function ghGetFile(cfg, path) {
+      const url = `https://api.github.com/repos/${encodeURIComponent(cfg.ghOwner)}/${encodeURIComponent(cfg.ghRepo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${cfg.ghToken}`,
+          'Accept': 'application/vnd.github+json',
+        },
+      });
+      if (!res.ok) {
+        if (res.status === 404) return { content: '', sha: null };
+        throw new Error(`GitHub read failed (${res.status}) for ${path}`);
+      }
+      const data = await res.json();
+      return { content: decodeBase64Utf8(data.content || ''), sha: data.sha };
+    }
+
+    async function ghPutFile(cfg, path, content, sha, message) {
+      const url = `https://api.github.com/repos/${encodeURIComponent(cfg.ghOwner)}/${encodeURIComponent(cfg.ghRepo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
+      const body = { message, content: encodeBase64Utf8(content) };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${cfg.ghToken}`,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        throw new Error(`GitHub save failed (${res.status}) for ${path}`);
+      }
+      const data = await res.json();
+      return data.content?.sha || sha;
+    }
+
+    async function loadCampaignFromGitHub() {
+      const cfg = getConfig();
+      if (!cfg.ghToken) return;
+      state.files.character.path = cfg.charPath;
+
+      const entries = [
+        ['rules', 'DM_INSTRUCTIONS.md'],
+        ['campaign', 'CAMPAIGN_STATE.md'],
+        ['story', 'STORY_ENGINE.md'],
+        ['character', cfg.charPath],
+      ];
+
+      for (const [key, path] of entries) {
+        const fileData = await ghGetFile(cfg, path);
+        state.files[key] = { path, content: fileData.content, sha: fileData.sha };
+      }
+
+      // Parse location from CAMPAIGN_STATE.md if present
+      const locMatch = state.files.campaign.content.match(/Current Location:\*\*\s*(.+)/i);
+      if (locMatch) {
+        document.getElementById('scene-location').textContent = locMatch[1].trim();
+      }
+    }
+
+    async function callGeminiDM(cfg, actionText, rollObj) {
+      const rollLine = rollObj
+        ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
+        : 'Dice Roll: None';
+
+      const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
+Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise (2-3 paragraphs), and responsive to dice rolls.
+Return ONLY valid JSON matching the requested schema.
+
+=== DM_INSTRUCTIONS.md ===
+${state.files.rules.content || 'Gritty sword-and-sorcery tone. Prompt skill checks with clear DCs. Track combat HP.'}
+
+=== CAMPAIGN_STATE.md ===
+${state.files.campaign.content}
+
+=== STORY_ENGINE.md ===
+${state.files.story.content}
+
+=== CHARACTER (${state.files.character.path}) ===
+${state.files.character.content}`;
+
+      const schema = {
+        type: 'OBJECT',
+        properties: {
+          narrative: { type: 'STRING' },
+          location: { type: 'STRING' },
+          hp_delta: { type: 'INTEGER' },
+          gold_delta: { type: 'INTEGER' },
+          campaign_note: { type: 'STRING' },
+          story_note: { type: 'STRING' },
+          character_note: { type: 'STRING' }
+        },
+        required: ['narrative', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
+      };
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}` }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+            temperature: 0.75,
+          }
+        })
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Gemini error (${res.status}): ${errText.slice(0, 140)}`);
+      }
+      const data = await res.json();
+      const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      return JSON.parse(rawJson);
+    }
+
+    function applyUpdatesToMarkdown(cfg, dmResult) {
+      if (dmResult.location) {
+        document.getElementById('scene-location').textContent = dmResult.location;
+        if (state.files.campaign.content) {
+          state.files.campaign.content = state.files.campaign.content.replace(
+            /(\*\*Current Location:\*\*\s*).*/i,
+            `$1${dmResult.location}`
+          );
+        }
+      }
+      if (dmResult.campaign_note) {
+        state.files.campaign.content = `${state.files.campaign.content.trim()}\n- Turn Update: ${dmResult.campaign_note}\n`;
+      }
+      if (dmResult.story_note) {
+        state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${dmResult.story_note}\n`;
+      }
+      if (dmResult.character_note || dmResult.hp_delta || dmResult.gold_delta) {
+        const notes = [];
+        if (dmResult.hp_delta) notes.push(`HP delta ${dmResult.hp_delta > 0 ? '+' : ''}${dmResult.hp_delta}`);
+        if (dmResult.gold_delta) notes.push(`Gold delta ${dmResult.gold_delta > 0 ? '+' : ''}${dmResult.gold_delta} gp`);
+        if (dmResult.character_note) notes.push(dmResult.character_note);
+        state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
+      }
+    }
+
+    async function persistMarkdownToGitHub(cfg) {
+      if (!cfg.ghToken) return;
+      const targets = [
+        ['campaign', 'Update CAMPAIGN_STATE.md from DM turn'],
+        ['story', 'Update STORY_ENGINE.md from DM turn'],
+        ['character', `Update ${state.files.character.path} from DM turn`],
+      ];
+      for (const [key, msg] of targets) {
+        if (state.files[key].content) {
+          state.files[key].sha = await ghPutFile(cfg, state.files[key].path, state.files[key].content, state.files[key].sha, msg);
+        }
+      }
+    }
+
+    function appendStoryCard(roleLabel, bodyHtml, isDm = false) {
+      const log = document.getElementById('story-log');
+      const el = document.createElement('article');
+      el.className = isDm
+        ? 'p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90'
+        : 'p-3.5 rounded-xl bg-canvas/80 border border-stone-800 text-sm text-stone-200';
+      el.innerHTML = `<p class="text-[11px] uppercase tracking-wider ${isDm ? 'text-amber-400' : 'text-stone-400'} mb-1.5 font-semibold">${roleLabel}</p>${bodyHtml}`;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+    }
 
     // Mobile page switching
     document.querySelectorAll('.nav-btn').forEach((btn) => {
@@ -406,66 +625,111 @@
 
     // Settings modal + localStorage
     const settingsModal = document.getElementById('settings-modal');
-    const STORAGE_KEY = 'smoke_and_steel_cfg_v1';
 
-    function loadSettings() {
-      try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-        document.getElementById('cfg-gemini-key').value = saved.geminiKey || '';
-        document.getElementById('cfg-gh-owner').value = saved.ghOwner || 'philbredehoeft';
-        document.getElementById('cfg-gh-repo').value = saved.ghRepo || 'smoke-and-steel-campaign';
-        document.getElementById('cfg-gh-token').value = saved.ghToken || '';
-        const badge = document.getElementById('connection-badge');
-        if (saved.geminiKey && saved.ghToken) {
-          badge.textContent = 'Ready to Sync';
-          badge.className = 'text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40';
-        }
-      } catch (_) {}
+    function openSettingsModal() {
+      const saved = getConfig();
+      document.getElementById('cfg-gemini-key').value = saved.geminiKey;
+      document.getElementById('cfg-gh-owner').value = saved.ghOwner;
+      document.getElementById('cfg-gh-repo').value = saved.ghRepo;
+      document.getElementById('cfg-char-path').value = saved.charPath;
+      document.getElementById('cfg-gh-token').value = saved.ghToken;
+      settingsModal.classList.remove('hidden');
     }
 
-    document.getElementById('btn-open-settings').addEventListener('click', () => {
-      loadSettings();
-      settingsModal.classList.remove('hidden');
-    });
+    document.getElementById('btn-open-settings').addEventListener('click', openSettingsModal);
     document.getElementById('btn-close-settings').addEventListener('click', () => settingsModal.classList.add('hidden'));
-    document.getElementById('btn-save-settings').addEventListener('click', () => {
+    document.getElementById('btn-save-settings').addEventListener('click', async () => {
       const payload = {
         geminiKey: document.getElementById('cfg-gemini-key').value.trim(),
         ghOwner: document.getElementById('cfg-gh-owner').value.trim() || 'philbredehoeft',
         ghRepo: document.getElementById('cfg-gh-repo').value.trim() || 'smoke-and-steel-campaign',
+        charPath: document.getElementById('cfg-char-path').value.trim() || 'Character/Kraven_Hexblade.md',
         ghToken: document.getElementById('cfg-gh-token').value.trim(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      loadSettings();
+      updateBadge();
       settingsModal.classList.add('hidden');
+      if (payload.ghToken) {
+        try {
+          await loadCampaignFromGitHub();
+          appendStoryCard('System', '<p class="text-xs text-emerald-300">Loaded campaign Markdown files from GitHub.</p>', false);
+        } catch (err) {
+          appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+        }
+      }
     });
 
-    // Action log preview
-    document.getElementById('action-form').addEventListener('submit', (e) => {
+    document.getElementById('btn-pull-repo').addEventListener('click', async () => {
+      const cfg = getConfig();
+      if (!cfg.ghToken) {
+        openSettingsModal();
+        return;
+      }
+      try {
+        await loadCampaignFromGitHub();
+        appendStoryCard('System', '<p class="text-xs text-emerald-300">Refreshed campaign files from GitHub.</p>', false);
+      } catch (err) {
+        appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+      }
+    });
+
+    // Submit turn
+    document.getElementById('action-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const input = document.getElementById('action-input');
+      const sendBtn = document.getElementById('btn-send-turn');
       const text = input.value.trim();
-      if (!text && !state.pendingRoll) return;
+      const rollToSend = state.pendingRoll;
+      if (!text && !rollToSend) return;
 
-      const log = document.getElementById('story-log');
-      const rollSummary = state.pendingRoll
-        ? `<span class="inline-block mb-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">${state.pendingRoll.label}: ${state.pendingRoll.total}</span><br/>`
+      const rollSummary = rollToSend
+        ? `<span class="inline-block mb-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">${rollToSend.label}: ${rollToSend.total}</span><br/>`
         : '';
 
-      const entry = document.createElement('article');
-      entry.className = 'p-3.5 rounded-xl bg-canvas/80 border border-stone-800 text-sm text-stone-200';
-      entry.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-stone-400 mb-1 font-semibold">Kraven</p>${rollSummary}<p>${text || 'Act on the roll.'}</p>`;
-      log.appendChild(entry);
-      log.scrollTop = log.scrollHeight;
+      appendStoryCard('Kraven', `${rollSummary}<p>${text || 'Act on the roll.'}</p>`, false);
 
       input.value = '';
       state.pendingRoll = null;
       const pill = document.getElementById('pending-roll-pill');
       pill.classList.add('hidden');
       pill.classList.remove('flex');
+
+      const cfg = getConfig();
+      if (!cfg.geminiKey) {
+        appendStoryCard('System', '<p class="text-xs text-amber-300">Add your Google AI Studio API Key in Settings to get live DM responses.</p>', false);
+        return;
+      }
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = '...';
+      try {
+        if (cfg.ghToken && !state.files.campaign.content) {
+          await loadCampaignFromGitHub();
+        }
+        const dmResult = await callGeminiDM(cfg, text, rollToSend);
+        const paragraphs = (dmResult.narrative || '')
+          .split(/\n+/)
+          .filter(Boolean)
+          .map((p) => `<p>${p}</p>`)
+          .join('');
+        appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
+
+        applyUpdatesToMarkdown(cfg, dmResult);
+        if (cfg.ghToken) {
+          await persistMarkdownToGitHub(cfg);
+        }
+      } catch (err) {
+        appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send';
+      }
     });
 
-    loadSettings();
+    updateBadge();
+    if (getConfig().ghToken) {
+      loadCampaignFromGitHub().catch(() => {});
+    }
   </script>
 </body>
 </html>
