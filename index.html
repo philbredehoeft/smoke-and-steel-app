@@ -247,6 +247,10 @@
           <label class="block text-stone-300 mb-1">Google AI Studio API Key</label>
           <input id="cfg-gemini-key" type="password" placeholder="AIza..." class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
         </div>
+        <div>
+          <label class="block text-stone-300 mb-1">Gemini Model</label>
+          <input id="cfg-gemini-model" type="text" placeholder="gemini-2.0-flash" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+        </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-stone-300 mb-1">GitHub Owner</label>
@@ -296,13 +300,14 @@
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
         return {
           geminiKey: (saved.geminiKey || '').trim(),
+          geminiModel: (saved.geminiModel || 'gemini-2.0-flash').trim(),
           ghOwner: (saved.ghOwner || 'philbredehoeft').trim(),
           ghRepo: (saved.ghRepo || 'smoke-and-steel-campaign').trim(),
           charPath: (saved.charPath || 'Character/Kraven_Hexblade.md').trim(),
           ghToken: (saved.ghToken || '').trim(),
         };
       } catch (_) {
-        return { geminiKey: '', ghOwner: 'philbredehoeft', ghRepo: 'smoke-and-steel-campaign', charPath: 'Character/Kraven_Hexblade.md', ghToken: '' };
+        return { geminiKey: '', geminiModel: 'gemini-2.0-flash', ghOwner: 'philbredehoeft', ghRepo: 'smoke-and-steel-campaign', charPath: 'Character/Kraven_Hexblade.md', ghToken: '' };
       }
     }
 
@@ -323,7 +328,6 @@
       }
     }
 
-    // UTF-8 safe Base64 helpers for GitHub Contents API
     function decodeBase64Utf8(b64) {
       const bin = atob(b64.replace(/\n/g, ''));
       const bytes = new Uint8Array(bin.length);
@@ -390,7 +394,6 @@
         state.files[key] = { path, content: fileData.content, sha: fileData.sha };
       }
 
-      // Parse location from CAMPAIGN_STATE.md if present
       const locMatch = state.files.campaign.content.match(/Current Location:\*\*\s*(.+)/i);
       if (locMatch) {
         document.getElementById('scene-location').textContent = locMatch[1].trim();
@@ -432,7 +435,8 @@ ${state.files.character.content}`;
         required: ['narrative', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
+      const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-2.0-flash');
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -449,7 +453,7 @@ ${state.files.character.content}`;
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`Gemini error (${res.status}): ${errText.slice(0, 140)}`);
+        throw new Error(`Gemini error (${res.status}): ${errText.slice(0, 180)}`);
       }
       const data = await res.json();
       const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
@@ -506,7 +510,6 @@ ${state.files.character.content}`;
       log.scrollTop = log.scrollHeight;
     }
 
-    // Mobile page switching
     document.querySelectorAll('.nav-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const target = btn.dataset.page;
@@ -525,7 +528,6 @@ ${state.files.character.content}`;
       });
     });
 
-    // Roll Overlay controls
     const rollOverlay = document.getElementById('roll-overlay');
     const dieBtn = document.getElementById('overlay-die-btn');
     const dieValEl = document.getElementById('overlay-die-value');
@@ -623,12 +625,12 @@ ${state.files.character.content}`;
       }
     });
 
-    // Settings modal + localStorage
     const settingsModal = document.getElementById('settings-modal');
 
     function openSettingsModal() {
       const saved = getConfig();
       document.getElementById('cfg-gemini-key').value = saved.geminiKey;
+      document.getElementById('cfg-gemini-model').value = saved.geminiModel;
       document.getElementById('cfg-gh-owner').value = saved.ghOwner;
       document.getElementById('cfg-gh-repo').value = saved.ghRepo;
       document.getElementById('cfg-char-path').value = saved.charPath;
@@ -641,6 +643,7 @@ ${state.files.character.content}`;
     document.getElementById('btn-save-settings').addEventListener('click', async () => {
       const payload = {
         geminiKey: document.getElementById('cfg-gemini-key').value.trim(),
+        geminiModel: document.getElementById('cfg-gemini-model').value.trim() || 'gemini-2.0-flash',
         ghOwner: document.getElementById('cfg-gh-owner').value.trim() || 'philbredehoeft',
         ghRepo: document.getElementById('cfg-gh-repo').value.trim() || 'smoke-and-steel-campaign',
         charPath: document.getElementById('cfg-char-path').value.trim() || 'Character/Kraven_Hexblade.md',
@@ -673,7 +676,6 @@ ${state.files.character.content}`;
       }
     });
 
-    // Submit turn
     document.getElementById('action-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const input = document.getElementById('action-input');
