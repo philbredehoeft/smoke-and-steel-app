@@ -40,19 +40,22 @@
 <body class="bg-canvas text-stone-100 font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
   <div id="app" class="min-h-screen flex flex-col max-w-6xl mx-auto">
     <!-- Top Header -->
-    <header class="sticky top-0 z-20 flex items-center justify-between px-4 py-3 bg-surface/95 backdrop-blur border-b border-stone-800">
-      <div class="flex items-center gap-2.5">
-        <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
-        <h1 class="font-display text-sm sm:text-base tracking-wider text-amber-400 font-bold">SMOKE & STEEL</h1>
+    <header class="sticky top-0 z-20 flex items-center justify-between gap-2 px-3 sm:px-4 py-3 bg-surface/95 backdrop-blur border-b border-stone-800">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
+        <h1 class="font-display text-sm sm:text-base tracking-wider text-amber-400 font-bold truncate">SMOKE & STEEL</h1>
       </div>
-      <div class="flex items-center gap-2">
-        <button id="btn-pull-repo" type="button" class="px-3 py-1.5 rounded-lg bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700 text-stone-200 text-xs font-medium min-h-[38px]">
+      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <button id="btn-cycle-model" type="button" title="Switch Gemini model" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700 text-amber-200 text-xs font-medium min-h-[38px] max-w-[140px] sm:max-w-[180px] truncate">
+          Model: gemini-3.8-flash
+        </button>
+        <button id="btn-pull-repo" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700 text-stone-200 text-xs font-medium min-h-[38px]">
           Load Repo
         </button>
-        <button id="btn-open-roll" type="button" class="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium min-h-[38px]">
+        <button id="btn-open-roll" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium min-h-[38px]">
           Roll Die
         </button>
-        <button id="btn-open-settings" type="button" class="px-3 py-1.5 rounded-lg bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700 text-stone-200 text-xs font-medium min-h-[38px]">
+        <button id="btn-open-settings" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700 text-stone-200 text-xs font-medium min-h-[38px]">
           Settings
         </button>
       </div>
@@ -198,7 +201,7 @@
   </div>
 
   <!-- THINKING OVERLAY MODAL -->
-  <div id="thinking-overlay" class="hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+  <div id="thinking-overlay" style="display: none;" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm items-center justify-center p-4">
     <div class="w-full max-w-xs rounded-2xl bg-surface border border-amber-500/40 p-6 text-center space-y-4 shadow-2xl">
       <div class="mx-auto h-16 w-16 rounded-2xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center animate-ember">
         <span class="font-display text-2xl text-amber-300">&#9876;</span>
@@ -212,7 +215,7 @@
   </div>
 
   <!-- POLYHEDRAL 3D ROLL OVERLAY MODAL -->
-  <div id="roll-overlay" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+  <div id="roll-overlay" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="w-full max-w-sm rounded-2xl bg-surface/95 border border-amber-500/40 p-6 text-center space-y-4 shadow-2xl">
       <div>
         <p id="overlay-label" class="text-xs uppercase tracking-widest text-amber-400 font-semibold">d20 Check</p>
@@ -250,7 +253,7 @@
   </div>
 
   <!-- SETTINGS MODAL -->
-  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="w-full max-w-md rounded-2xl bg-surface border border-stone-700 p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-stone-800 pb-3">
         <h3 class="font-display text-base text-amber-400">Campaign & API Settings</h3>
@@ -293,6 +296,11 @@
 
   <script>
     const STORAGE_KEY = 'smoke_and_steel_cfg_v1';
+    const MODEL_PRESETS = [
+      'gemini-3.8-flash',
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+    ];
 
     const state = {
       activePage: 'story',
@@ -333,7 +341,7 @@
     async function beginBusyState(title, sub = 'Keeping screen awake during turn') {
       thinkingTitle.textContent = title;
       thinkingSub.textContent = sub;
-      thinkingOverlay.classList.remove('hidden');
+      thinkingOverlay.style.display = 'flex';
       await acquireWakeLock();
     }
 
@@ -343,7 +351,7 @@
     }
 
     async function endBusyState() {
-      thinkingOverlay.classList.add('hidden');
+      thinkingOverlay.style.display = 'none';
       await releaseWakeLock();
     }
 
@@ -363,11 +371,33 @@
       }
     }
 
+    function updateModelButton() {
+      const cfg = getConfig();
+      const btn = document.getElementById('btn-cycle-model');
+      if (btn) {
+        btn.textContent = `Model: ${cfg.geminiModel}`;
+        btn.title = `Active model: ${cfg.geminiModel} (click to switch)`;
+      }
+    }
+
+    function cycleGeminiModel() {
+      const saved = getConfig();
+      const list = MODEL_PRESETS.includes(saved.geminiModel)
+        ? MODEL_PRESETS
+        : [saved.geminiModel, ...MODEL_PRESETS];
+      const idx = list.indexOf(saved.geminiModel);
+      const nextModel = list[(idx + 1) % list.length];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, geminiModel: nextModel }));
+      updateModelButton();
+      appendStoryCard('System', `<p class="text-xs text-amber-200">Switched DM model to <code class="text-amber-300">${nextModel}</code>.</p>`, false);
+    }
+
     function updateBadge() {
       const cfg = getConfig();
       const badge = document.getElementById('connection-badge');
       document.getElementById('char-file-label').textContent = cfg.charPath;
       document.getElementById('sync-status-text').textContent = `Repo: ${cfg.ghOwner}/${cfg.ghRepo}`;
+      updateModelButton();
       if (cfg.geminiKey && cfg.ghToken) {
         badge.textContent = 'Ready to Sync';
         badge.className = 'text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shrink-0';
@@ -452,6 +482,10 @@
       }
     }
 
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
     async function callGeminiDM(cfg, actionText, rollObj) {
       const rollLine = rollObj
         ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
@@ -489,27 +523,39 @@ ${state.files.character.content}`;
 
       const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-3.8-flash');
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}` }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-            temperature: 0.75,
-          }
-        })
+      const payload = JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}` }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.75,
+        }
       });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Gemini error (${res.status}): ${errText.slice(0, 180)}`);
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+        });
+
+        if (res.status === 503 && attempt < maxAttempts) {
+          updateBusyState('Server Busy (503) — Retrying...', `Attempt ${attempt + 1} of ${maxAttempts} on ${cfg.geminiModel}`);
+          await sleep(900 * attempt);
+          continue;
+        }
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Gemini error (${res.status}) on ${cfg.geminiModel}: ${errText.slice(0, 180)}`);
+        }
+
+        const data = await res.json();
+        const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        return JSON.parse(rawJson);
       }
-      const data = await res.json();
-      const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      return JSON.parse(rawJson);
     }
 
     function applyUpdatesToMarkdown(dmResult) {
@@ -658,7 +704,6 @@ ${state.files.character.content}`;
 
     function buildDodecahedron() {
       const ico = buildIcosahedron();
-      // Dual of icosahedron: face centers of each icosahedron triangle form the 20 vertices of the dodecahedron
       const rawDodecaVerts = ico.faces.map((tri) => {
         const [a, b, c] = tri.map((i) => ico.vertices[i]);
         const cx = (a[0] + b[0] + c[0]) / 3;
@@ -668,7 +713,6 @@ ${state.files.character.content}`;
         return [cx / n, cy / n, cz / n];
       });
 
-      // Each of the 12 icosahedron vertices meets 5 triangles -> forms 1 pentagonal face on the dodecahedron
       const faces = ico.vertices.map((_, vIdx) => {
         const incident = [];
         ico.faces.forEach((tri, fIdx) => {
@@ -680,7 +724,6 @@ ${state.files.character.content}`;
         const uLen = Math.hypot(u[0], u[1], u[2]) || 1;
         const ux = [u[0] / uLen, u[1] / uLen, u[2] / uLen];
         const nx = [center[0], center[1], center[2]];
-        // v = n x u
         const vx = [
           nx[1] * ux[2] - nx[2] * ux[1],
           nx[2] * ux[0] - nx[0] * ux[2],
@@ -744,7 +787,6 @@ ${state.files.character.content}`;
       const cy = h / 2 - die3d.lift;
       const fov = 260;
 
-      // Grounded shadow beneath floating die
       const shadowScale = Math.max(0.5, 1 - die3d.lift / 95);
       dieCtx.save();
       dieCtx.beginPath();
@@ -772,7 +814,6 @@ ${state.files.character.content}`;
         const avgX = pts.reduce((acc, p) => acc + p.x, 0) / pts.length;
         const avgY = pts.reduce((acc, p) => acc + p.y, 0) / pts.length;
 
-        // Simple directional lighting from top-left-front
         const v1x = pts[1].x - pts[0].x;
         const v1y = pts[1].y - pts[0].y;
         const v2x = pts[2].x - pts[0].x;
@@ -794,7 +835,6 @@ ${state.files.character.content}`;
         });
         dieCtx.closePath();
 
-        // Warm crimson-amber faceted finish echoing the d20 reference in Smoke & Steel palette
         const r = Math.round(78 + 96 * face.light);
         const g = Math.round(28 + 38 * face.light);
         const b = Math.round(26 + 24 * face.light);
@@ -813,7 +853,6 @@ ${state.files.character.content}`;
         }
       });
 
-      // Render value centered on the front-most facet
       const labelX = frontMostFace ? frontMostFace.avgX : cx;
       const labelY = frontMostFace ? frontMostFace.avgY : cy;
 
@@ -965,6 +1004,8 @@ ${state.files.character.content}`;
       }
     });
 
+    document.getElementById('btn-cycle-model').addEventListener('click', cycleGeminiModel);
+
     const settingsModal = document.getElementById('settings-modal');
 
     function openSettingsModal() {
@@ -1050,12 +1091,12 @@ ${state.files.character.content}`;
 
       sendBtn.disabled = true;
       sendBtn.textContent = '...';
-      await beginBusyState('Consulting the Dungeon Master...', 'Keeping screen awake during turn');
+      await beginBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
       try {
         if (cfg.ghToken && !state.files.campaign.content) {
           updateBusyState('Loading Campaign...', 'Pulling state files from GitHub');
           await loadCampaignFromGitHub();
-          updateBusyState('Consulting the Dungeon Master...', 'Keeping screen awake during turn');
+          updateBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
         }
         const dmResult = await callGeminiDM(cfg, text, rollToSend);
         const paragraphs = (dmResult.narrative || '')
