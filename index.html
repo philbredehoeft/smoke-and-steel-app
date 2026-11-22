@@ -1338,27 +1338,28 @@ if (dieBtn) {
         }
 const dmResult = await callGeminiDM(cfg, text, rollToSend);
 
-        if ((dmResult.player_beat || '').trim()) {
-          const beatParagraphs = dmResult.player_beat
-            .split(/\n+/)
-            .filter(Boolean)
-            .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
-            .join('');
-          appendStoryCard(
-            'Kraven · Embellished',
-            `${rollSummary}<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5">${beatParagraphs}</div>`,
-            false
-          );
-        }
+     const beatHtml = (dmResult.player_beat || '').trim()
+        ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${
+            dmResult.player_beat
+              .split(/\n+/)
+              .filter(Boolean)
+              .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
+              .join('')
+          }</div>`
+        : '';
 
-        const paragraphs = (dmResult.narrative || '')
-          .split(/\n+/)
-          .filter(Boolean)
-          .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
-          .join('');
+      const paragraphs = (dmResult.narrative || '')
+        .split(/\n+/)
+        .filter(Boolean)
+        .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
+        .join('');
 
-appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
-
+      appendStoryCard(
+        'Dungeon Master',
+        `${rollSummary}${beatHtml}<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`,
+        true
+      );
+        
       if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
         const log = document.getElementById('story-log');
         renderSuggestedButtons(log && log.lastElementChild, dmResult.suggested_rolls);
