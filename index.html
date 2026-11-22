@@ -660,7 +660,7 @@ ${state.files.character.content}`;
     const dieBtn = document.getElementById('overlay-die-btn') || document.getElementById('die-btn') || document.getElementById('die-canvas');
     const dieCanvas = document.getElementById('die-canvas');
     const dieCtx = dieCanvas.getContext('2d');
-    const dieSubEl = document.getElementById('overlay-die-sub');
+    const dieSubEl = document.getElementById('overlay-die-sub') || document.getElementById('die-sub');
     const useRollBtn = document.getElementById('btn-use-roll');
 
     const PHI = (1 + Math.sqrt(5)) / 2;
@@ -882,8 +882,9 @@ ${state.files.character.content}`;
       die3d.rz = 0.08;
       die3d.lift = 8;
       die3d.displayText = `d${sides}`;
-      dieSubEl.textContent = mod ? `Modifier ${mod >= 0 ? '+' + mod : mod} · Tap to roll` : `Tap d${sides} to roll`;
-      drawPolyhedronDie(sides);
+      if (dieSubEl) {
+  dieSubEl.textContent = mod ? `Modifier ${mod >= 0 ? '+' + mod : mod} · Tap to roll` : `Tap d${sides} to roll`;
+}      drawPolyhedronDie(sides);
     }
 
     function openRollOverlay({ label = 'd20 Check', title = 'Tap or Press Space to Roll', sides = 20, mod = 0 }) {
