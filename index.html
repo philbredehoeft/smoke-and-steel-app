@@ -956,88 +956,150 @@ function setRollMode(mode) {
       return bestIdx;
     }
 
-    function renderMultiRollStrip(rolls, keptIdx, mod) {
-      const strip = document.getElementById('multi-roll-strip');
-      if (!strip) return;
-      if (!rolls || rolls.length === 0) {
-        strip.innerHTML = '';
-        return;
-      }
-      const modStr = mod ? ` ${mod >= 0 ? '+' + mod : mod}` : '';
-      strip.innerHTML = rolls.map((val, idx) => {
-        const kept = idx === keptIdx;
-        return kept
-          ? `<span class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-200 font-semibold">${val}${modStr}</span>`
-          : `<span class="px-2 py-0.5 rounded bg-stone-900/80 border border-stone-800 text-stone-500 line-through">${val}</span>`;
-      }).join('');
+    function renderMultiRollStrip(pool, mod) {
+  const strip = document.getElementById('multi-roll-strip');
+  if (!strip) return;
+  if (!pool || !Array.isArray(pool.rolls) || pool.rolls.length === 0) {
+    strip.innerHTML = '';
+    return;
+  }
+  const modStr = mod ? ` ${mod >= 0 ? '+' + mod : mod}` : '';
+  const finished = pool.revealedCount >= pool.rolls.length;
+
+  strip.innerHTML = pool.rolls.map((val, idx) => {
+    if (idx >= pool.revealedCount) {
+      return `<span class="px-2.5 py-1 rounded-lg bg-stone-900/60 border border-dashed border-stone-700 text-stone-400 text-xs">Die ${idx + 1}: ?</span>`;
     }
+    const isWinner = finished && idx === pool.keptIdx;
+    const isLoser = finished && idx !== pool.keptIdx;
+    if (isWinner) {
+      return `<span class="px-2.5 py-1 rounded-lg bg-amber-500/25 border border-amber-400 text-amber-100 text-xs font-bold ring-2 ring-amber-300/70 shadow-md shadow-amber-500/30">${val}${modStr} ★</span>`;
+    }
+    if (isLoser) {
+      return `<span class="px-2.5 py-1 rounded-lg bg-stone-950/70 border border-stone-800/70 text-stone-500 text-xs opacity-40 line-through">${val}</span>`;
+    }
+    return `<span class="px-2.5 py-1 rounded-lg bg-stone-800 border border-stone-600 text-stone-200 text-xs font-semibold">${val}</span>`;
+  }).join('');
+}
 
-    function performDieRoll() {
-      if (die3d.animId) cancelAnimationFrame(die3d.animId);
+function performDieRoll() {
+  if (die3d.animId) cancelAnimationFrame(die3d.animId);
 
-      const mode = state.rollMode || 'normal';
-      const count = state.dieSides === 20 ? getDiceCountForMode(mode) : 1;
-      const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * state.dieSides) + 1);
-      const keptIdx = pickKeptIndex(rolls, mode);
-      const raw = rolls[keptIdx];
-      const total = raw + state.modifier;
+  const mode = state.rollMode || 'normal';
+  const totalCount = state.dieSides === 20 ? getDiceCountForMode(mode) : 1;
 
-      state.lastRoll = {
-        raw,
-        rolls,
-        keptIdx,
-        mode,
-        total,
-        sides: state.dieSides,
-        mod: state.modifier,
-        label: state.skillLabel,
-      };
-      useRollBtn.disabled = true;
-      const strip = document.getElementById('multi-roll-strip');
-      if (strip) strip.innerHTML = '';
-      dieSubEl.textContent = count > 1 ? `Tumbling ${count}d${state.dieSides}...` : `Tumbling d${state.dieSides}...`;
+  if (totalCount === 1) {
+    state.rollPool = null;
+    const raw = Math.floor(Math.random() * state.dieSides) + 1;
+    const total = raw + state.modifier;
+    state.lastRoll = { raw, total, sides: state.dieSides, mod: state.modifier, label: state.skillLabel };
+    useRollBtn.disabled = true;
+    renderMultiRollStrip(null, state.modifier);
+    dieSubEl.textContent = `Tumbling d${state.dieSides}...`;
 
-      const duration = 740;
-      const start = performance.now();
-      const startRx = die3d.rx;
-      const startRy = die3d.ry;
-      const startRz = die3d.rz;
-      const targetRx = startRx + Math.PI * 3;
-      const targetRy = startRy + Math.PI * 4;
-      const targetRz = startRz + Math.PI * 1.5;
+    const duration = 740;
+    const start = performance.now();
+    const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
+    const targetRx = startRx + Math.PI * 3, targetRy = startRy + Math.PI * 4, targetRz = startRz + Math.PI * 1.5;
 
-      function step(now) {
-        const t = Math.min(1, (now - start) / duration);
-        const ease = 1 - Math.pow(1 - t, 3);
-        die3d.rx = startRx + (targetRx - startRx) * ease;
-        die3d.ry = startRy + (targetRy - startRy) * ease;
-        die3d.rz = startRz + (targetRz - startRz) * ease;
-        die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
-        die3d.displayText = t < 0.86
-          ? String(Math.floor(Math.random() * state.dieSides) + 1)
-          : String(state.modifier ? total : raw);
+    function step(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const ease = 1 - Math.pow(1 - t, 3);
+      die3d.rx = startRx + (targetRx - startRx) * ease;
+      die3d.ry = startRy + (targetRy - startRy) * ease;
+      die3d.rz = startRz + (targetRz - startRz) * ease;
+      die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
+      die3d.displayText = t < 0.86
+        ? String(Math.floor(Math.random() * state.dieSides) + 1)
+        : String(state.modifier ? total : raw);
+      drawPolyhedronDie(state.dieSides);
+
+      if (t < 1) {
+        die3d.animId = requestAnimationFrame(step);
+      } else {
+        die3d.lift = 8;
+        die3d.displayText = state.modifier ? `${total}` : `${raw}`;
         drawPolyhedronDie(state.dieSides);
-
-        if (t < 1) {
-          die3d.animId = requestAnimationFrame(step);
-        } else {
-          die3d.lift = 8;
-          die3d.displayText = state.modifier ? `${total}` : `${raw}`;
-          drawPolyhedronDie(state.dieSides);
-          if (count > 1) {
-            renderMultiRollStrip(rolls, keptIdx, state.modifier);
-          }
-          dieSubEl.textContent = count > 1
-            ? `Kept ${raw} from [${rolls.join(', ')}]${state.modifier ? ` (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})` : ''}`
-            : (state.modifier
-              ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
-              : `Rolled d${state.dieSides}`);
-          useRollBtn.disabled = false;
-        }
+        dieSubEl.textContent = state.modifier
+          ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
+          : `Rolled d${state.dieSides}`;
+        useRollBtn.disabled = false;
       }
-
-      die3d.animId = requestAnimationFrame(step);
     }
+    die3d.animId = requestAnimationFrame(step);
+    return;
+  }
+
+  if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
+    const rolls = Array.from({ length: totalCount }, () => Math.floor(Math.random() * state.dieSides) + 1);
+    const keptIdx = pickKeptIndex(rolls, mode);
+    state.rollPool = { rolls, keptIdx, mode, revealedCount: 0 };
+    state.lastRoll = null;
+    useRollBtn.disabled = true;
+  }
+
+  const pool = state.rollPool;
+  const currentIdx = pool.revealedCount;
+  const currentDieVal = pool.rolls[currentIdx];
+  const nextStepNum = currentIdx + 1;
+
+  renderMultiRollStrip(pool, state.modifier);
+  dieSubEl.textContent = `Tumbling die ${nextStepNum} of ${totalCount}...`;
+
+  const duration = 620;
+  const start = performance.now();
+  const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
+  const targetRx = startRx + Math.PI * 2.5, targetRy = startRy + Math.PI * 3.5, targetRz = startRz + Math.PI * 1.25;
+
+  function stepPool(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const ease = 1 - Math.pow(1 - t, 3);
+    die3d.rx = startRx + (targetRx - startRx) * ease;
+    die3d.ry = startRy + (targetRy - startRy) * ease;
+    die3d.rz = startRz + (targetRz - startRz) * ease;
+    die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
+    die3d.displayText = t < 0.85
+      ? String(Math.floor(Math.random() * state.dieSides) + 1)
+      : String(currentDieVal);
+    drawPolyhedronDie(state.dieSides);
+
+    if (t < 1) {
+      die3d.animId = requestAnimationFrame(stepPool);
+    } else {
+      pool.revealedCount = nextStepNum;
+      const allDone = pool.revealedCount >= totalCount;
+      const keptRaw = pool.rolls[pool.keptIdx];
+      const finalTotal = keptRaw + state.modifier;
+
+      die3d.lift = 8;
+      die3d.displayText = allDone
+        ? (state.modifier ? `${finalTotal}` : `${keptRaw}`)
+        : `${currentDieVal}`;
+      drawPolyhedronDie(state.dieSides);
+      renderMultiRollStrip(pool, state.modifier);
+
+      if (!allDone) {
+        dieSubEl.textContent = `Die ${nextStepNum} landed ${currentDieVal} · Tap again for die ${nextStepNum + 1} of ${totalCount}`;
+        useRollBtn.disabled = true;
+      } else {
+        state.lastRoll = {
+          raw: keptRaw,
+          rolls: pool.rolls,
+          keptIdx: pool.keptIdx,
+          mode,
+          total: finalTotal,
+          sides: state.dieSides,
+          mod: state.modifier,
+          label: state.skillLabel,
+        };
+        dieSubEl.textContent = `Kept ${keptRaw} from [${pool.rolls.join(', ')}]${state.modifier ? ` (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})` : ''}`;
+        useRollBtn.disabled = false;
+      }
+    }
+  }
+
+  die3d.animId = requestAnimationFrame(stepPool);
+}
 
     dieBtn.addEventListener('click', performDieRoll);
     document.getElementById('btn-open-roll').addEventListener('click', () => {
