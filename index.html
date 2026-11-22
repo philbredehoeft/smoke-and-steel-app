@@ -958,8 +958,11 @@ ${state.files.character.content}`;
   });
 
   cardEl.appendChild(btnRow);
-  const log = document.getElementById('story-log');
-  if (log) log.scrollTop = log.scrollHeight;
+const log = document.getElementById('story-log');
+  if (log) {
+    const topOffset = cardEl.offsetTop - log.offsetTop - 8;
+    log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+  }
 }
 
     function setRollMode(mode) {
@@ -1360,9 +1363,16 @@ const dmResult = await callGeminiDM(cfg, text, rollToSend);
         true
       );
         
-      if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
+     if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
         const log = document.getElementById('story-log');
         renderSuggestedButtons(log && log.lastElementChild, dmResult.suggested_rolls);
+      } else {
+        const log = document.getElementById('story-log');
+        const lastCard = log && log.lastElementChild;
+        if (log && lastCard) {
+          const topOffset = lastCard.offsetTop - log.offsetTop - 8;
+          log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+        }
       }
 
       const dirtyKeys = applyUpdatesToMarkdown(dmResult);
