@@ -483,8 +483,8 @@
 
 const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
 Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise, and responsive to dice rolls.
-For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's gritty sword-and-sorcery tone. Preserve the player's intent and agency—never decide major outcomes or override choices—but enrich body language, atmosphere, and natural spoken dialogue or brief back-and-forth exchanges when fitting.
-For "narrative": write 2-3 paragraphs as the Dungeon Master showing how the world, NPCs, and consequences respond after that beat. Whenever the player attacks with a weapon or spell, or is cornered/engaged by hostile enemies, do NOT resolve the attack or combat outcome purely as flavor text. Always provide the required roll(s) in "suggested_rolls" (such as Melee Attack with Sorrow's Edge, or initiative/defense/escape checks), track hit points across rounds, and keep combat going until resolved.
+For "narrative": write 2-3 paragraphs as the Dungeon Master showing how the world, NPCs, and consequences respond after that beat. During combat or tense encounters, keep the action roll-driven and tactical: track enemy HP and round flow, and never skip straight to resolving an attack's damage or enemy counter-moves without prompting rolls.
+For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation (varying across aggressive/attack, tactical/advantage or bonus-action setups, social/cunning, or dryly comedic moves). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls (with the weapon/spell's actual die sides, e.g. 8 for 1d8, and damage modifier) when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }. Use "advantage" when tactics, positioning, or setups clearly grant advantage, "disadvantage" when conditions impose disadvantage, "super_advantage" for three-die advantage, or "normal" otherwise.
 For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation (varying across combat/aggressive, social/cunning, and clever or dryly comedic approaches as fits the scene). Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, or Ability Name>", "mod": <integer modifier from character sheet or 0>, "dc": <integer DC or 0 if unstated>, "mode": "<normal|advantage|disadvantage|super_advantage>" }. Use "advantage" when tactics clearly grant advantage, "disadvantage" when conditions impose disadvantage, "super_advantage" for three-die / Elven Accuracy advantage, or "normal" otherwise.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
 
@@ -949,7 +949,7 @@ ${state.files.character.content}`;
       openRollOverlay({
         label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
         title: `${skill} (${modStr}${dcStr})${modeBadge}`,
-        sides: 20,
+        sides: Number(opt.sides) || 20,
         mod,
       });
     });
