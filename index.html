@@ -64,7 +64,7 @@
     <!-- Main 3-Page Body -->
     <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 pb-24 lg:pb-6">
       <!-- PAGE 1: STORY -->
-      <section id="view-story" class="page-view lg:col-span-6 flex flex-col bg-surface rounded-2xl border border-stone-800 overflow-hidden">
+      <section id="view-story" class="page-view lg:flex lg:col-span-6 flex flex-col bg-surface rounded-2xl border border-stone-800 overflow-hidden">
         <div class="px-4 py-3 border-b border-stone-800/80 flex items-center justify-between gap-2">
           <div>
             <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Current Scene</p>
@@ -215,31 +215,31 @@
   </div>
 
   <!-- POLYHEDRAL 3D ROLL OVERLAY MODAL -->
-<div id="roll-overlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-  <div class="w-full max-w-sm rounded-2xl bg-surface border border-amber-500/30 p-5 text-center space-y-4 shadow-2xl">
-    <div>
-      <div id="overlay-label" class="text-[11px] uppercase tracking-widest text-amber-400 font-semibold">d20 Check</div>
-      <div id="roll-summary-line" class="text-xs text-stone-400 mt-1">1d20 Normal · +0</div>
-    </div>
+  <div id="roll-overlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-2xl bg-surface border border-amber-500/30 p-5 text-center space-y-4 shadow-2xl">
+      <div>
+        <div id="overlay-label" class="text-[11px] uppercase tracking-widest text-amber-400 font-semibold">d20 Check</div>
+        <div id="roll-summary-line" class="text-xs text-stone-400 mt-1">1d20 Normal · +0</div>
+      </div>
 
-    <div class="flex flex-col items-center justify-center py-1">
-      <button id="die-btn" type="button" class="cursor-pointer focus:outline-none">
-        <canvas id="die-canvas" width="160" height="160"></canvas>
-      </button>
-      <div id="die-sub" class="text-xs text-stone-400 mt-1">Tap die to roll</div>
-      <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-2 mt-2.5"></div>
-    </div>
+      <div class="flex flex-col items-center justify-center py-1">
+        <button id="die-btn" type="button" class="cursor-pointer focus:outline-none">
+          <canvas id="die-canvas" width="160" height="160"></canvas>
+        </button>
+        <div id="die-sub" class="text-xs text-stone-400 mt-1">Tap die to roll</div>
+        <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-2 mt-2.5"></div>
+      </div>
 
-    <div class="flex items-center justify-between gap-3 pt-2 border-t border-stone-800/80">
-      <button id="btn-close-roll" type="button" class="flex-1 py-2.5 rounded-xl bg-surfaceAlt border border-stone-700 text-stone-300 text-xs font-medium cursor-pointer">
-        Close
-      </button>
-      <button id="btn-use-roll" type="button" disabled class="flex-1 py-2.5 rounded-xl bg-amber-500 disabled:opacity-35 text-stone-950 text-xs font-bold cursor-pointer">
-        Use Roll
-      </button>
+      <div class="flex items-center justify-between gap-3 pt-2 border-t border-stone-800/80">
+        <button id="btn-close-roll" type="button" class="flex-1 py-2.5 rounded-xl bg-surfaceAlt border border-stone-700 text-stone-300 text-xs font-medium cursor-pointer">
+          Close
+        </button>
+        <button id="btn-use-roll" type="button" disabled class="flex-1 py-2.5 rounded-xl bg-amber-500 disabled:opacity-35 text-stone-950 text-xs font-bold cursor-pointer">
+          Use Roll
+        </button>
+      </div>
     </div>
   </div>
-</div>
 
   <!-- SETTINGS MODAL -->
   <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -472,17 +472,16 @@
       }
     }
 
-    
     function sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-   async function callGeminiDM(cfg, actionText, rollObj) {
+    async function callGeminiDM(cfg, actionText, rollObj) {
       const rollLine = rollObj
         ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
         : 'Dice Roll: None';
 
-        const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
+      const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
 Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise, and responsive to dice rolls.
 For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's gritty sword-and-sorcery tone. For an unrolled attack, show the approach, movement, and wind-up right up to the moment of the strike, stopping before the blow lands.
 For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
@@ -492,7 +491,7 @@ For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
 - When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against Kha'rel.
 For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll (skill: "Damage (Sorrow's Edge)", sides: 8, mod: 3, dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
-     
+
 === DM_INSTRUCTIONS.md ===
 ${state.files.rules.content || 'Gritty sword-and-sorcery tone. Prompt skill checks with clear DCs. Track combat HP.'}
 
@@ -515,14 +514,14 @@ ${state.files.character.content}`;
             items: {
               type: 'OBJECT',
               properties: {
-                    action: { type: 'STRING' },
-                    skill: { type: 'STRING' },
-                    mod: { type: 'INTEGER' },
-                    dc: { type: 'INTEGER' },
-                    mode: { type: 'STRING' },
-                    sides: { type: 'INTEGER' }
-                  },
-                  required: ['action', 'skill', 'mod', 'dc', 'mode', 'sides']
+                action: { type: 'STRING' },
+                skill: { type: 'STRING' },
+                mod: { type: 'INTEGER' },
+                dc: { type: 'INTEGER' },
+                mode: { type: 'STRING' },
+                sides: { type: 'INTEGER' }
+              },
+              required: ['action', 'skill', 'mod', 'dc', 'mode', 'sides']
             }
           },
           location: { type: 'STRING' },
@@ -534,7 +533,7 @@ ${state.files.character.content}`;
         },
         required: ['player_beat', 'narrative', 'suggested_rolls', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
-     
+
       const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-3.8-flash');
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
       const payload = JSON.stringify({
@@ -601,34 +600,36 @@ ${state.files.character.content}`;
       if (storyNote && storyNote.toLowerCase() !== 'none') {
         state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${storyNote}\n`;
         dirtyKeys.add('story');
-        const hpDelta = Number(dmResult.hp_delta) || 0;
-const goldDelta = Number(dmResult.gold_delta) || 0;
-const charNote = (dmResult.character_note || '').trim();
-if (charNote && charNote.toLowerCase() !== 'none' || hpDelta !== 0 || goldDelta !== 0) {
-  const notes = [];
-  if (hpDelta) notes.push(`HP delta ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
-  if (goldDelta) notes.push(`Gold delta ${goldDelta > 0 ? '+' : ''}${goldDelta} gp`);
-  if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
-  state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
-  dirtyKeys.add('character');
-}
+      }
 
-const hpEl = document.getElementById('char-hp');
-if (hpEl && hpDelta !== 0) {
-  const match = hpEl.textContent.trim().match(/^(-?\d+)\s*\/\s*(\d+)$/);
-  const currentHp = match ? Number(match[1]) : 17;
-  const maxHp = match ? Number(match[2]) : 17;
-  const nextHp = Math.max(0, Math.min(maxHp, currentHp + hpDelta));
-  hpEl.textContent = `${nextHp} / ${maxHp}`;
-}
+      const hpDelta = Number(dmResult.hp_delta) || 0;
+      const goldDelta = Number(dmResult.gold_delta) || 0;
+      const charNote = (dmResult.character_note || '').trim();
+      if ((charNote && charNote.toLowerCase() !== 'none') || hpDelta !== 0 || goldDelta !== 0) {
+        const notes = [];
+        if (hpDelta) notes.push(`HP delta ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
+        if (goldDelta) notes.push(`Gold delta ${goldDelta > 0 ? '+' : ''}${goldDelta} gp`);
+        if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
+        state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
+        dirtyKeys.add('character');
+      }
 
-const goldEl = document.getElementById('char-gold');
-if (goldEl && goldDelta !== 0) {
-  const currentGold = parseInt(goldEl.textContent, 10) || 0;
-  const nextGold = Math.max(0, currentGold + goldDelta);
-  goldEl.textContent = `${nextGold} gp`;
-}
-      
+      const hpEl = document.getElementById('char-hp');
+      if (hpEl && hpDelta !== 0) {
+        const match = hpEl.textContent.trim().match(/^(-?\d+)\s*\/\s*(\d+)$/);
+        const currentHp = match ? Number(match[1]) : 17;
+        const maxHp = match ? Number(match[2]) : 17;
+        const nextHp = Math.max(0, Math.min(maxHp, currentHp + hpDelta));
+        hpEl.textContent = `${nextHp} / ${maxHp}`;
+      }
+
+      const goldEl = document.getElementById('char-gold');
+      if (goldEl && goldDelta !== 0) {
+        const currentGold = parseInt(goldEl.textContent, 10) || 0;
+        const nextGold = Math.max(0, currentGold + goldDelta);
+        goldEl.textContent = `${nextGold} gp`;
+      }
+
       return dirtyKeys;
     }
 
@@ -904,89 +905,90 @@ if (goldEl && goldDelta !== 0) {
       die3d.lift = 8;
       die3d.displayText = `d${sides}`;
       if (dieSubEl) {
-  dieSubEl.textContent = mod ? `Modifier ${mod >= 0 ? '+' + mod : mod} · Tap to roll` : `Tap d${sides} to roll`;
-}      drawPolyhedronDie(sides);
+        dieSubEl.textContent = mod ? `Modifier ${mod >= 0 ? '+' + mod : mod} · Tap to roll` : `Tap d${sides} to roll`;
+      }
+      drawPolyhedronDie(sides);
     }
 
     function openRollOverlay({ label = 'd20 Check', title = 'Tap or Press Space to Roll', sides = 20, mod = 0 }) {
-  state.dieSides = sides;
-  state.modifier = mod;
-  state.skillLabel = label;
-  state.lastRoll = null;
-  state.rollPool = null;
-  useRollBtn.disabled = true;
+      state.dieSides = sides;
+      state.modifier = mod;
+      state.skillLabel = label;
+      state.lastRoll = null;
+      state.rollPool = null;
+      useRollBtn.disabled = true;
 
-  const labelEl = document.getElementById('overlay-label');
-  if (labelEl) labelEl.textContent = label;
+      const labelEl = document.getElementById('overlay-label');
+      if (labelEl) labelEl.textContent = label;
 
-  const titleEl = document.getElementById('overlay-title') || document.getElementById('roll-summary-line');
-  if (titleEl) titleEl.textContent = title;
+      const titleEl = document.getElementById('overlay-title') || document.getElementById('roll-summary-line');
+      if (titleEl) titleEl.textContent = title;
 
-  const strip = document.getElementById('multi-roll-strip');
-  if (strip) strip.innerHTML = '';
+      const strip = document.getElementById('multi-roll-strip');
+      if (strip) strip.innerHTML = '';
 
-  setIdleDie(sides, mod);
-  rollOverlay.classList.remove('hidden');
-}
+      setIdleDie(sides, mod);
+      rollOverlay.classList.remove('hidden');
+    }
 
     function renderSuggestedButtons(cardEl, suggestions) {
-  if (!cardEl || !Array.isArray(suggestions) || suggestions.length === 0) return;
+      if (!cardEl || !Array.isArray(suggestions) || suggestions.length === 0) return;
 
-  const btnRow = document.createElement('div');
-  btnRow.className = 'flex flex-col gap-2 mt-3 pt-3 border-t border-stone-800/80';
+      const btnRow = document.createElement('div');
+      btnRow.className = 'flex flex-col gap-2 mt-3 pt-3 border-t border-stone-800/80';
 
-  const validModes = new Set(['normal', 'advantage', 'disadvantage', 'super_advantage']);
+      const validModes = new Set(['normal', 'advantage', 'disadvantage', 'super_advantage']);
 
-  suggestions.slice(0, 3).forEach((opt) => {
-    const actionLabel = (opt.action || '').trim();
-    const skill = (opt.skill || 'Check').trim();
-    const mod = Number(opt.mod) || 0;
-    const dc = Number(opt.dc) || 0;
-    const rawMode = (opt.mode || 'normal').toLowerCase().trim();
-    const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
+      suggestions.slice(0, 3).forEach((opt) => {
+        const actionLabel = (opt.action || '').trim();
+        const skill = (opt.skill || 'Check').trim();
+        const mod = Number(opt.mod) || 0;
+        const dc = Number(opt.dc) || 0;
+        const rawMode = (opt.mode || 'normal').toLowerCase().trim();
+        const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
 
-    const sides = Number(opt.sides) || 20;
-          const dieTag = sides !== 20 ? `1d${sides}` : '';
-          const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
-          const rollSpec = `${dieTag}${modStr}`;
-          const dcStr = dc > 0 ? ` · DC ${dc}` : '';
-          const modeBadge =
-            normalizedMode === 'advantage' ? ' · ADV' :
-            normalizedMode === 'disadvantage' ? ' · DIS' :
-            normalizedMode === 'super_advantage' ? ' · 3D20' : '';
+        const sides = Number(opt.sides) || 20;
+        const dieTag = sides !== 20 ? `1d${sides}` : '';
+        const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+        const rollSpec = `${dieTag}${modStr}`;
+        const dcStr = dc > 0 ? ` · DC ${dc}` : '';
+        const modeBadge =
+          normalizedMode === 'advantage' ? ' · ADV' :
+          normalizedMode === 'disadvantage' ? ' · DIS' :
+          normalizedMode === 'super_advantage' ? ' · 3D20' : '';
 
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
-          btn.innerHTML = actionLabel
-            ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${actionLabel}</span>
-               <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${skill} (${rollSpec}${dcStr})${modeBadge}</span>`
-            : `<span class="text-amber-200 text-xs font-semibold">Roll ${skill} (${rollSpec}${dcStr})${modeBadge}</span>`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
+        btn.innerHTML = actionLabel
+          ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${actionLabel}</span>
+             <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${skill} (${rollSpec}${dcStr})${modeBadge}</span>`
+          : `<span class="text-amber-200 text-xs font-semibold">Roll ${skill} (${rollSpec}${dcStr})${modeBadge}</span>`;
 
-          btn.addEventListener('click', () => {
-            const input = document.getElementById('action-input');
-            if (input && actionLabel) {
-              input.value = actionLabel;
-            }
-            setRollMode(normalizedMode);
-            openRollOverlay({
-              label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
-              title: `${skill} (${rollSpec}${dcStr})${modeBadge}`,
-              sides,
-              mod,
-            });
+        btn.addEventListener('click', () => {
+          const input = document.getElementById('action-input');
+          if (input && actionLabel) {
+            input.value = actionLabel;
+          }
+          setRollMode(normalizedMode);
+          openRollOverlay({
+            label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
+            title: `${skill} (${rollSpec}${dcStr})${modeBadge}`,
+            sides,
+            mod,
           });
+        });
 
-    btnRow.appendChild(btn);
-  });
+        btnRow.appendChild(btn);
+      });
 
-  cardEl.appendChild(btnRow);
-const log = document.getElementById('story-log');
-  if (log) {
-    const topOffset = cardEl.offsetTop - log.offsetTop - 8;
-    log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
-  }
-}
+      cardEl.appendChild(btnRow);
+      const log = document.getElementById('story-log');
+      if (log) {
+        const topOffset = cardEl.offsetTop - log.offsetTop - 8;
+        log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+      }
+    }
 
     function setRollMode(mode) {
       state.rollMode = mode || 'normal';
@@ -1029,153 +1031,153 @@ const log = document.getElementById('story-log');
     }
 
     function renderMultiRollStrip(pool, mod) {
-  const strip = document.getElementById('multi-roll-strip');
-  if (!strip) return;
-  if (!pool || !Array.isArray(pool.rolls) || pool.rolls.length === 0) {
-    strip.innerHTML = '';
-    return;
-  }
-  const modStr = mod ? ` ${mod >= 0 ? '+' + mod : mod}` : '';
-  const finished = pool.revealedCount >= pool.rolls.length;
-
-  strip.innerHTML = pool.rolls.map((val, idx) => {
-    if (idx >= pool.revealedCount) {
-      return `<span class="px-2.5 py-1 rounded-lg bg-stone-900/60 border border-dashed border-stone-700 text-stone-400 text-xs">Die ${idx + 1}: ?</span>`;
-    }
-    const isWinner = finished && idx === pool.keptIdx;
-    const isLoser = finished && idx !== pool.keptIdx;
-    if (isWinner) {
-      return `<span class="px-2.5 py-1 rounded-lg bg-amber-500/25 border border-amber-400 text-amber-100 text-xs font-bold ring-2 ring-amber-300/70 shadow-md shadow-amber-500/30">${val}${modStr} ★</span>`;
-    }
-    if (isLoser) {
-      return `<span class="px-2.5 py-1 rounded-lg bg-stone-950/70 border border-stone-800/70 text-stone-500 text-xs opacity-40 line-through">${val}</span>`;
-    }
-    return `<span class="px-2.5 py-1 rounded-lg bg-stone-800 border border-stone-600 text-stone-200 text-xs font-semibold">${val}</span>`;
-  }).join('');
-}
-
-function performDieRoll() {
-  if (die3d.animId) cancelAnimationFrame(die3d.animId);
-
-  const mode = state.rollMode || 'normal';
-  const totalCount = state.dieSides === 20 ? getDiceCountForMode(mode) : 1;
-
-  if (totalCount === 1) {
-    state.rollPool = null;
-    const raw = Math.floor(Math.random() * state.dieSides) + 1;
-    const total = raw + state.modifier;
-    state.lastRoll = { raw, total, sides: state.dieSides, mod: state.modifier, label: state.skillLabel };
-    useRollBtn.disabled = true;
-    renderMultiRollStrip(null, state.modifier);
-    dieSubEl.textContent = `Tumbling d${state.dieSides}...`;
-
-    const duration = 740;
-    const start = performance.now();
-    const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
-    const targetRx = startRx + Math.PI * 3, targetRy = startRy + Math.PI * 4, targetRz = startRz + Math.PI * 1.5;
-
-    function step(now) {
-      const t = Math.min(1, (now - start) / duration);
-      const ease = 1 - Math.pow(1 - t, 3);
-      die3d.rx = startRx + (targetRx - startRx) * ease;
-      die3d.ry = startRy + (targetRy - startRy) * ease;
-      die3d.rz = startRz + (targetRz - startRz) * ease;
-      die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
-      die3d.displayText = t < 0.86
-        ? String(Math.floor(Math.random() * state.dieSides) + 1)
-        : String(state.modifier ? total : raw);
-      drawPolyhedronDie(state.dieSides);
-
-      if (t < 1) {
-        die3d.animId = requestAnimationFrame(step);
-      } else {
-        die3d.lift = 8;
-        die3d.displayText = state.modifier ? `${total}` : `${raw}`;
-        drawPolyhedronDie(state.dieSides);
-        dieSubEl.textContent = state.modifier
-          ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
-          : `Rolled d${state.dieSides}`;
-        useRollBtn.disabled = false;
+      const strip = document.getElementById('multi-roll-strip');
+      if (!strip) return;
+      if (!pool || !Array.isArray(pool.rolls) || pool.rolls.length === 0) {
+        strip.innerHTML = '';
+        return;
       }
+      const modStr = mod ? ` ${mod >= 0 ? '+' + mod : mod}` : '';
+      const finished = pool.revealedCount >= pool.rolls.length;
+
+      strip.innerHTML = pool.rolls.map((val, idx) => {
+        if (idx >= pool.revealedCount) {
+          return `<span class="px-2.5 py-1 rounded-lg bg-stone-900/60 border border-dashed border-stone-700 text-stone-400 text-xs">Die ${idx + 1}: ?</span>`;
+        }
+        const isWinner = finished && idx === pool.keptIdx;
+        const isLoser = finished && idx !== pool.keptIdx;
+        if (isWinner) {
+          return `<span class="px-2.5 py-1 rounded-lg bg-amber-500/25 border border-amber-400 text-amber-100 text-xs font-bold ring-2 ring-amber-300/70 shadow-md shadow-amber-500/30">${val}${modStr} ★</span>`;
+        }
+        if (isLoser) {
+          return `<span class="px-2.5 py-1 rounded-lg bg-stone-950/70 border border-stone-800/70 text-stone-500 text-xs opacity-40 line-through">${val}</span>`;
+        }
+        return `<span class="px-2.5 py-1 rounded-lg bg-stone-800 border border-stone-600 text-stone-200 text-xs font-semibold">${val}</span>`;
+      }).join('');
     }
-    die3d.animId = requestAnimationFrame(step);
-    return;
-  }
 
-  if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
-    const rolls = Array.from({ length: totalCount }, () => Math.floor(Math.random() * state.dieSides) + 1);
-    const keptIdx = pickKeptIndex(rolls, mode);
-    state.rollPool = { rolls, keptIdx, mode, revealedCount: 0 };
-    state.lastRoll = null;
-    useRollBtn.disabled = true;
-  }
+    function performDieRoll() {
+      if (die3d.animId) cancelAnimationFrame(die3d.animId);
 
-  const pool = state.rollPool;
-  const currentIdx = pool.revealedCount;
-  const currentDieVal = pool.rolls[currentIdx];
-  const nextStepNum = currentIdx + 1;
+      const mode = state.rollMode || 'normal';
+      const totalCount = state.dieSides === 20 ? getDiceCountForMode(mode) : 1;
 
-  renderMultiRollStrip(pool, state.modifier);
-  dieSubEl.textContent = `Tumbling die ${nextStepNum} of ${totalCount}...`;
-
-  const duration = 620;
-  const start = performance.now();
-  const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
-  const targetRx = startRx + Math.PI * 2.5, targetRy = startRy + Math.PI * 3.5, targetRz = startRz + Math.PI * 1.25;
-
-  function stepPool(now) {
-    const t = Math.min(1, (now - start) / duration);
-    const ease = 1 - Math.pow(1 - t, 3);
-    die3d.rx = startRx + (targetRx - startRx) * ease;
-    die3d.ry = startRy + (targetRy - startRy) * ease;
-    die3d.rz = startRz + (targetRz - startRz) * ease;
-    die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
-    die3d.displayText = t < 0.85
-      ? String(Math.floor(Math.random() * state.dieSides) + 1)
-      : String(currentDieVal);
-    drawPolyhedronDie(state.dieSides);
-
-    if (t < 1) {
-      die3d.animId = requestAnimationFrame(stepPool);
-    } else {
-      pool.revealedCount = nextStepNum;
-      const allDone = pool.revealedCount >= totalCount;
-      const keptRaw = pool.rolls[pool.keptIdx];
-      const finalTotal = keptRaw + state.modifier;
-
-      die3d.lift = 8;
-      die3d.displayText = allDone
-        ? (state.modifier ? `${finalTotal}` : `${keptRaw}`)
-        : `${currentDieVal}`;
-      drawPolyhedronDie(state.dieSides);
-      renderMultiRollStrip(pool, state.modifier);
-
-      if (!allDone) {
-        dieSubEl.textContent = `Die ${nextStepNum} landed ${currentDieVal} · Tap again for die ${nextStepNum + 1} of ${totalCount}`;
+      if (totalCount === 1) {
+        state.rollPool = null;
+        const raw = Math.floor(Math.random() * state.dieSides) + 1;
+        const total = raw + state.modifier;
+        state.lastRoll = { raw, total, sides: state.dieSides, mod: state.modifier, label: state.skillLabel };
         useRollBtn.disabled = true;
-      } else {
-        state.lastRoll = {
-          raw: keptRaw,
-          rolls: pool.rolls,
-          keptIdx: pool.keptIdx,
-          mode,
-          total: finalTotal,
-          sides: state.dieSides,
-          mod: state.modifier,
-          label: state.skillLabel,
-        };
-        dieSubEl.textContent = `Kept ${keptRaw} from [${pool.rolls.join(', ')}]${state.modifier ? ` (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})` : ''}`;
-        useRollBtn.disabled = false;
+        renderMultiRollStrip(null, state.modifier);
+        dieSubEl.textContent = `Tumbling d${state.dieSides}...`;
+
+        const duration = 740;
+        const start = performance.now();
+        const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
+        const targetRx = startRx + Math.PI * 3, targetRy = startRy + Math.PI * 4, targetRz = startRz + Math.PI * 1.5;
+
+        function step(now) {
+          const t = Math.min(1, (now - start) / duration);
+          const ease = 1 - Math.pow(1 - t, 3);
+          die3d.rx = startRx + (targetRx - startRx) * ease;
+          die3d.ry = startRy + (targetRy - startRy) * ease;
+          die3d.rz = startRz + (targetRz - startRz) * ease;
+          die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
+          die3d.displayText = t < 0.86
+            ? String(Math.floor(Math.random() * state.dieSides) + 1)
+            : String(state.modifier ? total : raw);
+          drawPolyhedronDie(state.dieSides);
+
+          if (t < 1) {
+            die3d.animId = requestAnimationFrame(step);
+          } else {
+            die3d.lift = 8;
+            die3d.displayText = state.modifier ? `${total}` : `${raw}`;
+            drawPolyhedronDie(state.dieSides);
+            dieSubEl.textContent = state.modifier
+              ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
+              : `Rolled d${state.dieSides}`;
+            useRollBtn.disabled = false;
+          }
+        }
+        die3d.animId = requestAnimationFrame(step);
+        return;
       }
+
+      if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
+        const rolls = Array.from({ length: totalCount }, () => Math.floor(Math.random() * state.dieSides) + 1);
+        const keptIdx = pickKeptIndex(rolls, mode);
+        state.rollPool = { rolls, keptIdx, mode, revealedCount: 0 };
+        state.lastRoll = null;
+        useRollBtn.disabled = true;
+      }
+
+      const pool = state.rollPool;
+      const currentIdx = pool.revealedCount;
+      const currentDieVal = pool.rolls[currentIdx];
+      const nextStepNum = currentIdx + 1;
+
+      renderMultiRollStrip(pool, state.modifier);
+      dieSubEl.textContent = `Tumbling die ${nextStepNum} of ${totalCount}...`;
+
+      const duration = 620;
+      const start = performance.now();
+      const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
+      const targetRx = startRx + Math.PI * 2.5, targetRy = startRy + Math.PI * 3.5, targetRz = startRz + Math.PI * 1.25;
+
+      function stepPool(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const ease = 1 - Math.pow(1 - t, 3);
+        die3d.rx = startRx + (targetRx - startRx) * ease;
+        die3d.ry = startRy + (targetRy - startRy) * ease;
+        die3d.rz = startRz + (targetRz - startRz) * ease;
+        die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
+        die3d.displayText = t < 0.85
+          ? String(Math.floor(Math.random() * state.dieSides) + 1)
+          : String(currentDieVal);
+        drawPolyhedronDie(state.dieSides);
+
+        if (t < 1) {
+          die3d.animId = requestAnimationFrame(stepPool);
+        } else {
+          pool.revealedCount = nextStepNum;
+          const allDone = pool.revealedCount >= totalCount;
+          const keptRaw = pool.rolls[pool.keptIdx];
+          const finalTotal = keptRaw + state.modifier;
+
+          die3d.lift = 8;
+          die3d.displayText = allDone
+            ? (state.modifier ? `${finalTotal}` : `${keptRaw}`)
+            : `${currentDieVal}`;
+          drawPolyhedronDie(state.dieSides);
+          renderMultiRollStrip(pool, state.modifier);
+
+          if (!allDone) {
+            dieSubEl.textContent = `Die ${nextStepNum} landed ${currentDieVal} · Tap again for die ${nextStepNum + 1} of ${totalCount}`;
+            useRollBtn.disabled = true;
+          } else {
+            state.lastRoll = {
+              raw: keptRaw,
+              rolls: pool.rolls,
+              keptIdx: pool.keptIdx,
+              mode,
+              total: finalTotal,
+              sides: state.dieSides,
+              mod: state.modifier,
+              label: state.skillLabel,
+            };
+            dieSubEl.textContent = `Kept ${keptRaw} from [${pool.rolls.join(', ')}]${state.modifier ? ` (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})` : ''}`;
+            useRollBtn.disabled = false;
+          }
+        }
+      }
+
+      die3d.animId = requestAnimationFrame(stepPool);
     }
-  }
 
-  die3d.animId = requestAnimationFrame(stepPool);
-}
-
-if (dieBtn) {
-  dieBtn.addEventListener('click', performDieRoll);
-}
+    if (dieBtn) {
+      dieBtn.addEventListener('click', performDieRoll);
+    }
     document.getElementById('btn-open-roll').addEventListener('click', () => {
       setRollMode('normal');
       openRollOverlay({});
@@ -1214,37 +1216,37 @@ if (dieBtn) {
     });
 
     useRollBtn.addEventListener('click', () => {
-  if (!state.lastRoll) return;
-  state.pendingRoll = state.lastRoll;
+      if (!state.lastRoll) return;
+      state.pendingRoll = state.lastRoll;
 
-  const pill = document.getElementById('pending-roll-pill');
-  const modStr = state.pendingRoll.mod
-    ? ` (${state.pendingRoll.mod >= 0 ? '+' + state.pendingRoll.mod : state.pendingRoll.mod})`
-    : '';
-  const poolStr = Array.isArray(state.pendingRoll.rolls) && state.pendingRoll.rolls.length > 1
-    ? ` · pool [${state.pendingRoll.rolls.join(', ')}]`
-    : '';
+      const pill = document.getElementById('pending-roll-pill');
+      const modStr = state.pendingRoll.mod
+        ? ` (${state.pendingRoll.mod >= 0 ? '+' + state.pendingRoll.mod : state.pendingRoll.mod})`
+        : '';
+      const poolStr = Array.isArray(state.pendingRoll.rolls) && state.pendingRoll.rolls.length > 1
+        ? ` · pool [${state.pendingRoll.rolls.join(', ')}]`
+        : '';
 
-  document.getElementById('pending-roll-text').textContent =
-    `${state.pendingRoll.label}: ${state.pendingRoll.total} [kept ${state.pendingRoll.raw}${modStr}${poolStr}]`;
-  pill.classList.remove('hidden');
-  pill.classList.add('flex');
-  rollOverlay.classList.add('hidden');
+      document.getElementById('pending-roll-text').textContent =
+        `${state.pendingRoll.label}: ${state.pendingRoll.total} [kept ${state.pendingRoll.raw}${modStr}${poolStr}]`;
+      pill.classList.remove('hidden');
+      pill.classList.add('flex');
+      rollOverlay.classList.add('hidden');
 
-  const input = document.getElementById('action-input');
-  if (!input.value.trim()) {
-    input.value = `Attempt ${state.pendingRoll.label}`;
-  }
+      const input = document.getElementById('action-input');
+      if (!input.value.trim()) {
+        input.value = `Attempt ${state.pendingRoll.label}`;
+      }
 
-  const form = document.getElementById('action-form');
-  if (form) {
-    if (typeof form.requestSubmit === 'function') {
-      form.requestSubmit();
-    } else {
-      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    }
-  }
-});
+      const form = document.getElementById('action-form');
+      if (form) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      }
+    });
 
     document.getElementById('btn-clear-roll').addEventListener('click', () => {
       state.pendingRoll = null;
@@ -1362,60 +1364,60 @@ if (dieBtn) {
           await loadCampaignFromGitHub();
           updateBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
         }
-const dmResult = await callGeminiDM(cfg, text, rollToSend);
+        const dmResult = await callGeminiDM(cfg, text, rollToSend);
 
-     const beatHtml = (dmResult.player_beat || '').trim()
-        ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${
-            dmResult.player_beat
-              .split(/\n+/)
-              .filter(Boolean)
-              .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
-              .join('')
-          }</div>`
-        : '';
+        const beatHtml = (dmResult.player_beat || '').trim()
+          ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${
+              dmResult.player_beat
+                .split(/\n+/)
+                .filter(Boolean)
+                .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
+                .join('')
+            }</div>`
+          : '';
 
-      const paragraphs = (dmResult.narrative || '')
-        .split(/\n+/)
-        .filter(Boolean)
-        .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
-        .join('');
+        const paragraphs = (dmResult.narrative || '')
+          .split(/\n+/)
+          .filter(Boolean)
+          .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
+          .join('');
 
-      appendStoryCard(
-        'Dungeon Master',
-        `${rollSummary}${beatHtml}<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`,
-        true
-      );
-        
-     if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
-        const log = document.getElementById('story-log');
-        renderSuggestedButtons(log && log.lastElementChild, dmResult.suggested_rolls);
-      } else {
-        const log = document.getElementById('story-log');
-        const lastCard = log && log.lastElementChild;
-        if (log && lastCard) {
-          const topOffset = lastCard.offsetTop - log.offsetTop - 8;
-          log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+        appendStoryCard(
+          'Dungeon Master',
+          `${rollSummary}${beatHtml}<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`,
+          true
+        );
+
+        if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
+          const log = document.getElementById('story-log');
+          renderSuggestedButtons(log && log.lastElementChild, dmResult.suggested_rolls);
+        } else {
+          const log = document.getElementById('story-log');
+          const lastCard = log && log.lastElementChild;
+          if (log && lastCard) {
+            const topOffset = lastCard.offsetTop - log.offsetTop - 8;
+            log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+          }
         }
-      }
 
-      const dirtyKeys = applyUpdatesToMarkdown(dmResult);
-      if (cfg.ghToken && dirtyKeys.size > 0) {
-        updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
-        await persistMarkdownToGitHub(cfg, dirtyKeys);
+        const dirtyKeys = applyUpdatesToMarkdown(dmResult);
+        if (cfg.ghToken && dirtyKeys.size > 0) {
+          updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
+          await persistMarkdownToGitHub(cfg, dirtyKeys);
+        }
+      } catch (err) {
+        appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send';
+        await endBusyState();
       }
-    } catch (err) {
-      appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
-    } finally {
-      sendBtn.disabled = false;
-      sendBtn.textContent = 'Send';
-      await endBusyState();
+    });
+
+    updateBadge();
+    if (getConfig().ghToken) {
+      loadCampaignFromGitHub().catch(() => {});
     }
-  });
-
-  updateBadge();
-  if (getConfig().ghToken) {
-    loadCampaignFromGitHub().catch(() => {});
-  }
-</script>
+  </script>
 </body>
 </html>
