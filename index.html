@@ -215,49 +215,31 @@
   </div>
 
   <!-- POLYHEDRAL 3D ROLL OVERLAY MODAL -->
-  <div id="roll-overlay" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-surface/95 border border-amber-500/40 p-6 text-center space-y-4 shadow-2xl">
-      <div>
-        <p id="overlay-label" class="text-xs uppercase tracking-widest text-amber-400 font-semibold">d20 Check</p>
-        <h3 id="overlay-title" class="font-display text-xl text-stone-100 mt-1">Tap or Press Space to Roll</h3>
-      </div>
+<div id="roll-overlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+  <div class="w-full max-w-sm rounded-2xl bg-surface border border-amber-500/30 p-5 text-center space-y-4 shadow-2xl">
+    <div>
+      <div id="overlay-label" class="text-[11px] uppercase tracking-widest text-amber-400 font-semibold">d20 Check</div>
+      <div id="roll-summary-line" class="text-xs text-stone-400 mt-1">1d20 Normal · +0</div>
+    </div>
 
-      <div class="flex flex-col items-center justify-center">
-        <button
-          id="overlay-die-btn"
-          type="button"
-          class="rounded-2xl focus:outline-none cursor-pointer"
-          aria-label="Roll 3D Polyhedral Die"
-        >
-          <canvas id="die-canvas" width="220" height="196" class="w-[200px] h-[178px] block"></canvas>
-        </button>
-        <p id="overlay-die-sub" class="text-xs text-stone-300 mt-1">Tap die to roll</p>
-      </div>
-      <div class="flex justify-center gap-1.5 mt-2">
-        <button type="button" data-roll-mode="normal" class="mode-select px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium">Normal (1d20)</button>
-        <button type="button" data-roll-mode="advantage" class="mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500">Adv (2d20)</button>
-        <button type="button" data-roll-mode="disadvantage" class="mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500">Dis (2d20)</button>
-        <button type="button" data-roll-mode="super_advantage" class="mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500">Elven (3d20)</button>
-      </div>
-      <div id="multi-roll-strip" class="min-h-[28px] flex items-center justify-center gap-2 text-xs font-mono"></div>
+    <div class="flex flex-col items-center justify-center py-1">
+      <button id="die-btn" type="button" class="cursor-pointer focus:outline-none">
+        <canvas id="die-canvas" width="160" height="160"></canvas>
+      </button>
+      <div id="die-sub" class="text-xs text-stone-400 mt-1">Tap die to roll</div>
+      <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-2 mt-2.5"></div>
+    </div>
 
-      <div class="flex justify-center gap-2">
-        <button type="button" data-die="20" class="die-select px-3 py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-xs hover:border-amber-500">d20</button>
-        <button type="button" data-die="12" class="die-select px-3 py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-xs hover:border-amber-500">d12</button>
-        <button type="button" data-die="8" class="die-select px-3 py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-xs hover:border-amber-500">d8</button>
-        <button type="button" data-die="6" class="die-select px-3 py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-xs hover:border-amber-500">d6</button>
-      </div>
-
-      <div class="flex gap-2 pt-1">
-        <button id="btn-close-roll" type="button" class="flex-1 min-h-[44px] rounded-xl bg-surfaceAlt border border-stone-700 text-xs font-medium text-stone-300">
-          Cancel
-        </button>
-        <button id="btn-use-roll" type="button" disabled class="flex-1 min-h-[44px] rounded-xl bg-amber-500 disabled:opacity-40 text-stone-950 text-xs font-semibold">
-          Use Roll
-        </button>
-      </div>
+    <div class="flex items-center justify-between gap-3 pt-2 border-t border-stone-800/80">
+      <button id="btn-close-roll" type="button" class="flex-1 py-2.5 rounded-xl bg-surfaceAlt border border-stone-700 text-stone-300 text-xs font-medium cursor-pointer">
+        Close
+      </button>
+      <button id="btn-use-roll" type="button" disabled class="flex-1 py-2.5 rounded-xl bg-amber-500 disabled:opacity-35 text-stone-950 text-xs font-bold cursor-pointer">
+        Use Roll
+      </button>
     </div>
   </div>
+</div>
 
   <!-- SETTINGS MODAL -->
   <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1140,20 +1122,37 @@ function performDieRoll() {
     });
 
     useRollBtn.addEventListener('click', () => {
-      if (!state.lastRoll) return;
-      state.pendingRoll = state.lastRoll;
-      const pill = document.getElementById('pending-roll-pill');
-      const modStr = state.pendingRoll.mod ? ` (${state.pendingRoll.mod >= 0 ? '+' + state.pendingRoll.mod : state.pendingRoll.mod})` : '';
-      const poolStr = Array.isArray(state.pendingRoll.rolls) && state.pendingRoll.rolls.length > 1
-        ? ` · pool [${state.pendingRoll.rolls.join(', ')}]`
-        : '';
-      document.getElementById('pending-roll-text').textContent =
-        `${state.pendingRoll.label}: ${state.pendingRoll.total} [kept ${state.pendingRoll.raw}${modStr}${poolStr}]`;
-      pill.classList.remove('hidden');
-      pill.classList.add('flex');
-      rollOverlay.classList.add('hidden');
-      document.getElementById('action-input').focus();
-    });
+  if (!state.lastRoll) return;
+  state.pendingRoll = state.lastRoll;
+
+  const pill = document.getElementById('pending-roll-pill');
+  const modStr = state.pendingRoll.mod
+    ? ` (${state.pendingRoll.mod >= 0 ? '+' + state.pendingRoll.mod : state.pendingRoll.mod})`
+    : '';
+  const poolStr = Array.isArray(state.pendingRoll.rolls) && state.pendingRoll.rolls.length > 1
+    ? ` · pool [${state.pendingRoll.rolls.join(', ')}]`
+    : '';
+
+  document.getElementById('pending-roll-text').textContent =
+    `${state.pendingRoll.label}: ${state.pendingRoll.total} [kept ${state.pendingRoll.raw}${modStr}${poolStr}]`;
+  pill.classList.remove('hidden');
+  pill.classList.add('flex');
+  rollOverlay.classList.add('hidden');
+
+  const input = document.getElementById('action-input');
+  if (!input.value.trim()) {
+    input.value = `Attempt ${state.pendingRoll.label}`;
+  }
+
+  const form = document.getElementById('action-form');
+  if (form) {
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+  }
+});
 
     document.getElementById('btn-clear-roll').addEventListener('click', () => {
       state.pendingRoll = null;
