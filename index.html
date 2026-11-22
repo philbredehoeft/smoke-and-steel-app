@@ -233,6 +233,13 @@
         </button>
         <p id="overlay-die-sub" class="text-xs text-stone-300 mt-1">Tap die to roll</p>
       </div>
+      <div class="flex justify-center gap-1.5 mt-2">
+        <button type="button" data-roll-mode="normal" class="mode-select px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium">Normal (1d20)</button>
+        <button type="button" data-roll-mode="advantage" class="mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500">Adv (2d20)</button>
+        <button type="button" data-roll-mode="disadvantage" class="mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500">Dis (2d20)</button>
+        <button type="button" data-roll-mode="super_advantage" class="mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500">Elven (3d20)</button>
+      </div>
+      <div id="multi-roll-strip" class="min-h-[28px] flex items-center justify-center gap-2 text-xs font-mono"></div>
 
       <div class="flex justify-center gap-2">
         <button type="button" data-die="20" class="die-select px-3 py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-xs hover:border-amber-500">d20</button>
@@ -307,6 +314,7 @@
       dieSides: 20,
       modifier: 0,
       skillLabel: 'd20 Check',
+      rollMode: 'normal'
       lastRoll: null,
       pendingRoll: null,
       wakeLock: null,
@@ -491,10 +499,11 @@
         ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
         : 'Dice Roll: None';
 
-      const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
+const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
 Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise, and responsive to dice rolls.
 For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's gritty sword-and-sorcery tone. Preserve the player's intent and agency—never decide major outcomes or override choices—but enrich body language, atmosphere, and natural spoken dialogue or brief back-and-forth exchanges when fitting.
 For "narrative": write 2-3 paragraphs as the Dungeon Master showing how the world, NPCs, and consequences respond after that beat.
+For "suggested_rolls": whenever you ask the player to make a check or choose between checks, list each option with { "skill": "<Skill or Ability Name>", "mod": <integer modifier from character sheet or 0>, "dc": <integer DC or 0 if unstated> }. Return [] if no roll is requested right now.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
 
 === DM_INSTRUCTIONS.md ===
@@ -514,6 +523,18 @@ ${state.files.character.content}`;
         properties: {
           player_beat: { type: 'STRING' },
           narrative: { type: 'STRING' },
+          suggested_rolls: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                skill: { type: 'STRING' },
+                mod: { type: 'INTEGER' },
+                dc: { type: 'INTEGER' }
+              },
+              required: ['skill', 'mod', 'dc']
+            }
+          },
           location: { type: 'STRING' },
           hp_delta: { type: 'INTEGER' },
           gold_delta: { type: 'INTEGER' },
@@ -521,7 +542,7 @@ ${state.files.character.content}`;
           story_note: { type: 'STRING' },
           character_note: { type: 'STRING' }
         },
-        required: ['player_beat', 'narrative', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
+        required: ['player_beat', 'narrative', 'suggested_rolls', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
 
       const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-3.8-flash');
@@ -894,14 +915,86 @@ ${state.files.character.content}`;
       rollOverlay.classList.remove('hidden');
     }
 
+function setRollMode(mode) {
+      state.rollMode = mode || 'normal';
+      document.querySelectorAll('.mode-select').forEach((btn) => {
+        const active = btn.dataset.rollMode === state.rollMode;
+        btn.className = active
+          ? 'mode-select px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium'
+          : 'mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500';
+      });
+    }
+
+    document.querySelectorAll('.mode-select').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setRollMode(btn.dataset.rollMode);
+        state.lastRoll = null;
+        useRollBtn.disabled = true;
+        const strip = document.getElementById('multi-roll-strip');
+        if (strip) strip.innerHTML = '';
+        dieSubEl.textContent = `Mode: ${btn.textContent} · Tap die to roll`;
+      });
+    });
+
+    function getDiceCountForMode(mode) {
+      if (mode === 'advantage' || mode === 'disadvantage') return 2;
+      if (mode === 'super_advantage') return 3;
+      return 1;
+    }
+
+    function pickKeptIndex(rolls, mode) {
+      if (rolls.length === 1) return 0;
+      let bestIdx = 0;
+      for (let i = 1; i < rolls.length; i++) {
+        if (mode === 'disadvantage') {
+          if (rolls[i] < rolls[bestIdx]) bestIdx = i;
+        } else {
+          if (rolls[i] > rolls[bestIdx]) bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }
+
+    function renderMultiRollStrip(rolls, keptIdx, mod) {
+      const strip = document.getElementById('multi-roll-strip');
+      if (!strip) return;
+      if (!rolls || rolls.length === 0) {
+        strip.innerHTML = '';
+        return;
+      }
+      const modStr = mod ? ` ${mod >= 0 ? '+' + mod : mod}` : '';
+      strip.innerHTML = rolls.map((val, idx) => {
+        const kept = idx === keptIdx;
+        return kept
+          ? `<span class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-200 font-semibold">${val}${modStr}</span>`
+          : `<span class="px-2 py-0.5 rounded bg-stone-900/80 border border-stone-800 text-stone-500 line-through">${val}</span>`;
+      }).join('');
+    }
+
     function performDieRoll() {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
 
-      const raw = Math.floor(Math.random() * state.dieSides) + 1;
+      const mode = state.rollMode || 'normal';
+      const count = state.dieSides === 20 ? getDiceCountForMode(mode) : 1;
+      const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * state.dieSides) + 1);
+      const keptIdx = pickKeptIndex(rolls, mode);
+      const raw = rolls[keptIdx];
       const total = raw + state.modifier;
-      state.lastRoll = { raw, total, sides: state.dieSides, mod: state.modifier, label: state.skillLabel };
+
+      state.lastRoll = {
+        raw,
+        rolls,
+        keptIdx,
+        mode,
+        total,
+        sides: state.dieSides,
+        mod: state.modifier,
+        label: state.skillLabel,
+      };
       useRollBtn.disabled = true;
-      dieSubEl.textContent = `Tumbling d${state.dieSides}...`;
+      const strip = document.getElementById('multi-roll-strip');
+      if (strip) strip.innerHTML = '';
+      dieSubEl.textContent = count > 1 ? `Tumbling ${count}d${state.dieSides}...` : `Tumbling d${state.dieSides}...`;
 
       const duration = 740;
       const start = performance.now();
@@ -930,9 +1023,14 @@ ${state.files.character.content}`;
           die3d.lift = 8;
           die3d.displayText = state.modifier ? `${total}` : `${raw}`;
           drawPolyhedronDie(state.dieSides);
-          dieSubEl.textContent = state.modifier
-            ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
-            : `Rolled d${state.dieSides}`;
+          if (count > 1) {
+            renderMultiRollStrip(rolls, keptIdx, state.modifier);
+          }
+          dieSubEl.textContent = count > 1
+            ? `Kept ${raw} from [${rolls.join(', ')}]${state.modifier ? ` (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})` : ''}`
+            : (state.modifier
+              ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
+              : `Rolled d${state.dieSides}`);
           useRollBtn.disabled = false;
         }
       }
@@ -941,7 +1039,10 @@ ${state.files.character.content}`;
     }
 
     dieBtn.addEventListener('click', performDieRoll);
-    document.getElementById('btn-open-roll').addEventListener('click', () => openRollOverlay({}));
+    document.getElementById('btn-open-roll').addEventListener('click', () => {
+      setRollMode('normal');
+      openRollOverlay({});
+    });
     document.getElementById('btn-close-roll').addEventListener('click', () => {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
       rollOverlay.classList.add('hidden');
@@ -954,6 +1055,8 @@ ${state.files.character.content}`;
         state.skillLabel = `d${state.dieSides} Roll`;
         state.lastRoll = null;
         useRollBtn.disabled = true;
+        const strip = document.getElementById('multi-roll-strip');
+        if (strip) strip.innerHTML = '';
         document.getElementById('overlay-label').textContent = state.skillLabel;
         setIdleDie(state.dieSides, 0);
       });
@@ -963,6 +1066,7 @@ ${state.files.character.content}`;
       btn.addEventListener('click', () => {
         const skill = btn.dataset.skill;
         const mod = Number(btn.dataset.mod);
+        setRollMode('normal');
         openRollOverlay({
           label: `${skill} Check`,
           title: `Roll ${skill} (${mod >= 0 ? '+' + mod : mod})`,
@@ -977,8 +1081,11 @@ ${state.files.character.content}`;
       state.pendingRoll = state.lastRoll;
       const pill = document.getElementById('pending-roll-pill');
       const modStr = state.pendingRoll.mod ? ` (${state.pendingRoll.mod >= 0 ? '+' + state.pendingRoll.mod : state.pendingRoll.mod})` : '';
+      const poolStr = Array.isArray(state.pendingRoll.rolls) && state.pendingRoll.rolls.length > 1
+        ? ` · pool [${state.pendingRoll.rolls.join(', ')}]`
+        : '';
       document.getElementById('pending-roll-text').textContent =
-        `${state.pendingRoll.label}: ${state.pendingRoll.total} [raw ${state.pendingRoll.raw}${modStr}]`;
+        `${state.pendingRoll.label}: ${state.pendingRoll.total} [kept ${state.pendingRoll.raw}${modStr}${poolStr}]`;
       pill.classList.remove('hidden');
       pill.classList.add('flex');
       rollOverlay.classList.add('hidden');
@@ -1101,19 +1208,61 @@ ${state.files.character.content}`;
           await loadCampaignFromGitHub();
           updateBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
         }
-        const dmResult = await callGeminiDM(cfg, text, rollToSend);
+const dmResult = await callGeminiDM(cfg, text, rollToSend);
 
         if ((dmResult.player_beat || '').trim()) {
           const beatParagraphs = dmResult.player_beat
             .split(/\n+/)
             .filter(Boolean)
-            .map((p) => `<p>${p}</p>`)
+            .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
             .join('');
           appendStoryCard(
             'Kraven · Embellished',
             `${rollSummary}<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5">${beatParagraphs}</div>`,
             false
           );
+        }
+
+        const paragraphs = (dmResult.narrative || '')
+          .split(/\n+/)
+          .filter(Boolean)
+          .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
+          .join('');
+
+        appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
+
+        if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
+          const log = document.getElementById('story-log');
+          const lastCard = log.lastElementChild;
+          const btnRow = document.createElement('div');
+          btnRow.className = 'flex flex-wrap gap-2 mt-3 pt-3 border-t border-stone-800/80';
+
+          dmResult.suggested_rolls.forEach((opt) => {
+            const skill = (opt.skill || 'Check').trim();
+            const mod = Number(opt.mod) || 0;
+            const dc = Number(opt.dc) || 0;
+            const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+            const dcStr = dc > 0 ? ` · DC ${dc}` : '';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'min-h-[40px] px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 text-xs font-semibold transition cursor-pointer';
+            btn.textContent = `Roll ${skill} (${modStr}${dcStr})`;
+            btn.addEventListener('click', () => {
+              openRollOverlay({
+                label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}`,
+                title: `Roll ${skill} (${modStr}${dcStr})`,
+                sides: 20,
+                mod,
+              });
+            });
+            btnRow.appendChild(btn);
+          });
+
+          if (lastCard) {
+            lastCard.appendChild(btnRow);
+            log.scrollTop = log.scrollHeight;
+          }
         }
 
         const paragraphs = (dmResult.narrative || '')
