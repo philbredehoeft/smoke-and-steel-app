@@ -887,16 +887,25 @@ ${state.files.character.content}`;
     }
 
     function openRollOverlay({ label = 'd20 Check', title = 'Tap or Press Space to Roll', sides = 20, mod = 0 }) {
-      state.dieSides = sides;
-      state.modifier = mod;
-      state.skillLabel = label;
-      state.lastRoll = null;
-      useRollBtn.disabled = true;
-      document.getElementById('overlay-label').textContent = label;
-      document.getElementById('overlay-title').textContent = title;
-      setIdleDie(sides, mod);
-      rollOverlay.classList.remove('hidden');
-    }
+  state.dieSides = sides;
+  state.modifier = mod;
+  state.skillLabel = label;
+  state.lastRoll = null;
+  state.rollPool = null;
+  useRollBtn.disabled = true;
+
+  const labelEl = document.getElementById('overlay-label');
+  if (labelEl) labelEl.textContent = label;
+
+  const titleEl = document.getElementById('overlay-title') || document.getElementById('roll-summary-line');
+  if (titleEl) titleEl.textContent = title;
+
+  const strip = document.getElementById('multi-roll-strip');
+  if (strip) strip.innerHTML = '';
+
+  setIdleDie(sides, mod);
+  rollOverlay.classList.remove('hidden');
+}
 
 function setRollMode(mode) {
       state.rollMode = mode || 'normal';
