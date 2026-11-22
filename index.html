@@ -601,20 +601,34 @@ ${state.files.character.content}`;
       if (storyNote && storyNote.toLowerCase() !== 'none') {
         state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${storyNote}\n`;
         dirtyKeys.add('story');
-      }
+        const hpDelta = Number(dmResult.hp_delta) || 0;
+const goldDelta = Number(dmResult.gold_delta) || 0;
+const charNote = (dmResult.character_note || '').trim();
+if (charNote && charNote.toLowerCase() !== 'none' || hpDelta !== 0 || goldDelta !== 0) {
+  const notes = [];
+  if (hpDelta) notes.push(`HP delta ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
+  if (goldDelta) notes.push(`Gold delta ${goldDelta > 0 ? '+' : ''}${goldDelta} gp`);
+  if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
+  state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
+  dirtyKeys.add('character');
+}
 
-      const hpDelta = Number(dmResult.hp_delta) || 0;
-      const goldDelta = Number(dmResult.gold_delta) || 0;
-      const charNote = (dmResult.character_note || '').trim();
-      if (charNote && charNote.toLowerCase() !== 'none' || hpDelta !== 0 || goldDelta !== 0) {
-        const notes = [];
-        if (hpDelta) notes.push(`HP delta ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
-        if (goldDelta) notes.push(`Gold delta ${goldDelta > 0 ? '+' : ''}${goldDelta} gp`);
-        if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
-        state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
-        dirtyKeys.add('character');
-      }
+const hpEl = document.getElementById('char-hp');
+if (hpEl && hpDelta !== 0) {
+  const match = hpEl.textContent.trim().match(/^(-?\d+)\s*\/\s*(\d+)$/);
+  const currentHp = match ? Number(match[1]) : 17;
+  const maxHp = match ? Number(match[2]) : 17;
+  const nextHp = Math.max(0, Math.min(maxHp, currentHp + hpDelta));
+  hpEl.textContent = `${nextHp} / ${maxHp}`;
+}
 
+const goldEl = document.getElementById('char-gold');
+if (goldEl && goldDelta !== 0) {
+  const currentGold = parseInt(goldEl.textContent, 10) || 0;
+  const nextGold = Math.max(0, currentGold + goldDelta);
+  goldEl.textContent = `${nextGold} gp`;
+}
+      
       return dirtyKeys;
     }
 
