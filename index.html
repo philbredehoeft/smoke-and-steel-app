@@ -909,7 +909,60 @@ ${state.files.character.content}`;
   rollOverlay.classList.remove('hidden');
 }
 
-function setRollMode(mode) {
+    function renderSuggestedButtons(cardEl, suggestions) {
+  if (!cardEl || !Array.isArray(suggestions) || suggestions.length === 0) return;
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'flex flex-col gap-2 mt-3 pt-3 border-t border-stone-800/80';
+
+  const validModes = new Set(['normal', 'advantage', 'disadvantage', 'super_advantage']);
+
+  suggestions.slice(0, 3).forEach((opt) => {
+    const actionLabel = (opt.action || '').trim();
+    const skill = (opt.skill || 'Check').trim();
+    const mod = Number(opt.mod) || 0;
+    const dc = Number(opt.dc) || 0;
+    const rawMode = (opt.mode || 'normal').toLowerCase().trim();
+    const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
+
+    const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+    const dcStr = dc > 0 ? ` · DC ${dc}` : '';
+    const modeBadge =
+      normalizedMode === 'advantage' ? ' · ADV' :
+      normalizedMode === 'disadvantage' ? ' · DIS' :
+      normalizedMode === 'super_advantage' ? ' · 3D20' : '';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
+    btn.innerHTML = actionLabel
+      ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${actionLabel}</span>
+         <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${skill} (${modStr}${dcStr})${modeBadge}</span>`
+      : `<span class="text-amber-200 text-xs font-semibold">Roll ${skill} (${modStr}${dcStr})${modeBadge}</span>`;
+
+    btn.addEventListener('click', () => {
+      const input = document.getElementById('action-input');
+      if (input && actionLabel) {
+        input.value = actionLabel;
+      }
+      setRollMode(normalizedMode);
+      openRollOverlay({
+        label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
+        title: `${skill} (${modStr}${dcStr})${modeBadge}`,
+        sides: 20,
+        mod,
+      });
+    });
+
+    btnRow.appendChild(btn);
+  });
+
+  cardEl.appendChild(btnRow);
+  const log = document.getElementById('story-log');
+  if (log) log.scrollTop = log.scrollHeight;
+}
+
+    function setRollMode(mode) {
       state.rollMode = mode || 'normal';
       document.querySelectorAll('.mode-select').forEach((btn) => {
         const active = btn.dataset.rollMode === state.rollMode;
