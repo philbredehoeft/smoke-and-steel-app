@@ -657,7 +657,7 @@ ${state.files.character.content}`;
 
     // Polyhedral 3D Dice Renderer (d20 Icosahedron, d12 Dodecahedron, d8 Octahedron, d6 Cube)
     const rollOverlay = document.getElementById('roll-overlay');
-    const dieBtn = document.getElementById('overlay-die-btn');
+    const dieBtn = document.getElementById('overlay-die-btn') || document.getElementById('die-btn') || document.getElementById('die-canvas');
     const dieCanvas = document.getElementById('die-canvas');
     const dieCtx = dieCanvas.getContext('2d');
     const dieSubEl = document.getElementById('overlay-die-sub');
@@ -1083,7 +1083,9 @@ function performDieRoll() {
   die3d.animId = requestAnimationFrame(stepPool);
 }
 
-    dieBtn.addEventListener('click', performDieRoll);
+if (dieBtn) {
+  dieBtn.addEventListener('click', performDieRoll);
+}
     document.getElementById('btn-open-roll').addEventListener('click', () => {
       setRollMode('normal');
       openRollOverlay({});
