@@ -484,8 +484,8 @@
 const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
 Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise, and responsive to dice rolls.
 For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's gritty sword-and-sorcery tone. Preserve the player's intent and agency—never decide major outcomes or override choices—but enrich body language, atmosphere, and natural spoken dialogue or brief back-and-forth exchanges when fitting.
-For "narrative": write 2-3 paragraphs as the Dungeon Master showing how the world, NPCs, and consequences respond after that beat.
-For "suggested_rolls": whenever you ask the player to make a check or choose between checks, list each option with { "skill": "<Skill or Ability Name>", "mod": <integer modifier from character sheet or 0>, "dc": <integer DC or 0 if unstated>, "mode": "<normal|advantage|disadvantage|super_advantage>" }. Use "advantage" when the narrative or tactics clearly grant advantage, "disadvantage" when conditions impose disadvantage, "super_advantage" for three-die / Elven Accuracy style advantage, or "normal" otherwise. Return [] if no roll is requested right now.
+For "narrative": write 2-3 paragraphs as the Dungeon Master showing how the world, NPCs, and consequences respond after that beat. Whenever the player attacks with a weapon or spell, or is cornered/engaged by hostile enemies, do NOT resolve the attack or combat outcome purely as flavor text. Always provide the required roll(s) in "suggested_rolls" (such as Melee Attack with Sorrow's Edge, or initiative/defense/escape checks), track hit points across rounds, and keep combat going until resolved.
+For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation (varying across combat/aggressive, social/cunning, and clever or dryly comedic approaches as fits the scene). Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, or Ability Name>", "mod": <integer modifier from character sheet or 0>, "dc": <integer DC or 0 if unstated>, "mode": "<normal|advantage|disadvantage|super_advantage>" }. Use "advantage" when tactics clearly grant advantage, "disadvantage" when conditions impose disadvantage, "super_advantage" for three-die / Elven Accuracy advantage, or "normal" otherwise.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
 
 === DM_INSTRUCTIONS.md ===
@@ -510,12 +510,13 @@ ${state.files.character.content}`;
             items: {
               type: 'OBJECT',
               properties: {
+                action: { type: 'STRING' },
                 skill: { type: 'STRING' },
                 mod: { type: 'INTEGER' },
                 dc: { type: 'INTEGER' },
                 mode: { type: 'STRING' }
               },
-              required: ['skill', 'mod', 'dc', 'mode']
+              required: ['action', 'skill', 'mod', 'dc', 'mode']
             }
           },
           location: { type: 'STRING' },
@@ -1303,70 +1304,31 @@ const dmResult = await callGeminiDM(cfg, text, rollToSend);
           .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
           .join('');
 
-        appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
+appendStoryCard('Dungeon Master', `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`, true);
 
-       if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
-          const log = document.getElementById('story-log');
-          const lastCard = log.lastElementChild;
-          const btnRow = document.createElement('div');
-          btnRow.className = 'flex flex-wrap gap-2 mt-3 pt-3 border-t border-stone-800/80';
-
-          const validModes = new Set(['normal', 'advantage', 'disadvantage', 'super_advantage']);
-
-          dmResult.suggested_rolls.forEach((opt) => {
-            const skill = (opt.skill || 'Check').trim();
-            const mod = Number(opt.mod) || 0;
-            const dc = Number(opt.dc) || 0;
-            const rawMode = (opt.mode || 'normal').toLowerCase().trim();
-            const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
-
-            const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
-            const dcStr = dc > 0 ? ` · DC ${dc}` : '';
-            const modeBadge =
-              normalizedMode === 'advantage' ? ' · ADV' :
-              normalizedMode === 'disadvantage' ? ' · DIS' :
-              normalizedMode === 'super_advantage' ? ' · 3D20' : '';
-
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'min-h-[40px] px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 text-xs font-semibold transition cursor-pointer';
-            btn.textContent = `Roll ${skill} (${modStr}${dcStr})${modeBadge}`;
-            btn.addEventListener('click', () => {
-              setRollMode(normalizedMode);
-              openRollOverlay({
-                label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
-                title: `Roll ${skill} (${modStr}${dcStr})${modeBadge}`,
-                sides: 20,
-                mod,
-              });
-            });
-            btnRow.appendChild(btn);
-          });
-
-          if (lastCard) {
-            lastCard.appendChild(btnRow);
-            log.scrollTop = log.scrollHeight;
-          }
-        }
-
-              const dirtyKeys = applyUpdatesToMarkdown(dmResult);
-        if (cfg.ghToken && dirtyKeys.size > 0) {
-          updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
-          await persistMarkdownToGitHub(cfg, dirtyKeys);
-        }
-      } catch (err) {
-        appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
-      } finally {
-        sendBtn.disabled = false;
-        sendBtn.textContent = 'Send';
-        await endBusyState();
+      if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
+        const log = document.getElementById('story-log');
+        renderSuggestedButtons(log && log.lastElementChild, dmResult.suggested_rolls);
       }
-    });
 
-    updateBadge();
-    if (getConfig().ghToken) {
-      loadCampaignFromGitHub().catch(() => {});
+      const dirtyKeys = applyUpdatesToMarkdown(dmResult);
+      if (cfg.ghToken && dirtyKeys.size > 0) {
+        updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
+        await persistMarkdownToGitHub(cfg, dirtyKeys);
+      }
+    } catch (err) {
+      appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send';
+      await endBusyState();
     }
-  </script>
+  });
+
+  updateBadge();
+  if (getConfig().ghToken) {
+    loadCampaignFromGitHub().catch(() => {});
+  }
+</script>
 </body>
 </html>
