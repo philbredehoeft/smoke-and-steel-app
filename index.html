@@ -487,10 +487,12 @@ For "player_beat": embellish the player's action into 1-2 rich paragraphs matchi
 For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
 - When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the guards reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
 - When a dice roll IS attached: resolve that exact roll (hit vs. miss, success vs. failure). If an attack roll hits, describe the strike landing and immediately prompt a Damage roll (e.g., sides: 8, mod: 3 for Sorrow's Edge) in "suggested_rolls" before declaring whether the target survives or drops (unless the damage roll itself reduces them to 0 HP).
-For "narrative": write 1-2 short, punchy paragraphs (keep it concise, not a long novel) as the Dungeon Master showing how the world, NPCs, and consequences respond.
-- When NO dice roll is attached ("Dice Roll: None") and the player declares an attack: explicitly note that the attack requires a roll, write brief movement/positioning setup filler (e.g., closing distance, vaulting obstacles, or shifting stance) with ZERO hits, damage, or kills resolved yet, and present 3 concrete ways to attack in "suggested_rolls".
-- When a dice roll IS attached, resolve that exact roll fairly and concretely (hit vs. miss, success vs. failure, damage dealt, and enemy/world reaction), track enemy HP and round flow across combat, and prompt any follow-up rolls (such as a Damage roll after a hit, Initiative at combat start, or a saving throw / counter-check) in "suggested_rolls".
-For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. When an unrolled attack is declared, make all 3 options distinct ways to attack or set up the attack (such as a direct strike, a tactical/advantage setup or feint, and a spell/ranged or aggressive strike). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls (with the weapon/spell's actual die sides, e.g., 8 for 1d8, and damage modifier) when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }. Use "advantage" when tactics, positioning, or setups clearly grant advantage, "disadvantage" when conditions impose disadvantage, "super_advantage" for three-die advantage, or "normal" otherwise.
+For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
+- Record EVERY roll—both the player's submitted roll and all NPC/enemy rolls (Initiative, Attack rolls, Damage rolls, and Saving Throws)—explicitly inline in the text using bracketed math, e.g. `[Kha'rel Attack: d20 (16) + 5 = 21 vs AC 14 — Hit!]`, `[Kha'rel Damage: 1d8 (6) + 3 = 9 | Guard 1 HP: 11 → 2]`, or `[Syndicate Guard Attack: d20 (12) + 3 = 15 vs AC 15 — Hit! Damage: 1d6 (4) + 1 = 5]`.
+- When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the guards reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
+- When an Attack roll IS attached and hits: show the inline attack roll math, describe the blade/spell biting into the target, and STOP before declaring the enemy dead or defeated—keep the enemy standing until the player rolls Damage! Put the Damage roll (using the weapon's die sides, e.g., sides: 8 and mod: 3 for Sorrow's Edge) as the first option in "suggested_rolls".
+- When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against Kha'rel.
+For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll (`skill: "Damage (Sorrow's Edge)"`, `sides: 8`, `mod: 3`, `dc: 0`). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
 
 === DM_INSTRUCTIONS.md ===
@@ -515,13 +517,14 @@ ${state.files.character.content}`;
             items: {
               type: 'OBJECT',
               properties: {
-                action: { type: 'STRING' },
-                skill: { type: 'STRING' },
-                mod: { type: 'INTEGER' },
-                dc: { type: 'INTEGER' },
-                mode: { type: 'STRING' }
-              },
-              required: ['action', 'skill', 'mod', 'dc', 'mode']
+                    action: { type: 'STRING' },
+                    skill: { type: 'STRING' },
+                    mod: { type: 'INTEGER' },
+                    dc: { type: 'INTEGER' },
+                    mode: { type: 'STRING' },
+                    sides: { type: 'INTEGER' }
+                  },
+                  required: ['action', 'skill', 'mod', 'dc', 'mode', 'sides']
             }
           },
           location: { type: 'STRING' },
@@ -930,33 +933,37 @@ ${state.files.character.content}`;
     const rawMode = (opt.mode || 'normal').toLowerCase().trim();
     const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
 
-    const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
-    const dcStr = dc > 0 ? ` · DC ${dc}` : '';
-    const modeBadge =
-      normalizedMode === 'advantage' ? ' · ADV' :
-      normalizedMode === 'disadvantage' ? ' · DIS' :
-      normalizedMode === 'super_advantage' ? ' · 3D20' : '';
+    const sides = Number(opt.sides) || 20;
+          const dieTag = sides !== 20 ? `1d${sides}` : '';
+          const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+          const rollSpec = `${dieTag}${modStr}`;
+          const dcStr = dc > 0 ? ` · DC ${dc}` : '';
+          const modeBadge =
+            normalizedMode === 'advantage' ? ' · ADV' :
+            normalizedMode === 'disadvantage' ? ' · DIS' :
+            normalizedMode === 'super_advantage' ? ' · 3D20' : '';
 
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
-    btn.innerHTML = actionLabel
-      ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${actionLabel}</span>
-         <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${skill} (${modStr}${dcStr})${modeBadge}</span>`
-      : `<span class="text-amber-200 text-xs font-semibold">Roll ${skill} (${modStr}${dcStr})${modeBadge}</span>`;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
+          btn.innerHTML = actionLabel
+            ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${actionLabel}</span>
+               <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${skill} (${rollSpec}${dcStr})${modeBadge}</span>`
+            : `<span class="text-amber-200 text-xs font-semibold">Roll ${skill} (${rollSpec}${dcStr})${modeBadge}</span>`;
 
-    btn.addEventListener('click', () => {
-      const input = document.getElementById('action-input');
-      if (input && actionLabel) {
-        input.value = actionLabel;
-      }
-      setRollMode(normalizedMode);
-      openRollOverlay({
-        label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
-        title: `${skill} (${modStr}${dcStr})${modeBadge}`,
-        sides: Number(opt.sides) || 20,
-        mod,
-      });
+          btn.addEventListener('click', () => {
+            const input = document.getElementById('action-input');
+            if (input && actionLabel) {
+              input.value = actionLabel;
+            }
+            setRollMode(normalizedMode);
+            openRollOverlay({
+              label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
+              title: `${skill} (${rollSpec}${dcStr})${modeBadge}`,
+              sides,
+              mod,
+            });
+          });
     });
 
     btnRow.appendChild(btn);
