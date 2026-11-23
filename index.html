@@ -1,3 +1,17 @@
+
+Here is your updated **`index.html`** with those reliability and speed improvements built in, without sacrificing story or combat quality:
+
+### What Was Added
+1. **Automatic Model Failover (`429` & `503`):** If your active model hits a `429` quota limit or stays `503` busy after a quick retry, `callGeminiDM` automatically steps through your preset models (`gemini-3.8-flash` → `gemini-3.6-flash` → `gemini-3.5-flash-lite`), updates the loading overlay so you know what it's trying, and switches your active model button automatically once one succeeds.
+2. **Full Untruncated Gemini Error Messages:** If all models fail, `parseGeminiError` prints the full API error message (including exact `retry in Xs` wait times and which quota was hit) instead of cutting off at 180 characters.
+3. **Smart Prompt Note Trimming (`trimMarkdownNotes`):** Your GitHub files still keep your full history, while the prompt sent to Gemini caps old `- Turn Update:` / `- Arc Note:` / `- Session Note:` tails to the **10 most recent** entries—keeping responses snappier and cutting down input tokens-per-minute.
+4. **DM Thinking Depth Setting (`Auto` / `Low` / `Medium`):** Added a **DM Thinking Depth** selector in **Settings** defaulting to **`Auto (Model Default)`** so you keep full `MEDIUM` planning/combat math by default, with the option to switch to **`Low`** anytime you want to test faster turns.
+
+---
+
+### Full Updated `index.html` (Ready to Copy & Replace)
+
+```html
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -355,6 +369,15 @@
           </div>
         </div>
 
+        <div>
+          <label class="block text-stone-300 mb-1">DM Thinking Depth</label>
+          <select id="cfg-thinking-level" class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100">
+            <option value="auto">Auto (Model Default — Recommended)</option>
+            <option value="LOW">Low (Faster turns, lighter planning)</option>
+            <option value="MEDIUM">Medium (Deeper plot &amp; combat math)</option>
+          </select>
+        </div>
+
         <!-- GitHub Repo Coordinates -->
         <div class="grid grid-cols-3 gap-2">
           <div>
@@ -478,6 +501,42 @@
         .join('');
     }
 
+    function trimMarkdownNotes(md, maxRecent = 10) {
+      if (!md) return '';
+      const lines = md.split('\n');
+      const noteRx = /^\s*[-*]\s*(?:Turn Update|Arc Note|Session Note):/i;
+      const noteIndices = [];
+      lines.forEach((line, idx) => {
+        if (noteRx.test(line)) noteIndices.push(idx);
+      });
+      if (noteIndices.length <= maxRecent) return md;
+      const keepSet = new Set(noteIndices.slice(-maxRecent));
+      const omitted = noteIndices.length - maxRecent;
+      let insertedMarker = false;
+      const out = [];
+      lines.forEach((line, idx) => {
+        if (noteRx.test(line) && !keepSet.has(idx)) {
+          if (!insertedMarker) {
+            out.push(`... (${omitted} older turn/session notes omitted) ...`);
+            insertedMarker = true;
+          }
+          return;
+        }
+        out.push(line);
+      });
+      return out.join('\n');
+    }
+
+    function parseGeminiError(status, errText, modelName) {
+      try {
+        const parsed = JSON.parse(errText);
+        const msg = parsed?.error?.message || errText;
+        return `Gemini error (${status}) on ${modelName}: ${msg}`;
+      } catch (_) {
+        return `Gemini error (${status}) on ${modelName}: ${String(errText || '').slice(0, 400)}`;
+      }
+    }
+
     function makeDefaultProfile(overrides = {}) {
       return {
         id: overrides.id || `prof_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
@@ -505,6 +564,7 @@
               activeProfileId: parsed.activeProfileId || parsed.profiles[0].id,
               geminiKey: (parsed.geminiKey || '').trim(),
               geminiModel: (parsed.geminiModel || 'gemini-3.8-flash').trim(),
+              thinkingLevel: parsed.thinkingLevel || 'auto',
               profiles: parsed.profiles.map((p) => makeDefaultProfile(p)),
             };
           }
@@ -526,6 +586,7 @@
             activeProfileId: migrated.id,
             geminiKey: (leg.geminiKey || '').trim(),
             geminiModel: (leg.geminiModel || 'gemini-3.8-flash').trim(),
+            thinkingLevel: 'auto',
             profiles: [migrated],
           };
           localStorage.setItem(STORE_KEY, JSON.stringify(store));
@@ -538,6 +599,7 @@
         activeProfileId: initial.id,
         geminiKey: '',
         geminiModel: 'gemini-3.8-flash',
+        thinkingLevel: 'auto',
         profiles: [initial],
       };
     }
@@ -558,6 +620,7 @@
         campaignName: (prof.name || 'Solo Campaign').trim(),
         geminiKey: (store.geminiKey || '').trim(),
         geminiModel: (store.geminiModel || 'gemini-3.8-flash').trim(),
+        thinkingLevel: store.thinkingLevel || 'auto',
         ghOwner: (prof.ghOwner || '').trim(),
         ghRepo: (prof.ghRepo || '').trim(),
         ghBranch: (prof.ghBranch || 'main').trim() || 'main',
@@ -1686,13 +1749,13 @@ Return ONLY valid JSON matching the requested schema. Leave optional note fields
 ${state.files.rules.content || 'Prompt skill checks with clear DCs. Track combat HP and consequences fairly.'}
 
 === CAMPAIGN STATE (${state.files.campaign.path || 'None'}) ===
-${state.files.campaign.content}
+${trimMarkdownNotes(state.files.campaign.content, 10)}
 
 === STORY ENGINE (${state.files.story.path || 'None'}) ===
-${state.files.story.content}
+${trimMarkdownNotes(state.files.story.content, 10)}
 
 === CHARACTER (${state.files.character.path || 'None'}) ===
-${state.files.character.content}`;
+${trimMarkdownNotes(state.files.character.content, 10)}`;
 
       const schema = {
         type: 'OBJECT',
@@ -1744,60 +1807,101 @@ ${state.files.character.content}`;
       });
       contents.push({ role: 'user', parts: [{ text: currentUserText }] });
 
-      const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-3.8-flash');
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
-      const payload = JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents,
-        generationConfig: {
+      const startingModel = cfg.geminiModel || 'gemini-3.8-flash';
+      const candidateModels = [
+        startingModel,
+        ...MODEL_PRESETS.filter((m) => m !== startingModel),
+      ];
+
+      let lastErrMsg = 'Gemini request failed.';
+      for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+        const activeModel = candidateModels[mIdx];
+        const modelId = encodeURIComponent(activeModel);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
+
+        const genConfig = {
           responseMimeType: 'application/json',
           responseSchema: schema,
           temperature: 0.8,
+        };
+        if (cfg.thinkingLevel && cfg.thinkingLevel !== 'auto' && /^gemini-[34]/i.test(activeModel)) {
+          genConfig.thinkingConfig = { thinkingLevel: cfg.thinkingLevel };
         }
-      });
 
-      const maxAttempts = 3;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload,
+        const payload = JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: genConfig,
         });
 
-        if (res.status === 503 && attempt < maxAttempts) {
-          updateBusyState('Server Busy (503) — Retrying...', `Attempt ${attempt + 1} of ${maxAttempts} on ${cfg.geminiModel}`);
-          await sleep(900 * attempt);
-          continue;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+          });
+
+          if (res.status === 503) {
+            lastErrMsg = parseGeminiError(res.status, await res.text(), activeModel);
+            if (attempt < 2) {
+              updateBusyState(`${activeModel} Busy (503) — Retrying...`, 'Attempt 2 of 2 before failing over');
+              await sleep(700);
+              continue;
+            }
+            break;
+          }
+
+          if (res.status === 429) {
+            lastErrMsg = parseGeminiError(res.status, await res.text(), activeModel);
+            break;
+          }
+
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(parseGeminiError(res.status, errText, activeModel));
+          }
+
+          const data = await res.json();
+          const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          const parsed = JSON.parse(rawJson);
+
+          if (activeModel !== startingModel) {
+            const store = loadStore();
+            store.geminiModel = activeModel;
+            saveStore(store);
+            updateModelButton();
+            parsed._autoSwitchedFrom = startingModel;
+            parsed._autoSwitchedTo = activeModel;
+          }
+
+          state.turnHistory.push({
+            userText: currentUserText,
+            modelText: JSON.stringify({
+              player_beat: parsed.player_beat || '',
+              narrative: parsed.narrative || '',
+              location: parsed.location || '',
+              current_hp: typeof parsed.current_hp === 'number' ? parsed.current_hp : -1,
+              hp_delta: parsed.hp_delta || 0,
+              gold_delta: parsed.gold_delta || 0,
+              suggested_rolls: Array.isArray(parsed.suggested_rolls) ? parsed.suggested_rolls : [],
+            }),
+          });
+          if (state.turnHistory.length > MAX_GEMINI_TURNS) {
+            state.turnHistory = state.turnHistory.slice(-MAX_GEMINI_TURNS);
+          }
+          saveCampaignMemory(cfg.profileId);
+
+          return parsed;
         }
 
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`Gemini error (${res.status}) on ${cfg.geminiModel}: ${errText.slice(0, 180)}`);
+        if (mIdx + 1 < candidateModels.length) {
+          const nextModel = candidateModels[mIdx + 1];
+          updateBusyState(`Switching from ${activeModel}...`, `Trying ${nextModel} automatically`);
+          await sleep(300);
         }
-
-        const data = await res.json();
-        const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        const parsed = JSON.parse(rawJson);
-
-        state.turnHistory.push({
-          userText: currentUserText,
-          modelText: JSON.stringify({
-            player_beat: parsed.player_beat || '',
-            narrative: parsed.narrative || '',
-            location: parsed.location || '',
-            current_hp: typeof parsed.current_hp === 'number' ? parsed.current_hp : -1,
-            hp_delta: parsed.hp_delta || 0,
-            gold_delta: parsed.gold_delta || 0,
-            suggested_rolls: Array.isArray(parsed.suggested_rolls) ? parsed.suggested_rolls : [],
-          }),
-        });
-        if (state.turnHistory.length > MAX_GEMINI_TURNS) {
-          state.turnHistory = state.turnHistory.slice(-MAX_GEMINI_TURNS);
-        }
-        saveCampaignMemory(cfg.profileId);
-
-        return parsed;
       }
+
+      throw new Error(lastErrMsg);
     }
 
     function resolveNextHp(dmResult, baseHp, maxHp) {
@@ -2887,6 +2991,7 @@ ${state.files.character.content}`;
       document.getElementById('cfg-profile-name').value = prof.name || '';
       document.getElementById('cfg-gemini-key').value = store.geminiKey || '';
       document.getElementById('cfg-gemini-model').value = store.geminiModel || 'gemini-3.8-flash';
+      document.getElementById('cfg-thinking-level').value = store.thinkingLevel || 'auto';
       document.getElementById('cfg-gh-owner').value = prof.ghOwner || '';
       document.getElementById('cfg-gh-repo').value = prof.ghRepo || '';
       document.getElementById('cfg-gh-branch').value = prof.ghBranch || 'main';
@@ -2905,6 +3010,7 @@ ${state.files.character.content}`;
       if (!draftStore) return;
       draftStore.geminiKey = document.getElementById('cfg-gemini-key').value.trim();
       draftStore.geminiModel = document.getElementById('cfg-gemini-model').value.trim() || 'gemini-3.8-flash';
+      draftStore.thinkingLevel = document.getElementById('cfg-thinking-level').value || 'auto';
       const prof = getActiveProfile(draftStore);
       prof.name = document.getElementById('cfg-profile-name').value.trim() || 'Unnamed Campaign';
       prof.ghOwner = document.getElementById('cfg-gh-owner').value.trim();
@@ -3098,6 +3204,10 @@ ${state.files.character.content}`;
           narrative: (dmResult.narrative || '').trim(),
           suggestedRolls: Array.isArray(dmResult.suggested_rolls) ? dmResult.suggested_rolls : [],
         }, true);
+
+        if (dmResult._autoSwitchedTo) {
+          appendSystemMessage(`Auto-switched DM model from ${dmResult._autoSwitchedFrom} to ${dmResult._autoSwitchedTo} due to busy/quota limits.`, 'info');
+        }
 
         const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg);
         if (cfg.ghToken && dirtyKeys.size > 0) {
