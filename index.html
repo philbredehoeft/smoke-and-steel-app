@@ -108,10 +108,15 @@
 
       <!-- PAGE 2: CHARACTER(S) -->
       <section id="view-character" class="page-view hidden lg:flex lg:col-span-3 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-4">
-        <div class="border-b border-stone-800 pb-3">
-          <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Character Sheet</p>
-          <h2 id="char-name" class="font-display text-lg text-stone-100 mt-0.5">Active Character</h2>
-          <p id="char-class" class="text-xs text-stone-400">Load repo to sync character</p>
+        <div class="border-b border-stone-800 pb-3 space-y-2">
+          <div>
+            <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Character Sheet</p>
+            <h2 id="char-name" class="font-display text-lg text-stone-100 mt-0.5">Active Character</h2>
+            <p id="char-class" class="text-xs text-stone-400">Load repo to sync character</p>
+          </div>
+          <div id="char-switcher-wrap" class="hidden">
+            <select id="char-switcher" aria-label="Switch active character" class="w-full min-h-[36px] px-2.5 rounded-lg bg-canvas border border-stone-700 text-xs text-stone-200"></select>
+          </div>
         </div>
 
         <div class="grid grid-cols-3 gap-2 text-center">
@@ -142,7 +147,7 @@
         </div>
       </section>
 
-      <!-- PAGE 3: ADVENTURES -->
+      <!-- PAGE 3: ADVENTURES & ASSETS -->
       <section id="view-adventures" class="page-view hidden lg:flex lg:col-span-3 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-4">
         <div class="border-b border-stone-800 pb-3">
           <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Campaign Tracker</p>
@@ -157,6 +162,11 @@
         <div id="milestones-box" class="space-y-2 pt-2 border-t border-stone-800/80 text-xs">
           <p class="font-semibold text-stone-300">Milestones & Quests</p>
           <p class="text-stone-400">Load a campaign repo to track objectives.</p>
+        </div>
+
+        <div id="assets-box" class="space-y-2 pt-2 border-t border-stone-800/80 text-xs">
+          <p class="font-semibold text-stone-300">Campaign Assets</p>
+          <p class="text-stone-400">No assets loaded yet.</p>
         </div>
       </section>
     </main>
@@ -239,6 +249,20 @@
           Use Roll
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- ASSET VIEWER MODAL -->
+  <div id="asset-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-surface border border-stone-700 overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-stone-800">
+        <div class="min-w-0">
+          <p class="text-[11px] uppercase tracking-widest text-amber-400 font-semibold">Campaign Asset</p>
+          <h3 id="asset-modal-title" class="font-display text-sm sm:text-base text-stone-100 truncate">Asset</h3>
+        </div>
+        <button id="btn-close-asset" type="button" class="text-xs text-stone-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 shrink-0">Close</button>
+      </div>
+      <div id="asset-modal-body" class="p-5 overflow-y-auto text-sm text-stone-200 space-y-3"></div>
     </div>
   </div>
 
@@ -511,7 +535,9 @@
         skills: [...DEFAULT_SKILLS],
         details: [],
       },
+      repoCharacters: [],
       repoAssets: [],
+      assetCache: {},
       files: {
         rules: { path: '', content: '', sha: null },
         campaign: { path: '', content: '', sha: null },
@@ -737,6 +763,22 @@
       return path.split('/').filter(Boolean).map(encodeURIComponent).join('/');
     }
 
+    function getMimeTypeFromPath(path) {
+      const ext = (path.split('.').pop() || '').toLowerCase();
+      const map = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        webp: 'image/webp',
+        gif: 'image/gif',
+        svg: 'image/svg+xml',
+        md: 'text/markdown',
+        txt: 'text/plain',
+        json: 'application/json',
+      };
+      return map[ext] || 'application/octet-stream';
+    }
+
     async function ghGetFile(cfg, path) {
       if (!path) return { content: '', sha: null };
       const branchQuery = cfg.ghBranch ? `?ref=${encodeURIComponent(cfg.ghBranch)}` : '';
@@ -749,10 +791,27 @@
       });
       if (!res.ok) {
         if (res.status === 404) return { content: '', sha: null };
-        throw new Error(`GitHub read failed (${res.status}) for ${path}`);
+        const err = new Error(`GitHub read failed (${res.status}) for ${path}`);
+        err.status = res.status;
+        throw err;
       }
       const data = await res.json();
       return { content: decodeBase64Utf8(data.content || ''), sha: data.sha };
+    }
+
+    async function ghGetBlobBase64(cfg, sha) {
+      const url = `https://api.github.com/repos/${encodeURIComponent(cfg.ghOwner)}/${encodeURIComponent(cfg.ghRepo)}/git/blobs/${encodeURIComponent(sha)}`;
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${cfg.ghToken}`,
+          'Accept': 'application/vnd.github+json',
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch asset blob (${res.status}).`);
+      }
+      const data = await res.json();
+      return (data.content || '').replace(/\n/g, '');
     }
 
     async function ghPutFile(cfg, path, content, sha, message) {
@@ -769,7 +828,9 @@
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        throw new Error(`GitHub save failed (${res.status}) for ${path}`);
+        const err = new Error(`GitHub save failed (${res.status}) for ${path}`);
+        err.status = res.status;
+        throw err;
       }
       const data = await res.json();
       return data.content?.sha || sha;
@@ -965,6 +1026,25 @@
       };
     }
 
+    function renderCharacterSwitcher() {
+      const wrap = document.getElementById('char-switcher-wrap');
+      const select = document.getElementById('char-switcher');
+      const activePath = state.files.character.path || getConfig().charPath;
+
+      if (!Array.isArray(state.repoCharacters) || state.repoCharacters.length <= 1) {
+        wrap.classList.add('hidden');
+        select.innerHTML = '';
+        return;
+      }
+
+      select.innerHTML = state.repoCharacters.map((path) => {
+        const label = path.split('/').pop().replace(/\.md$/i, '').replace(/[_-]+/g, ' ');
+        const selected = path === activePath ? 'selected' : '';
+        return `<option value="${escapeHtml(path)}" ${selected}>Switch Character: ${escapeHtml(label)}</option>`;
+      }).join('');
+      wrap.classList.remove('hidden');
+    }
+
     function renderCharacterUI(parsed) {
       state.parsedChar = parsed;
       state.characterName = parsed.name || 'Player';
@@ -1132,6 +1212,92 @@
       }
     }
 
+    function renderAssetsUI() {
+      const assetsBox = document.getElementById('assets-box');
+      if (!Array.isArray(state.repoAssets) || state.repoAssets.length === 0) {
+        assetsBox.innerHTML = '<p class="font-semibold text-stone-300">Campaign Assets</p><p class="text-stone-400">No assets found in configured folder.</p>';
+        return;
+      }
+      const listHtml = state.repoAssets.slice(0, 16).map((item, idx) => {
+        const name = item.path.split('/').pop();
+        const isImg = /\.(png|jpe?g|webp|gif|svg)$/i.test(name);
+        const tag = isImg ? 'IMG' : 'DOC';
+        return `<button type="button" data-asset-idx="${idx}" class="asset-item w-full text-left px-3 py-2 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-800 flex items-center justify-between gap-2 transition">
+          <span class="truncate text-stone-200">${escapeHtml(name)}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 font-semibold shrink-0">${tag}</span>
+        </button>`;
+      }).join('');
+      assetsBox.innerHTML = `<p class="font-semibold text-stone-300">Campaign Assets (${state.repoAssets.length})</p><div class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">${listHtml}</div>`;
+    }
+
+    async function openAssetModal(assetItem) {
+      const modal = document.getElementById('asset-modal');
+      const titleEl = document.getElementById('asset-modal-title');
+      const bodyEl = document.getElementById('asset-modal-body');
+
+      titleEl.textContent = assetItem.path;
+      bodyEl.innerHTML = '<p class="text-xs text-amber-300">Loading asset from repository...</p>';
+      modal.classList.remove('hidden');
+
+      try {
+        const cfg = getConfig();
+        let b64 = state.assetCache[assetItem.sha];
+        if (!b64) {
+          b64 = await ghGetBlobBase64(cfg, assetItem.sha);
+          state.assetCache[assetItem.sha] = b64;
+        }
+        const mime = getMimeTypeFromPath(assetItem.path);
+        if (mime.startsWith('image/')) {
+          bodyEl.innerHTML = `<img src="data:${mime};base64,${b64}" alt="${escapeHtml(assetItem.path)}" class="max-w-full max-h-[68vh] mx-auto rounded-xl border border-stone-800 object-contain" />`;
+        } else if (/\.(md|txt|json)$/i.test(assetItem.path)) {
+          const text = decodeBase64Utf8(b64);
+          if (/\.json$/i.test(assetItem.path)) {
+            bodyEl.innerHTML = `<pre class="p-3 rounded-xl bg-canvas border border-stone-800 text-xs overflow-x-auto">${escapeHtml(text)}</pre>`;
+          } else {
+            bodyEl.innerHTML = `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-3">${formatProseHtml(text)}</div>`;
+          }
+        } else {
+          bodyEl.innerHTML = `<p class="text-xs text-stone-400">Preview is not supported for this file type (${escapeHtml(mime)}).</p>`;
+        }
+      } catch (err) {
+        bodyEl.innerHTML = `<p class="text-xs text-rose-300">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    document.getElementById('assets-box').addEventListener('click', (e) => {
+      const btn = e.target.closest('.asset-item');
+      if (!btn) return;
+      const item = state.repoAssets[Number(btn.dataset.assetIdx)];
+      if (item) openAssetModal(item);
+    });
+    document.getElementById('btn-close-asset').addEventListener('click', () => {
+      document.getElementById('asset-modal').classList.add('hidden');
+    });
+
+    document.getElementById('char-switcher').addEventListener('change', async (e) => {
+      const nextPath = e.target.value;
+      if (!nextPath) return;
+      const store = loadStore();
+      const prof = getActiveProfile(store);
+      prof.charPath = nextPath;
+      saveStore(store);
+      updateBadge();
+
+      const cfg = getConfig();
+      await beginBusyState('Switching Character...', `Loading ${nextPath}`);
+      try {
+        const fileData = await ghGetFile(cfg, nextPath);
+        state.files.character = { path: nextPath, content: fileData.content, sha: fileData.sha };
+        renderCharacterUI(parseCharacterMarkdown(fileData.content));
+        renderCharacterSwitcher();
+        appendSystemMessage(`Switched active character to ${state.characterName}.`, 'success');
+      } catch (err) {
+        appendSystemMessage(err.message, 'error');
+      } finally {
+        await endBusyState();
+      }
+    });
+
     function resetLoadedFilesState() {
       state.files = {
         rules: { path: '', content: '', sha: null },
@@ -1139,10 +1305,14 @@
         story: { path: '', content: '', sha: null },
         character: { path: '', content: '', sha: null },
       };
+      state.repoCharacters = [];
       state.repoAssets = [];
+      state.assetCache = {};
       document.getElementById('scene-location').textContent = 'Opening Scene';
       renderCharacterUI(parseCharacterMarkdown(''));
+      renderCharacterSwitcher();
       renderCampaignTrackerUI({ location: null, clocks: [], milestones: [] });
+      renderAssetsUI();
     }
 
     async function loadCampaignFromGitHub() {
@@ -1165,18 +1335,35 @@
         state.files[key] = { path, content: fileData.content, sha: fileData.sha };
       }));
 
-      renderCharacterUI(parseCharacterMarkdown(state.files.character.content));
-      renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
+      // Scan repo tree once to discover alternate character sheets & campaign assets
+      try {
+        const tree = await ghListRepoTree(cfg.ghOwner, cfg.ghRepo, cfg.ghBranch, cfg.ghToken);
+        const charDir = cfg.charPath && cfg.charPath.includes('/')
+          ? cfg.charPath.slice(0, cfg.charPath.lastIndexOf('/') + 1)
+          : '';
+        state.repoCharacters = tree
+          .filter((item) => {
+            if (item.type !== 'blob' || !/\.md$/i.test(item.path)) return false;
+            if (charDir && item.path.startsWith(charDir)) return true;
+            return /(?:^|\/)(?:characters?|pc|party|heroes?)\/[^/]+\.md$/i.test(item.path);
+          })
+          .map((item) => item.path);
 
-      if (cfg.assetsDir) {
-        try {
-          const tree = await ghListRepoTree(cfg.ghOwner, cfg.ghRepo, cfg.ghBranch, cfg.ghToken);
+        if (cfg.assetsDir) {
           const prefix = cfg.assetsDir.replace(/^\/+|\/+$/g, '') + '/';
           state.repoAssets = tree.filter((item) => item.type === 'blob' && item.path.startsWith(prefix));
-        } catch (_) {
+        } else {
           state.repoAssets = [];
         }
+      } catch (_) {
+        state.repoCharacters = [];
+        state.repoAssets = [];
       }
+
+      renderCharacterUI(parseCharacterMarkdown(state.files.character.content));
+      renderCharacterSwitcher();
+      renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
+      renderAssetsUI();
     }
 
     function sleep(ms) {
@@ -1307,83 +1494,100 @@ ${state.files.character.content}`;
       }
     }
 
+    function applySingleFileUpdate(key, dmResult) {
+      let changed = false;
+
+      if (key === 'campaign') {
+        const nextLocation = (dmResult.location || '').trim();
+        const currentHeaderLoc = document.getElementById('scene-location').textContent.trim();
+        if (nextLocation && nextLocation !== currentHeaderLoc) {
+          document.getElementById('scene-location').textContent = nextLocation;
+          if (state.files.campaign.content) {
+            const updatedCampaign = replaceStatInMarkdown(
+              state.files.campaign.content,
+              'Current\\s*Location|Location|Current\\s*Scene',
+              nextLocation
+            );
+            if (updatedCampaign !== state.files.campaign.content) {
+              state.files.campaign.content = updatedCampaign;
+              changed = true;
+            }
+          }
+        }
+        const campaignNote = (dmResult.campaign_note || '').trim();
+        if (campaignNote && campaignNote.toLowerCase() !== 'none' && state.files.campaign.path) {
+          state.files.campaign.content = `${state.files.campaign.content.trim()}\n- Turn Update: ${campaignNote}\n`;
+          changed = true;
+        }
+      } else if (key === 'story') {
+        const storyNote = (dmResult.story_note || '').trim();
+        if (storyNote && storyNote.toLowerCase() !== 'none' && state.files.story.path) {
+          state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${storyNote}\n`;
+          changed = true;
+        }
+      } else if (key === 'character') {
+        const hpDelta = Number(dmResult.hp_delta) || 0;
+        const goldDelta = Number(dmResult.gold_delta) || 0;
+        const charNote = (dmResult.character_note || '').trim();
+        const baseParsed = state.files.character.content
+          ? parseCharacterMarkdown(state.files.character.content)
+          : state.parsedChar;
+
+        if (hpDelta !== 0 && baseParsed.hp !== null && baseParsed.maxHp !== null) {
+          const nextHp = Math.max(0, Math.min(baseParsed.maxHp, baseParsed.hp + hpDelta));
+          state.parsedChar.hp = nextHp;
+          state.parsedChar.maxHp = baseParsed.maxHp;
+          if (state.files.character.content) {
+            const updatedHpMd = replaceStatInMarkdown(
+              state.files.character.content,
+              '(?:Current\\s+)?HP|Hit\\s*Points',
+              `${nextHp} / ${baseParsed.maxHp}`
+            );
+            if (updatedHpMd !== state.files.character.content) {
+              state.files.character.content = updatedHpMd;
+              changed = true;
+            }
+          }
+        }
+
+        if (goldDelta !== 0) {
+          const unit = baseParsed.currencyUnit || 'gp';
+          const nextGold = Math.max(0, (baseParsed.gold || 0) + goldDelta);
+          state.parsedChar.gold = nextGold;
+          state.parsedChar.currencyUnit = unit;
+          if (state.files.character.content) {
+            const updatedGoldMd = replaceStatInMarkdown(
+              state.files.character.content,
+              'Gold|Currency|Wealth|Coins|Credits|Money',
+              `${nextGold} ${unit}`
+            );
+            if (updatedGoldMd !== state.files.character.content) {
+              state.files.character.content = updatedGoldMd;
+              changed = true;
+            }
+          }
+        }
+
+        if (((charNote && charNote.toLowerCase() !== 'none') || hpDelta !== 0 || goldDelta !== 0) && state.files.character.path) {
+          const notes = [];
+          if (hpDelta) notes.push(`HP ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
+          if (goldDelta) notes.push(`${baseParsed.currencyUnit || 'gp'} ${goldDelta > 0 ? '+' : ''}${goldDelta}`);
+          if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
+          state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
+          changed = true;
+        }
+      }
+
+      return changed;
+    }
+
     function applyUpdatesToMarkdown(dmResult) {
       const dirtyKeys = new Set();
-      const nextLocation = (dmResult.location || '').trim();
-      const currentHeaderLoc = document.getElementById('scene-location').textContent.trim();
-
-      if (nextLocation && nextLocation !== currentHeaderLoc) {
-        document.getElementById('scene-location').textContent = nextLocation;
-        if (state.files.campaign.content) {
-          const updatedCampaign = replaceStatInMarkdown(
-            state.files.campaign.content,
-            'Current\\s*Location|Location|Current\\s*Scene',
-            nextLocation
-          );
-          if (updatedCampaign !== state.files.campaign.content) {
-            state.files.campaign.content = updatedCampaign;
-            dirtyKeys.add('campaign');
-          }
+      ['campaign', 'story', 'character'].forEach((key) => {
+        if (applySingleFileUpdate(key, dmResult)) {
+          dirtyKeys.add(key);
         }
-      }
-
-      const campaignNote = (dmResult.campaign_note || '').trim();
-      if (campaignNote && campaignNote.toLowerCase() !== 'none' && state.files.campaign.path) {
-        state.files.campaign.content = `${state.files.campaign.content.trim()}\n- Turn Update: ${campaignNote}\n`;
-        dirtyKeys.add('campaign');
-      }
-
-      const storyNote = (dmResult.story_note || '').trim();
-      if (storyNote && storyNote.toLowerCase() !== 'none' && state.files.story.path) {
-        state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${storyNote}\n`;
-        dirtyKeys.add('story');
-      }
-
-      const hpDelta = Number(dmResult.hp_delta) || 0;
-      const goldDelta = Number(dmResult.gold_delta) || 0;
-      const charNote = (dmResult.character_note || '').trim();
-
-      if (hpDelta !== 0 && state.parsedChar.hp !== null && state.parsedChar.maxHp !== null) {
-        const nextHp = Math.max(0, Math.min(state.parsedChar.maxHp, state.parsedChar.hp + hpDelta));
-        state.parsedChar.hp = nextHp;
-        if (state.files.character.content) {
-          const updatedHpMd = replaceStatInMarkdown(
-            state.files.character.content,
-            '(?:Current\\s+)?HP|Hit\\s*Points',
-            `${nextHp} / ${state.parsedChar.maxHp}`
-          );
-          if (updatedHpMd !== state.files.character.content) {
-            state.files.character.content = updatedHpMd;
-            dirtyKeys.add('character');
-          }
-        }
-      }
-
-      if (goldDelta !== 0) {
-        const unit = state.parsedChar.currencyUnit || 'gp';
-        const nextGold = Math.max(0, (state.parsedChar.gold || 0) + goldDelta);
-        state.parsedChar.gold = nextGold;
-        if (state.files.character.content) {
-          const updatedGoldMd = replaceStatInMarkdown(
-            state.files.character.content,
-            'Gold|Currency|Wealth|Coins|Credits|Money',
-            `${nextGold} ${unit}`
-          );
-          if (updatedGoldMd !== state.files.character.content) {
-            state.files.character.content = updatedGoldMd;
-            dirtyKeys.add('character');
-          }
-        }
-      }
-
-      if (((charNote && charNote.toLowerCase() !== 'none') || hpDelta !== 0 || goldDelta !== 0) && state.files.character.path) {
-        const notes = [];
-        if (hpDelta) notes.push(`HP ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
-        if (goldDelta) notes.push(`${state.parsedChar.currencyUnit || 'gp'} ${goldDelta > 0 ? '+' : ''}${goldDelta}`);
-        if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
-        state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
-        dirtyKeys.add('character');
-      }
+      });
 
       if (state.files.character.content) {
         renderCharacterUI(parseCharacterMarkdown(state.files.character.content));
@@ -1395,12 +1599,29 @@ ${state.files.character.content}`;
       return dirtyKeys;
     }
 
-    async function persistMarkdownToGitHub(cfg, dirtyKeys) {
+    async function persistMarkdownToGitHub(cfg, dirtyKeys, dmResult) {
       if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo || !dirtyKeys || dirtyKeys.size === 0) return;
       for (const key of dirtyKeys) {
         const fileObj = state.files[key];
-        if (fileObj && fileObj.path && fileObj.content) {
+        if (!fileObj || !fileObj.path || !fileObj.content) continue;
+        try {
           fileObj.sha = await ghPutFile(cfg, fileObj.path, fileObj.content, fileObj.sha, `Update ${fileObj.path} from DM turn`);
+        } catch (err) {
+          if (err.status === 409 && dmResult) {
+            updateBusyState('Resolving GitHub Conflict...', `Merging ${fileObj.path}`);
+            const latest = await ghGetFile(cfg, fileObj.path);
+            fileObj.content = latest.content;
+            fileObj.sha = latest.sha;
+            applySingleFileUpdate(key, dmResult);
+            fileObj.sha = await ghPutFile(cfg, fileObj.path, fileObj.content, fileObj.sha, `Update ${fileObj.path} from DM turn (merged)`);
+            if (key === 'character' && fileObj.content) {
+              renderCharacterUI(parseCharacterMarkdown(fileObj.content));
+            } else {
+              renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
+            }
+          } else {
+            throw err;
+          }
         }
       }
     }
@@ -1423,7 +1644,7 @@ ${state.files.character.content}`;
       });
     });
 
-    // --- Step 4: Full 3D Polyhedral Dice Engine (d4, d6, d8, d10, d12, d20) ---
+    // --- Full 3D Polyhedral Dice Engine (d4, d6, d8, d10, d12, d20) ---
     const rollOverlay = document.getElementById('roll-overlay');
     const dieBtn = document.getElementById('die-btn');
     const dieCanvas = document.getElementById('die-canvas');
@@ -1505,7 +1726,6 @@ ${state.files.character.content}`;
       const hRing = (1 - cos36) / (1 + cos36);
       const r = Math.sqrt(1 - hRing * hRing);
 
-      // 0: Top Pole, 1: Bottom Pole, 2..6: Upper Ring, 7..11: Lower Ring
       const vertices = [
         [0, -hPole, 0],
         [0,  hPole, 0],
@@ -1669,7 +1889,6 @@ ${state.files.character.content}`;
         const crossZ = v1x * v2y - v1y * v2x;
         const isFront = crossZ < 0;
 
-        // Smaller avgZ means closer to camera
         const light = Math.max(0.25, Math.min(1, 0.62 - (avgZ / poly.radius) * 0.35 + ((cx - avgX) / poly.radius) * 0.14));
         return { pts, avgZ, avgX, avgY, isFront, light, fOrder };
       }).sort((a, b) => b.avgZ - a.avgZ);
@@ -2130,7 +2349,25 @@ ${state.files.character.content}`;
       renderStoryLogFromState();
     });
 
+    document.getElementById('btn-cycle-model').addEventListener('click', cycleGeminiModel);
+
+    // Campaign Profiles & Settings Modal Logic
+    const settingsModal = document.getElementById('settings-modal');
+    const assetModal = document.getElementById('asset-modal');
+    const profileSelect = document.getElementById('cfg-profile-select');
+    let draftStore = null;
+
     document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (!assetModal.classList.contains('hidden')) {
+          assetModal.classList.add('hidden');
+          return;
+        }
+        if (!settingsModal.classList.contains('hidden')) {
+          settingsModal.classList.add('hidden');
+          return;
+        }
+      }
       if (rollOverlay.classList.contains('hidden')) return;
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
@@ -2144,13 +2381,6 @@ ${state.files.character.content}`;
         rollOverlay.classList.add('hidden');
       }
     });
-
-    document.getElementById('btn-cycle-model').addEventListener('click', cycleGeminiModel);
-
-    // Campaign Profiles & Settings Modal Logic
-    const settingsModal = document.getElementById('settings-modal');
-    const profileSelect = document.getElementById('cfg-profile-select');
-    let draftStore = null;
 
     function populateSettingsForm(store) {
       profileSelect.innerHTML = store.profiles.map((p) => {
@@ -2370,7 +2600,7 @@ ${state.files.character.content}`;
         const dirtyKeys = applyUpdatesToMarkdown(dmResult);
         if (cfg.ghToken && dirtyKeys.size > 0) {
           updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
-          await persistMarkdownToGitHub(cfg, dirtyKeys);
+          await persistMarkdownToGitHub(cfg, dirtyKeys, dmResult);
         }
       } catch (err) {
         appendSystemMessage(err.message, 'error');
@@ -2383,6 +2613,7 @@ ${state.files.character.content}`;
 
     // Initialize neutral defaults, restore saved log/memory, and load active campaign if configured
     renderCharacterUI(state.parsedChar);
+    renderAssetsUI();
     updateBadge();
     const initialCfg = getConfig();
     loadCampaignMemory(initialCfg.profileId);
