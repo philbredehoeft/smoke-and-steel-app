@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Smoke & Steel — Solo D&D Campaign</title>
+  <title>Solo Campaign Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,7 +43,7 @@
     <header class="sticky top-0 z-20 flex items-center justify-between gap-2 px-3 sm:px-4 py-3 bg-surface/95 backdrop-blur border-b border-stone-800">
       <div class="flex items-center gap-2 min-w-0">
         <span class="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
-        <h1 class="font-display text-sm sm:text-base tracking-wider text-amber-400 font-bold truncate">SMOKE & STEEL</h1>
+        <h1 id="app-title" class="font-display text-sm sm:text-base tracking-wider text-amber-400 font-bold truncate uppercase">SOLO CAMPAIGN</h1>
       </div>
       <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <button id="btn-cycle-model" type="button" title="Switch Gemini model" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700 text-amber-200 text-xs font-medium min-h-[38px] max-w-[140px] sm:max-w-[180px] truncate">
@@ -68,7 +68,7 @@
         <div class="px-4 py-3 border-b border-stone-800/80 flex items-center justify-between gap-2">
           <div>
             <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Current Scene</p>
-            <h2 id="scene-location" class="font-display text-base text-stone-100">The Rusted Anchor</h2>
+            <h2 id="scene-location" class="font-display text-base text-stone-100">Opening Scene</h2>
           </div>
           <span id="connection-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-stone-800 text-stone-300 border border-stone-700 shrink-0">
             Local Mode
@@ -79,8 +79,7 @@
           <article class="p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90">
             <p class="text-[11px] uppercase tracking-wider text-amber-400 mb-1.5 font-semibold">Dungeon Master</p>
             <div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">
-              <p>Rain lashes the warped planks of the Rusted Anchor as harbor lanterns sway in the harbor gale. Across the taproom, a hooded broker—Mara Thorne—taps a brass coin against a scarred oak table while two Iron Syndicate watchers linger near the rain-streaked window.</p>
-              <p>Your hand rests near the hilt of Sorrow's Edge beneath your cloak. Do you approach Mara directly, slip into the shadows along the wall, or try to read the room first?</p>
+              <p>Your campaign log is ready. Open <strong>Settings</strong> to connect a GitHub campaign repository and Gemini API key, or describe an opening scene below to begin in Local Mode.</p>
             </div>
           </article>
         </div>
@@ -95,7 +94,7 @@
             <input
               id="action-input"
               type="text"
-              placeholder="What does Kraven do next?"
+              placeholder="What do you do next?"
               class="flex-1 min-h-[46px] px-3.5 rounded-xl bg-canvas border border-stone-700 focus:border-amber-500 focus:outline-none text-sm text-stone-100 placeholder:text-stone-500"
             />
             <button
@@ -113,47 +112,48 @@
       <section id="view-character" class="page-view hidden lg:flex lg:col-span-3 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-4">
         <div class="border-b border-stone-800 pb-3">
           <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Character Sheet</p>
-          <h2 id="char-name" class="font-display text-lg text-stone-100 mt-0.5">Kraven (Kha'rel T'orgh)</h2>
-          <p id="char-class" class="text-xs text-stone-400">Hexblade Warlock · Level 2</p>
+          <h2 id="char-name" class="font-display text-lg text-stone-100 mt-0.5">Active Character</h2>
+          <p id="char-class" class="text-xs text-stone-400">Load repo to sync character</p>
         </div>
 
         <div class="grid grid-cols-3 gap-2 text-center">
           <div class="p-2.5 rounded-xl bg-surfaceAlt border border-stone-800">
             <div class="text-[10px] uppercase text-stone-400">HP</div>
-            <div id="char-hp" class="text-sm font-semibold text-emerald-400 mt-0.5">17 / 17</div>
+            <div id="char-hp" class="text-sm font-semibold text-emerald-400 mt-0.5">-- / --</div>
           </div>
           <div class="p-2.5 rounded-xl bg-surfaceAlt border border-stone-800">
             <div class="text-[10px] uppercase text-stone-400">AC</div>
-            <div id="char-ac" class="text-sm font-semibold text-stone-100 mt-0.5">15</div>
+            <div id="char-ac" class="text-sm font-semibold text-stone-100 mt-0.5">--</div>
           </div>
           <div class="p-2.5 rounded-xl bg-surfaceAlt border border-stone-800">
             <div class="text-[10px] uppercase text-stone-400">Gold</div>
-            <div id="char-gold" class="text-sm font-semibold text-amber-400 mt-0.5">24 gp</div>
+            <div id="char-gold" class="text-sm font-semibold text-amber-400 mt-0.5">0 gp</div>
           </div>
         </div>
 
         <div>
           <p class="text-xs font-semibold text-stone-300 mb-2">Quick Skill Rolls</p>
-          <div class="grid grid-cols-2 gap-2">
-            <button type="button" data-skill="Persuasion" data-mod="5" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Persuasion</span><span class="text-amber-400">+5</span>
+          <div id="skills-grid" class="grid grid-cols-2 gap-2">
+            <button type="button" data-skill="Persuasion" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
+              <span>Persuasion</span><span class="text-amber-400">+0</span>
             </button>
-            <button type="button" data-skill="Stealth" data-mod="4" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Stealth</span><span class="text-amber-400">+4</span>
+            <button type="button" data-skill="Stealth" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
+              <span>Stealth</span><span class="text-amber-400">+0</span>
             </button>
-            <button type="button" data-skill="Perception" data-mod="2" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Perception</span><span class="text-amber-400">+2</span>
+            <button type="button" data-skill="Perception" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
+              <span>Perception</span><span class="text-amber-400">+0</span>
             </button>
-            <button type="button" data-skill="Arcana" data-mod="3" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Arcana</span><span class="text-amber-400">+3</span>
+            <button type="button" data-skill="Arcana" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
+              <span>Arcana</span><span class="text-amber-400">+0</span>
             </button>
           </div>
         </div>
 
         <div class="text-xs text-stone-300 space-y-1.5 pt-2 border-t border-stone-800/80">
-          <p><span class="text-stone-400">Weapon:</span> Sorrow's Edge (+5, 1d8+3)</p>
-          <p><span class="text-stone-400">Pact Slots:</span> 2 / 2 (1st Level)</p>
-          <p class="text-stone-400 text-[11px] pt-1">Repo file: <code id="char-file-label" class="text-stone-300">Character/Kraven_Hexblade.md</code></p>
+          <div id="char-details" class="space-y-1.5 text-stone-400">
+            <p>Character file details will populate once synced.</p>
+          </div>
+          <p class="text-stone-400 text-[11px] pt-1 break-all">Repo file: <code id="char-file-label" class="text-stone-300">Not set</code></p>
         </div>
       </section>
 
@@ -161,27 +161,17 @@
       <section id="view-adventures" class="page-view hidden lg:flex lg:col-span-3 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-4">
         <div class="border-b border-stone-800 pb-3">
           <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Campaign Tracker</p>
-          <h2 class="font-display text-lg text-stone-100 mt-0.5">Act I & Clocks</h2>
-          <p id="sync-status-text" class="text-xs text-stone-400">Synced with smoke-and-steel-campaign</p>
+          <h2 id="campaign-tracker-title" class="font-display text-lg text-stone-100 mt-0.5">Clocks & Milestones</h2>
+          <p id="sync-status-text" class="text-xs text-stone-400">No repository linked</p>
         </div>
 
         <div id="clocks-box" class="space-y-2.5 text-xs">
-          <div class="p-3 rounded-xl bg-surfaceAlt border border-stone-800">
-            <div class="flex justify-between mb-1.5">
-              <span class="font-medium text-stone-200">Harbor Watch Lockdown</span>
-              <span class="text-amber-400 font-semibold">2 / 6</span>
-            </div>
-            <div class="h-2 rounded-full bg-canvas overflow-hidden">
-              <div class="h-full w-1/3 bg-amber-500 rounded-full"></div>
-            </div>
-          </div>
+          <p class="text-stone-400">No active clocks loaded yet.</p>
         </div>
 
         <div id="milestones-box" class="space-y-2 pt-2 border-t border-stone-800/80 text-xs">
-          <p class="font-semibold text-stone-300">Act I Milestones</p>
-          <p class="text-amber-300">1. [ACTIVE] Secure smuggler passage with Mara Thorne.</p>
-          <p class="text-stone-400">2. [UPCOMING] Infiltrate the Sunken Archive at low tide.</p>
-          <p class="text-stone-400">3. [UPCOMING] Confront the harbor blockade lieutenant.</p>
+          <p class="font-semibold text-stone-300">Milestones & Quests</p>
+          <p class="text-stone-400">Load a campaign repo to track objectives.</p>
         </div>
       </section>
     </main>
@@ -243,53 +233,207 @@
 
   <!-- SETTINGS MODAL -->
   <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="w-full max-w-md rounded-2xl bg-surface border border-stone-700 p-5 space-y-4">
+    <div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-surface border border-stone-700 p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-stone-800 pb-3">
-        <h3 class="font-display text-base text-amber-400">Campaign & API Settings</h3>
+        <h3 class="font-display text-base text-amber-400">Campaigns, Files & API Settings</h3>
         <button id="btn-close-settings" type="button" class="text-xs text-stone-400 hover:text-stone-200 px-2 py-1">Close</button>
       </div>
+
       <div class="space-y-3 text-xs">
-        <div>
-          <label class="block text-stone-300 mb-1">Google AI Studio API Key</label>
-          <input id="cfg-gemini-key" type="password" placeholder="AIza..." class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+        <!-- Campaign Profile Selector -->
+        <div class="p-3 rounded-xl bg-surfaceAlt/70 border border-stone-800 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <label class="text-stone-300 font-semibold">Campaign Profile</label>
+            <div class="flex items-center gap-1.5">
+              <button id="btn-new-profile" type="button" class="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-medium">+ New</button>
+              <button id="btn-delete-profile" type="button" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium">Delete</button>
+            </div>
+          </div>
+          <select id="cfg-profile-select" class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100"></select>
+          <div>
+            <label class="block text-stone-400 mb-1">Campaign Display Name</label>
+            <input id="cfg-profile-name" type="text" placeholder="e.g. Shadows of Highwater" class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+          </div>
         </div>
-        <div>
-          <label class="block text-stone-300 mb-1">Gemini Model</label>
-          <input id="cfg-gemini-model" type="text" placeholder="gemini-3.8-flash" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+
+        <!-- Gemini Settings (Shared) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label class="block text-stone-300 mb-1">Google AI Studio API Key</label>
+            <input id="cfg-gemini-key" type="password" placeholder="AIza..." class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+          </div>
+          <div>
+            <label class="block text-stone-300 mb-1">Gemini Model</label>
+            <input id="cfg-gemini-model" type="text" placeholder="gemini-3.8-flash" class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+          </div>
         </div>
-        <div class="grid grid-cols-2 gap-2">
+
+        <!-- GitHub Repo Coordinates -->
+        <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="block text-stone-300 mb-1">GitHub Owner</label>
-            <input id="cfg-gh-owner" type="text" placeholder="philbredehoeft" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            <input id="cfg-gh-owner" type="text" placeholder="username" class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
           </div>
           <div>
             <label class="block text-stone-300 mb-1">Campaign Repo</label>
-            <input id="cfg-gh-repo" type="text" placeholder="smoke-and-steel-campaign" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            <input id="cfg-gh-repo" type="text" placeholder="my-campaign" class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+          </div>
+          <div>
+            <label class="block text-stone-300 mb-1">Branch</label>
+            <input id="cfg-gh-branch" type="text" placeholder="main" class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
           </div>
         </div>
-        <div>
-          <label class="block text-stone-300 mb-1">Character File Path in Repo</label>
-          <input id="cfg-char-path" type="text" placeholder="Character/Kraven_Hexblade.md" class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
-        </div>
+
         <div>
           <label class="block text-stone-300 mb-1">GitHub Fine-Grained Token</label>
-          <input id="cfg-gh-token" type="password" placeholder="github_pat_..." class="w-full min-h-[42px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+          <input id="cfg-gh-token" type="password" placeholder="github_pat_..." class="w-full min-h-[40px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
         </div>
+
+        <!-- Repo File Structure Mapping -->
+        <div class="p-3 rounded-xl bg-surfaceAlt/50 border border-stone-800 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-stone-300 font-semibold">Repository File Paths</span>
+            <button id="btn-scan-repo" type="button" class="px-2.5 py-1 rounded-lg bg-surfaceAlt hover:bg-stone-700 border border-stone-600 text-amber-200 font-medium">
+              Scan Repo Files
+            </button>
+          </div>
+          <p id="scan-status" class="text-[11px] text-stone-400 hidden"></p>
+
+          <datalist id="repo-md-list"></datalist>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-stone-400 mb-1">Rules / DM Instructions</label>
+              <input id="cfg-rules-path" list="repo-md-list" type="text" placeholder="DM_INSTRUCTIONS.md" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            </div>
+            <div>
+              <label class="block text-stone-400 mb-1">Campaign State</label>
+              <input id="cfg-campaign-path" list="repo-md-list" type="text" placeholder="CAMPAIGN_STATE.md" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            </div>
+            <div>
+              <label class="block text-stone-400 mb-1">Story / Arc Engine</label>
+              <input id="cfg-story-path" list="repo-md-list" type="text" placeholder="STORY_ENGINE.md" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            </div>
+            <div>
+              <label class="block text-stone-400 mb-1">Active Character File</label>
+              <input id="cfg-char-path" list="repo-md-list" type="text" placeholder="Character/Hero.md" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-stone-400 mb-1">Assets Folder (optional)</label>
+            <input id="cfg-assets-dir" type="text" placeholder="Assets" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+          </div>
+        </div>
+
         <p class="text-[11px] text-stone-400">Saved locally in this browser only.</p>
       </div>
+
       <button id="btn-save-settings" type="button" class="w-full min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-semibold text-xs">
-        Save Settings
+        Save & Load Campaign
       </button>
     </div>
   </div>
 
   <script>
-    const STORAGE_KEY = 'smoke_and_steel_cfg_v1';
+    const STORE_KEY = 'solo_rpg_store_v1';
+    const LEGACY_STORAGE_KEY = 'smoke_and_steel_cfg_v1';
     const MODEL_PRESETS = [
       'gemini-3.8-flash',
       'gemini-3.6-flash',
       'gemini-3.5-flash-lite',
     ];
+
+    function makeDefaultProfile(overrides = {}) {
+      return {
+        id: overrides.id || `prof_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        name: overrides.name || 'Default Campaign',
+        ghOwner: overrides.ghOwner || '',
+        ghRepo: overrides.ghRepo || '',
+        ghBranch: overrides.ghBranch || 'main',
+        ghToken: overrides.ghToken || '',
+        rulesPath: overrides.rulesPath ?? 'DM_INSTRUCTIONS.md',
+        campaignPath: overrides.campaignPath ?? 'CAMPAIGN_STATE.md',
+        storyPath: overrides.storyPath ?? 'STORY_ENGINE.md',
+        charPath: overrides.charPath ?? '',
+        assetsDir: overrides.assetsDir ?? 'Assets',
+      };
+    }
+
+    function loadStore() {
+      try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.profiles) && parsed.profiles.length > 0) {
+            return {
+              activeProfileId: parsed.activeProfileId || parsed.profiles[0].id,
+              geminiKey: (parsed.geminiKey || '').trim(),
+              geminiModel: (parsed.geminiModel || 'gemini-3.8-flash').trim(),
+              profiles: parsed.profiles.map((p) => makeDefaultProfile(p)),
+            };
+          }
+        }
+
+        // Auto-migrate legacy single-campaign config if present
+        const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (legacyRaw) {
+          const leg = JSON.parse(legacyRaw);
+          const migrated = makeDefaultProfile({
+            id: 'migrated_default',
+            name: leg.ghRepo || 'Migrated Campaign',
+            ghOwner: (leg.ghOwner || '').trim(),
+            ghRepo: (leg.ghRepo || '').trim(),
+            ghBranch: 'main',
+            ghToken: (leg.ghToken || '').trim(),
+            charPath: (leg.charPath || '').trim(),
+          });
+          const store = {
+            activeProfileId: migrated.id,
+            geminiKey: (leg.geminiKey || '').trim(),
+            geminiModel: (leg.geminiModel || 'gemini-3.8-flash').trim(),
+            profiles: [migrated],
+          };
+          localStorage.setItem(STORE_KEY, JSON.stringify(store));
+          return store;
+        }
+      } catch (_) {}
+
+      const initial = makeDefaultProfile({ id: 'default' });
+      return {
+        activeProfileId: initial.id,
+        geminiKey: '',
+        geminiModel: 'gemini-3.8-flash',
+        profiles: [initial],
+      };
+    }
+
+    function saveStore(store) {
+      localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    }
+
+    function getActiveProfile(store = loadStore()) {
+      return store.profiles.find((p) => p.id === store.activeProfileId) || store.profiles[0];
+    }
+
+    function getConfig() {
+      const store = loadStore();
+      const prof = getActiveProfile(store);
+      return {
+        profileId: prof.id,
+        campaignName: (prof.name || 'Solo Campaign').trim(),
+        geminiKey: (store.geminiKey || '').trim(),
+        geminiModel: (store.geminiModel || 'gemini-3.8-flash').trim(),
+        ghOwner: (prof.ghOwner || '').trim(),
+        ghRepo: (prof.ghRepo || '').trim(),
+        ghBranch: (prof.ghBranch || 'main').trim() || 'main',
+        ghToken: (prof.ghToken || '').trim(),
+        rulesPath: (prof.rulesPath || '').trim(),
+        campaignPath: (prof.campaignPath || '').trim(),
+        storyPath: (prof.storyPath || '').trim(),
+        charPath: (prof.charPath || '').trim(),
+        assetsDir: (prof.assetsDir || '').trim(),
+      };
+    }
 
     const state = {
       activePage: 'story',
@@ -300,11 +444,13 @@
       lastRoll: null,
       pendingRoll: null,
       wakeLock: null,
+      characterName: 'Player',
+      repoAssets: [],
       files: {
-        rules: { path: 'DM_INSTRUCTIONS.md', content: '', sha: null },
-        campaign: { path: 'CAMPAIGN_STATE.md', content: '', sha: null },
-        story: { path: 'STORY_ENGINE.md', content: '', sha: null },
-        character: { path: 'Character/Kraven_Hexblade.md', content: '', sha: null },
+        rules: { path: '', content: '', sha: null },
+        campaign: { path: '', content: '', sha: null },
+        story: { path: '', content: '', sha: null },
+        character: { path: '', content: '', sha: null },
       }
     };
 
@@ -345,22 +491,6 @@
       await releaseWakeLock();
     }
 
-    function getConfig() {
-      try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-        return {
-          geminiKey: (saved.geminiKey || '').trim(),
-          geminiModel: (saved.geminiModel || 'gemini-3.8-flash').trim(),
-          ghOwner: (saved.ghOwner || 'philbredehoeft').trim(),
-          ghRepo: (saved.ghRepo || 'smoke-and-steel-campaign').trim(),
-          charPath: (saved.charPath || 'Character/Kraven_Hexblade.md').trim(),
-          ghToken: (saved.ghToken || '').trim(),
-        };
-      } catch (_) {
-        return { geminiKey: '', geminiModel: 'gemini-3.8-flash', ghOwner: 'philbredehoeft', ghRepo: 'smoke-and-steel-campaign', charPath: 'Character/Kraven_Hexblade.md', ghToken: '' };
-      }
-    }
-
     function updateModelButton() {
       const cfg = getConfig();
       const btn = document.getElementById('btn-cycle-model');
@@ -371,13 +501,14 @@
     }
 
     function cycleGeminiModel() {
-      const saved = getConfig();
-      const list = MODEL_PRESETS.includes(saved.geminiModel)
+      const store = loadStore();
+      const list = MODEL_PRESETS.includes(store.geminiModel)
         ? MODEL_PRESETS
-        : [saved.geminiModel, ...MODEL_PRESETS];
-      const idx = list.indexOf(saved.geminiModel);
+        : [store.geminiModel, ...MODEL_PRESETS];
+      const idx = list.indexOf(store.geminiModel);
       const nextModel = list[(idx + 1) % list.length];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, geminiModel: nextModel }));
+      store.geminiModel = nextModel;
+      saveStore(store);
       updateModelButton();
       appendStoryCard('System', `<p class="text-xs text-amber-200">Switched DM model to <code class="text-amber-300">${nextModel}</code>.</p>`, false);
     }
@@ -385,10 +516,17 @@
     function updateBadge() {
       const cfg = getConfig();
       const badge = document.getElementById('connection-badge');
-      document.getElementById('char-file-label').textContent = cfg.charPath;
-      document.getElementById('sync-status-text').textContent = `Repo: ${cfg.ghOwner}/${cfg.ghRepo}`;
+      const titleText = cfg.campaignName || 'Solo Campaign';
+      document.getElementById('app-title').textContent = titleText.toUpperCase();
+      document.title = `${titleText} — Solo Campaign Engine`;
+      document.getElementById('char-file-label').textContent = cfg.charPath || 'Not set';
+      document.getElementById('sync-status-text').textContent = (cfg.ghOwner && cfg.ghRepo)
+        ? `Repo: ${cfg.ghOwner}/${cfg.ghRepo} (${cfg.ghBranch})`
+        : 'No repository linked';
       updateModelButton();
-      if (cfg.geminiKey && cfg.ghToken) {
+
+      const hasRepo = Boolean(cfg.ghOwner && cfg.ghRepo && cfg.ghToken);
+      if (cfg.geminiKey && hasRepo) {
         badge.textContent = 'Ready to Sync';
         badge.className = 'text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shrink-0';
       } else if (cfg.geminiKey) {
@@ -406,6 +544,7 @@
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       return new TextDecoder().decode(bytes);
     }
+
     function encodeBase64Utf8(str) {
       const bytes = new TextEncoder().encode(str);
       let bin = '';
@@ -413,8 +552,14 @@
       return btoa(bin);
     }
 
+    function encodeRepoPath(path) {
+      return path.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    }
+
     async function ghGetFile(cfg, path) {
-      const url = `https://api.github.com/repos/${encodeURIComponent(cfg.ghOwner)}/${encodeURIComponent(cfg.ghRepo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
+      if (!path) return { content: '', sha: null };
+      const branchQuery = cfg.ghBranch ? `?ref=${encodeURIComponent(cfg.ghBranch)}` : '';
+      const url = `https://api.github.com/repos/${encodeURIComponent(cfg.ghOwner)}/${encodeURIComponent(cfg.ghRepo)}/contents/${encodeRepoPath(path)}${branchQuery}`;
       const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${cfg.ghToken}`,
@@ -430,8 +575,8 @@
     }
 
     async function ghPutFile(cfg, path, content, sha, message) {
-      const url = `https://api.github.com/repos/${encodeURIComponent(cfg.ghOwner)}/${encodeURIComponent(cfg.ghRepo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
-      const body = { message, content: encodeBase64Utf8(content) };
+      const url = `https://api.github.com/repos/${encodeURIComponent(cfg.ghOwner)}/${encodeURIComponent(cfg.ghRepo)}/contents/${encodeRepoPath(path)}`;
+      const body = { message, content: encodeBase64Utf8(content), branch: cfg.ghBranch || 'main' };
       if (sha) body.sha = sha;
       const res = await fetch(url, {
         method: 'PUT',
@@ -449,26 +594,81 @@
       return data.content?.sha || sha;
     }
 
+    async function ghListRepoTree(owner, repo, branch, token) {
+      const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch || 'main')}?recursive=1`;
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Repo scan failed (${res.status}). Check owner, repo, branch, and token.`);
+      }
+      const data = await res.json();
+      return Array.isArray(data.tree) ? data.tree : [];
+    }
+
+    function resetLoadedFilesState() {
+      state.files = {
+        rules: { path: '', content: '', sha: null },
+        campaign: { path: '', content: '', sha: null },
+        story: { path: '', content: '', sha: null },
+        character: { path: '', content: '', sha: null },
+      };
+      state.repoAssets = [];
+      state.characterName = 'Player';
+      document.getElementById('char-name').textContent = 'Active Character';
+      document.getElementById('action-input').placeholder = 'What do you do next?';
+    }
+
     async function loadCampaignFromGitHub() {
       const cfg = getConfig();
-      if (!cfg.ghToken) return;
-      state.files.character.path = cfg.charPath;
+      if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo) return;
 
       const entries = [
-        ['rules', 'DM_INSTRUCTIONS.md'],
-        ['campaign', 'CAMPAIGN_STATE.md'],
-        ['story', 'STORY_ENGINE.md'],
+        ['rules', cfg.rulesPath],
+        ['campaign', cfg.campaignPath],
+        ['story', cfg.storyPath],
         ['character', cfg.charPath],
       ];
 
       await Promise.all(entries.map(async ([key, path]) => {
+        if (!path) {
+          state.files[key] = { path: '', content: '', sha: null };
+          return;
+        }
         const fileData = await ghGetFile(cfg, path);
         state.files[key] = { path, content: fileData.content, sha: fileData.sha };
       }));
 
-      const locMatch = state.files.campaign.content.match(/Current Location:\*\*\s*(.+)/i);
+      // Infer current scene location from campaign file if present
+      const locMatch = state.files.campaign.content.match(/Current Location:\*\*\s*(.+)/i)
+        || state.files.campaign.content.match(/^Current Location:\s*(.+)/im);
       if (locMatch) {
         document.getElementById('scene-location').textContent = locMatch[1].trim();
+      }
+
+      // Lightly infer character name for prompt/card display (full sheet sync in Step 2)
+      const charText = state.files.character.content || '';
+      const nameMatch = charText.match(/(?:Name|Character):\*\*\s*(.+)/i)
+        || charText.match(/^#\s+(.+)/m);
+      if (nameMatch) {
+        const cleanName = nameMatch[1].replace(/[*_`]/g, '').trim();
+        state.characterName = cleanName;
+        document.getElementById('char-name').textContent = cleanName;
+        document.getElementById('action-input').placeholder = `What does ${cleanName.split(' ')[0]} do next?`;
+      }
+
+      // Scan asset folder if configured
+      if (cfg.assetsDir) {
+        try {
+          const tree = await ghListRepoTree(cfg.ghOwner, cfg.ghRepo, cfg.ghBranch, cfg.ghToken);
+          const prefix = cfg.assetsDir.replace(/^\/+|\/+$/g, '') + '/';
+          state.repoAssets = tree.filter((item) => item.type === 'blob' && item.path.startsWith(prefix));
+        } catch (_) {
+          state.repoAssets = [];
+        }
       }
     }
 
@@ -480,28 +680,29 @@
       const rollLine = rollObj
         ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
         : 'Dice Roll: None';
+      const activeChar = state.characterName || 'the player character';
 
-      const systemPrompt = `You are a Dungeon Master for a solo D&D campaign.
-Follow DM_INSTRUCTIONS.md strictly. Keep prose vivid, concise, and responsive to dice rolls.
-For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's gritty sword-and-sorcery tone. For an unrolled attack, show the approach, movement, and wind-up right up to the moment of the strike, stopping before the blow lands.
+      const systemPrompt = `You are a Dungeon Master for a solo tabletop RPG campaign ("${cfg.campaignName}").
+Follow the DM Instructions strictly. Keep prose vivid, concise, and responsive to dice rolls.
+For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's tone. For an unrolled attack, show the approach, movement, and wind-up right up to the moment of the strike, stopping before the blow lands.
 For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
-- Record EVERY roll (player rolls and NPC/enemy rolls for Initiative, Attacks, Damage, and Saves) inline in bracketed math, e.g. [Kha'rel Attack: d20 (16) + 5 = 21 vs AC 14 - Hit!], [Kha'rel Damage: 1d8 (6) + 3 = 9 | Guard 1 HP: 11 -> 2], or [Syndicate Guard Attack: d20 (12) + 3 = 15 vs AC 15 - Hit! Damage: 1d6 (4) + 1 = 5].
-- When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the guards reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
-- When an Attack roll IS attached and hits: show the inline attack roll math, describe the blade/spell biting into the target, and STOP before declaring the enemy dead or defeated until the player rolls Damage! Put the Damage roll (e.g. sides: 8, mod: 3 for Sorrow's Edge) as option 1 in "suggested_rolls".
-- When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against Kha'rel.
-For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll (skill: "Damage (Sorrow's Edge)", sides: 8, mod: 3, dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
+- Record EVERY roll (player rolls and NPC/enemy rolls for Initiative, Attacks, Damage, and Saves) inline in bracketed math, e.g. [Attack: d20 (16) + 5 = 21 vs AC 14 - Hit!], [Damage: 1d8 (6) + 3 = 9 | Enemy 1 HP: 11 -> 2], or [Enemy Attack: d20 (12) + 3 = 15 vs AC 15 - Hit! Damage: 1d6 (4) + 1 = 5].
+- When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the enemies reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
+- When an Attack roll IS attached and hits: show the inline attack roll math, describe the strike hitting the target, and STOP before declaring the enemy dead or defeated until the player rolls Damage! Put the weapon or spell Damage roll (using the stats from the character sheet) as option 1 in "suggested_rolls".
+- When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against ${activeChar}.
+For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll from the character sheet (dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
 
-=== DM_INSTRUCTIONS.md ===
-${state.files.rules.content || 'Gritty sword-and-sorcery tone. Prompt skill checks with clear DCs. Track combat HP.'}
+=== DM INSTRUCTIONS (${state.files.rules.path || 'Default'}) ===
+${state.files.rules.content || 'Prompt skill checks with clear DCs. Track combat HP and consequences fairly.'}
 
-=== CAMPAIGN_STATE.md ===
+=== CAMPAIGN STATE (${state.files.campaign.path || 'None'}) ===
 ${state.files.campaign.content}
 
-=== STORY_ENGINE.md ===
+=== STORY ENGINE (${state.files.story.path || 'None'}) ===
 ${state.files.story.content}
 
-=== CHARACTER (${state.files.character.path}) ===
+=== CHARACTER (${state.files.character.path || 'None'}) ===
 ${state.files.character.content}`;
 
       const schema = {
@@ -591,13 +792,13 @@ ${state.files.character.content}`;
       }
 
       const campaignNote = (dmResult.campaign_note || '').trim();
-      if (campaignNote && campaignNote.toLowerCase() !== 'none') {
+      if (campaignNote && campaignNote.toLowerCase() !== 'none' && state.files.campaign.path) {
         state.files.campaign.content = `${state.files.campaign.content.trim()}\n- Turn Update: ${campaignNote}\n`;
         dirtyKeys.add('campaign');
       }
 
       const storyNote = (dmResult.story_note || '').trim();
-      if (storyNote && storyNote.toLowerCase() !== 'none') {
+      if (storyNote && storyNote.toLowerCase() !== 'none' && state.files.story.path) {
         state.files.story.content = `${state.files.story.content.trim()}\n- Arc Note: ${storyNote}\n`;
         dirtyKeys.add('story');
       }
@@ -605,7 +806,7 @@ ${state.files.character.content}`;
       const hpDelta = Number(dmResult.hp_delta) || 0;
       const goldDelta = Number(dmResult.gold_delta) || 0;
       const charNote = (dmResult.character_note || '').trim();
-      if ((charNote && charNote.toLowerCase() !== 'none') || hpDelta !== 0 || goldDelta !== 0) {
+      if (((charNote && charNote.toLowerCase() !== 'none') || hpDelta !== 0 || goldDelta !== 0) && state.files.character.path) {
         const notes = [];
         if (hpDelta) notes.push(`HP delta ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
         if (goldDelta) notes.push(`Gold delta ${goldDelta > 0 ? '+' : ''}${goldDelta} gp`);
@@ -617,10 +818,12 @@ ${state.files.character.content}`;
       const hpEl = document.getElementById('char-hp');
       if (hpEl && hpDelta !== 0) {
         const match = hpEl.textContent.trim().match(/^(-?\d+)\s*\/\s*(\d+)$/);
-        const currentHp = match ? Number(match[1]) : 17;
-        const maxHp = match ? Number(match[2]) : 17;
-        const nextHp = Math.max(0, Math.min(maxHp, currentHp + hpDelta));
-        hpEl.textContent = `${nextHp} / ${maxHp}`;
+        if (match) {
+          const currentHp = Number(match[1]);
+          const maxHp = Number(match[2]);
+          const nextHp = Math.max(0, Math.min(maxHp, currentHp + hpDelta));
+          hpEl.textContent = `${nextHp} / ${maxHp}`;
+        }
       }
 
       const goldEl = document.getElementById('char-gold');
@@ -634,16 +837,11 @@ ${state.files.character.content}`;
     }
 
     async function persistMarkdownToGitHub(cfg, dirtyKeys) {
-      if (!cfg.ghToken || !dirtyKeys || dirtyKeys.size === 0) return;
-      const messages = {
-        campaign: 'Update CAMPAIGN_STATE.md from DM turn',
-        story: 'Update STORY_ENGINE.md from DM turn',
-        character: `Update ${state.files.character.path} from DM turn`,
-      };
+      if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo || !dirtyKeys || dirtyKeys.size === 0) return;
       for (const key of dirtyKeys) {
         const fileObj = state.files[key];
-        if (fileObj && fileObj.content) {
-          fileObj.sha = await ghPutFile(cfg, fileObj.path, fileObj.content, fileObj.sha, messages[key]);
+        if (fileObj && fileObj.path && fileObj.content) {
+          fileObj.sha = await ghPutFile(cfg, fileObj.path, fileObj.content, fileObj.sha, `Update ${fileObj.path} from DM turn`);
         }
       }
     }
@@ -679,10 +877,10 @@ ${state.files.character.content}`;
 
     // Polyhedral 3D Dice Renderer (d20 Icosahedron, d12 Dodecahedron, d8 Octahedron, d6 Cube)
     const rollOverlay = document.getElementById('roll-overlay');
-    const dieBtn = document.getElementById('overlay-die-btn') || document.getElementById('die-btn') || document.getElementById('die-canvas');
+    const dieBtn = document.getElementById('die-btn');
     const dieCanvas = document.getElementById('die-canvas');
     const dieCtx = dieCanvas.getContext('2d');
-    const dieSubEl = document.getElementById('overlay-die-sub') || document.getElementById('die-sub');
+    const dieSubEl = document.getElementById('die-sub');
     const useRollBtn = document.getElementById('btn-use-roll');
 
     const PHI = (1 + Math.sqrt(5)) / 2;
@@ -918,14 +1116,9 @@ ${state.files.character.content}`;
       state.rollPool = null;
       useRollBtn.disabled = true;
 
-      const labelEl = document.getElementById('overlay-label');
-      if (labelEl) labelEl.textContent = label;
-
-      const titleEl = document.getElementById('overlay-title') || document.getElementById('roll-summary-line');
-      if (titleEl) titleEl.textContent = title;
-
-      const strip = document.getElementById('multi-roll-strip');
-      if (strip) strip.innerHTML = '';
+      document.getElementById('overlay-label').textContent = label;
+      document.getElementById('roll-summary-line').textContent = title;
+      document.getElementById('multi-roll-strip').innerHTML = '';
 
       setIdleDie(sides, mod);
       rollOverlay.classList.remove('hidden');
@@ -992,24 +1185,7 @@ ${state.files.character.content}`;
 
     function setRollMode(mode) {
       state.rollMode = mode || 'normal';
-      document.querySelectorAll('.mode-select').forEach((btn) => {
-        const active = btn.dataset.rollMode === state.rollMode;
-        btn.className = active
-          ? 'mode-select px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium'
-          : 'mode-select px-2.5 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500';
-      });
     }
-
-    document.querySelectorAll('.mode-select').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        setRollMode(btn.dataset.rollMode);
-        state.lastRoll = null;
-        useRollBtn.disabled = true;
-        const strip = document.getElementById('multi-roll-strip');
-        if (strip) strip.innerHTML = '';
-        dieSubEl.textContent = `Mode: ${btn.textContent} · Tap die to roll`;
-      });
-    });
 
     function getDiceCountForMode(mode) {
       if (mode === 'advantage' || mode === 'disadvantage') return 2;
@@ -1187,20 +1363,6 @@ ${state.files.character.content}`;
       rollOverlay.classList.add('hidden');
     });
 
-    document.querySelectorAll('.die-select').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.dieSides = Number(btn.dataset.die);
-        state.modifier = 0;
-        state.skillLabel = `d${state.dieSides} Roll`;
-        state.lastRoll = null;
-        useRollBtn.disabled = true;
-        const strip = document.getElementById('multi-roll-strip');
-        if (strip) strip.innerHTML = '';
-        document.getElementById('overlay-label').textContent = state.skillLabel;
-        setIdleDie(state.dieSides, 0);
-      });
-    });
-
     document.querySelectorAll('.skill-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const skill = btn.dataset.skill;
@@ -1272,38 +1434,151 @@ ${state.files.character.content}`;
 
     document.getElementById('btn-cycle-model').addEventListener('click', cycleGeminiModel);
 
+    // Campaign Profiles & Settings Modal Logic
     const settingsModal = document.getElementById('settings-modal');
+    const profileSelect = document.getElementById('cfg-profile-select');
+    let draftStore = null;
+
+    function populateSettingsForm(store) {
+      profileSelect.innerHTML = store.profiles.map((p) => {
+        const selected = p.id === store.activeProfileId ? 'selected' : '';
+        return `<option value="${p.id}" ${selected}>${p.name || 'Unnamed Campaign'}</option>`;
+      }).join('');
+
+      const prof = getActiveProfile(store);
+      document.getElementById('cfg-profile-name').value = prof.name || '';
+      document.getElementById('cfg-gemini-key').value = store.geminiKey || '';
+      document.getElementById('cfg-gemini-model').value = store.geminiModel || 'gemini-3.8-flash';
+      document.getElementById('cfg-gh-owner').value = prof.ghOwner || '';
+      document.getElementById('cfg-gh-repo').value = prof.ghRepo || '';
+      document.getElementById('cfg-gh-branch').value = prof.ghBranch || 'main';
+      document.getElementById('cfg-gh-token').value = prof.ghToken || '';
+      document.getElementById('cfg-rules-path').value = prof.rulesPath ?? '';
+      document.getElementById('cfg-campaign-path').value = prof.campaignPath ?? '';
+      document.getElementById('cfg-story-path').value = prof.storyPath ?? '';
+      document.getElementById('cfg-char-path').value = prof.charPath ?? '';
+      document.getElementById('cfg-assets-dir').value = prof.assetsDir ?? '';
+      document.getElementById('btn-delete-profile').disabled = store.profiles.length <= 1;
+      document.getElementById('btn-delete-profile').classList.toggle('opacity-40', store.profiles.length <= 1);
+    }
+
+    function commitFormToDraft() {
+      if (!draftStore) return;
+      draftStore.geminiKey = document.getElementById('cfg-gemini-key').value.trim();
+      draftStore.geminiModel = document.getElementById('cfg-gemini-model').value.trim() || 'gemini-3.8-flash';
+      const prof = getActiveProfile(draftStore);
+      prof.name = document.getElementById('cfg-profile-name').value.trim() || 'Unnamed Campaign';
+      prof.ghOwner = document.getElementById('cfg-gh-owner').value.trim();
+      prof.ghRepo = document.getElementById('cfg-gh-repo').value.trim();
+      prof.ghBranch = document.getElementById('cfg-gh-branch').value.trim() || 'main';
+      prof.ghToken = document.getElementById('cfg-gh-token').value.trim();
+      prof.rulesPath = document.getElementById('cfg-rules-path').value.trim();
+      prof.campaignPath = document.getElementById('cfg-campaign-path').value.trim();
+      prof.storyPath = document.getElementById('cfg-story-path').value.trim();
+      prof.charPath = document.getElementById('cfg-char-path').value.trim();
+      prof.assetsDir = document.getElementById('cfg-assets-dir').value.trim();
+    }
 
     function openSettingsModal() {
-      const saved = getConfig();
-      document.getElementById('cfg-gemini-key').value = saved.geminiKey;
-      document.getElementById('cfg-gemini-model').value = saved.geminiModel;
-      document.getElementById('cfg-gh-owner').value = saved.ghOwner;
-      document.getElementById('cfg-gh-repo').value = saved.ghRepo;
-      document.getElementById('cfg-char-path').value = saved.charPath;
-      document.getElementById('cfg-gh-token').value = saved.ghToken;
+      draftStore = loadStore();
+      document.getElementById('scan-status').classList.add('hidden');
+      populateSettingsForm(draftStore);
       settingsModal.classList.remove('hidden');
     }
 
+    profileSelect.addEventListener('change', () => {
+      commitFormToDraft();
+      draftStore.activeProfileId = profileSelect.value;
+      populateSettingsForm(draftStore);
+    });
+
+    document.getElementById('btn-new-profile').addEventListener('click', () => {
+      commitFormToDraft();
+      const prevProf = getActiveProfile(draftStore);
+      const nextNum = draftStore.profiles.length + 1;
+      const fresh = makeDefaultProfile({
+        name: `Campaign ${nextNum}`,
+        ghOwner: prevProf.ghOwner,
+        ghToken: prevProf.ghToken,
+      });
+      draftStore.profiles.push(fresh);
+      draftStore.activeProfileId = fresh.id;
+      populateSettingsForm(draftStore);
+    });
+
+    document.getElementById('btn-delete-profile').addEventListener('click', () => {
+      if (!draftStore || draftStore.profiles.length <= 1) return;
+      draftStore.profiles = draftStore.profiles.filter((p) => p.id !== draftStore.activeProfileId);
+      draftStore.activeProfileId = draftStore.profiles[0].id;
+      populateSettingsForm(draftStore);
+    });
+
+    document.getElementById('btn-scan-repo').addEventListener('click', async () => {
+      commitFormToDraft();
+      const prof = getActiveProfile(draftStore);
+      const statusEl = document.getElementById('scan-status');
+      statusEl.classList.remove('hidden');
+      if (!prof.ghOwner || !prof.ghRepo || !prof.ghToken) {
+        statusEl.className = 'text-[11px] text-rose-300';
+        statusEl.textContent = 'Enter GitHub Owner, Repo, and Token first to scan.';
+        return;
+      }
+      statusEl.className = 'text-[11px] text-amber-300';
+      statusEl.textContent = 'Scanning repository files...';
+      try {
+        const tree = await ghListRepoTree(prof.ghOwner, prof.ghRepo, prof.ghBranch, prof.ghToken);
+        const mdFiles = tree.filter((item) => item.type === 'blob' && /\.md$/i.test(item.path)).map((i) => i.path);
+        const datalist = document.getElementById('repo-md-list');
+        datalist.innerHTML = mdFiles.map((p) => `<option value="${p}"></option>`).join('');
+
+        // Auto-match empty or missing default fields from repo structure
+        const findMatch = (rx) => mdFiles.find((p) => rx.test(p));
+        if (!prof.rulesPath || !mdFiles.includes(prof.rulesPath)) {
+          const m = findMatch(/(?:dm_instruction|rules|system)/i);
+          if (m) prof.rulesPath = m;
+        }
+        if (!prof.campaignPath || !mdFiles.includes(prof.campaignPath)) {
+          const m = findMatch(/(?:campaign_state|state|world)/i);
+          if (m) prof.campaignPath = m;
+        }
+        if (!prof.storyPath || !mdFiles.includes(prof.storyPath)) {
+          const m = findMatch(/(?:story_engine|story|arc|quest)/i);
+          if (m) prof.storyPath = m;
+        }
+        if (!prof.charPath || !mdFiles.includes(prof.charPath)) {
+          const m = findMatch(/(?:character|sheet|pc|hero)/i);
+          if (m) prof.charPath = m;
+        }
+        const assetDirMatch = tree.find((item) => item.type === 'tree' && /^(?:assets|images|maps|media)$/i.test(item.path.split('/').pop()));
+        if (assetDirMatch && !prof.assetsDir) {
+          prof.assetsDir = assetDirMatch.path;
+        }
+
+        populateSettingsForm(draftStore);
+        statusEl.className = 'text-[11px] text-emerald-300';
+        statusEl.textContent = `Found ${mdFiles.length} Markdown files. Tap any path input above to choose.`;
+      } catch (err) {
+        statusEl.className = 'text-[11px] text-rose-300';
+        statusEl.textContent = err.message;
+      }
+    });
+
     document.getElementById('btn-open-settings').addEventListener('click', openSettingsModal);
     document.getElementById('btn-close-settings').addEventListener('click', () => settingsModal.classList.add('hidden'));
+
     document.getElementById('btn-save-settings').addEventListener('click', async () => {
-      const payload = {
-        geminiKey: document.getElementById('cfg-gemini-key').value.trim(),
-        geminiModel: document.getElementById('cfg-gemini-model').value.trim() || 'gemini-3.8-flash',
-        ghOwner: document.getElementById('cfg-gh-owner').value.trim() || 'philbredehoeft',
-        ghRepo: document.getElementById('cfg-gh-repo').value.trim() || 'smoke-and-steel-campaign',
-        charPath: document.getElementById('cfg-char-path').value.trim() || 'Character/Kraven_Hexblade.md',
-        ghToken: document.getElementById('cfg-gh-token').value.trim(),
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      commitFormToDraft();
+      saveStore(draftStore);
+      resetLoadedFilesState();
       updateBadge();
       settingsModal.classList.add('hidden');
-      if (payload.ghToken) {
-        await beginBusyState('Loading Campaign...', 'Reading Markdown files from GitHub');
+
+      const cfg = getConfig();
+      if (cfg.ghToken && cfg.ghOwner && cfg.ghRepo) {
+        await beginBusyState('Loading Campaign...', `Reading files for ${cfg.campaignName}`);
         try {
           await loadCampaignFromGitHub();
-          appendStoryCard('System', '<p class="text-xs text-emerald-300">Loaded campaign Markdown files from GitHub.</p>', false);
+          appendStoryCard('System', `<p class="text-xs text-emerald-300">Loaded campaign <strong>${cfg.campaignName}</strong> from GitHub.</p>`, false);
         } catch (err) {
           appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
         } finally {
@@ -1314,14 +1589,14 @@ ${state.files.character.content}`;
 
     document.getElementById('btn-pull-repo').addEventListener('click', async () => {
       const cfg = getConfig();
-      if (!cfg.ghToken) {
+      if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo) {
         openSettingsModal();
         return;
       }
-      await beginBusyState('Loading Campaign...', 'Reading Markdown files from GitHub');
+      await beginBusyState('Loading Campaign...', `Refreshing ${cfg.campaignName} from GitHub`);
       try {
         await loadCampaignFromGitHub();
-        appendStoryCard('System', '<p class="text-xs text-emerald-300">Refreshed campaign files from GitHub.</p>', false);
+        appendStoryCard('System', `<p class="text-xs text-emerald-300">Refreshed <strong>${cfg.campaignName}</strong> files from GitHub.</p>`, false);
       } catch (err) {
         appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
       } finally {
@@ -1341,7 +1616,7 @@ ${state.files.character.content}`;
         ? `<span class="inline-block mb-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">${rollToSend.label}: ${rollToSend.total}</span><br/>`
         : '';
 
-      appendStoryCard('Kraven', `${rollSummary}<p>${text || 'Act on the roll.'}</p>`, false);
+      appendStoryCard(state.characterName || 'Player', `${rollSummary}<p>${text || 'Act on the roll.'}</p>`, false);
 
       input.value = '';
       state.pendingRoll = null;
@@ -1359,7 +1634,7 @@ ${state.files.character.content}`;
       sendBtn.textContent = '...';
       await beginBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
       try {
-        if (cfg.ghToken && !state.files.campaign.content) {
+        if (cfg.ghToken && cfg.ghOwner && cfg.ghRepo && !state.files.campaign.content && !state.files.character.content) {
           updateBusyState('Loading Campaign...', 'Pulling state files from GitHub');
           await loadCampaignFromGitHub();
           updateBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
@@ -1415,7 +1690,8 @@ ${state.files.character.content}`;
     });
 
     updateBadge();
-    if (getConfig().ghToken) {
+    const initialCfg = getConfig();
+    if (initialCfg.ghToken && initialCfg.ghOwner && initialCfg.ghRepo) {
       loadCampaignFromGitHub().catch(() => {});
     }
   </script>
