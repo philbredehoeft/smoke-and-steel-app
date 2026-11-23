@@ -1,3 +1,26 @@
+
+Good catch—looking at your screenshot, there are **three separate things** happening here (and fixing them will also fix `AC: --` and `GOLD: 0 gp` at the same time):
+
+1. **Why HP says `17 / 17` while the DM says you're bleeding:**
+   * On *this* turn in your screenshot, you rolled **Persuasion (Success)**—so no damage happened *this turn*, and Gemini returned `hp_delta: 0`. The bleeding/injury in the prose is carrying over from earlier turns in your story/campaign notes, while the HP line near the top of `Character/Kraven_Hexblade.md` on GitHub still says `17 / 17`.
+   * On top of that, `callGeminiDM` didn't explicitly instruct Gemini in the prompt/schema to emit negative `hp_delta` on damage and positive `hp_delta` on healing/hit dice (so when you roll that `Hit Die (Short Rest)` button, it needs to know to return a positive `hp_delta`).
+2. **Why `AC` shows `--` (and possibly `GOLD` shows `0 gp`):**
+   * The parser only looked at the **start of a line**, so if your character file formats stats on one line separated by pipes (e.g. `**HP:** 17 / 17 | **AC:** 15`), uses parentheses (e.g. `**Armor Class (AC):** 15`), or writes `24 gp` inside another line, `AC` and `Gold` got skipped—and updating HP on a pipe-separated line would have overwritten `| **AC:** 15`.
+
+---
+
+### Fixes Applied in This Update
+
+* **Explicit `hp_delta` & `gold_delta` Rules for Gemini:** Added explicit schema descriptions and `systemPrompt` instructions requiring Gemini to set negative `hp_delta` on damage, positive `hp_delta` on healing/Short Rest Hit Dice, and `gold_delta` on currency changes.
+* **Smarter Stat Parser & Safe In-Place Updater:** `extractStatValue` and `replaceStatInMarkdown` now handle:
+  * Pipe-separated inline stats (`**HP:** 17 / 17 | **AC:** 15`) without clobbering adjacent stats on update.
+  * Parenthetical labels (`**Armor Class (AC):** 15`, `**Hit Points (HP):** 17 / 17`).
+  * Fallback detection for `AC 15`, `HP 17/17`, and `24 gp` even without a `Gold:` label.
+* **Manual `-` / `+` Controls on HP & Gold:** Added compact `-` / `+` buttons directly under **HP** and **Gold** in the Character Sheet so you can manually sync your current HP (e.g., bringing `17 / 17` down to match your pre-existing injury) or adjust coin anytime. Rapid taps are **debounced (900ms)** into a single clean GitHub commit.
+
+Replace your HTML with this updated version and click **Load Repo**:
+
+```html
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -120,17 +143,25 @@
         </div>
 
         <div class="grid grid-cols-3 gap-2 text-center">
-          <div class="p-2.5 rounded-xl bg-surfaceAlt border border-stone-800">
+          <div class="p-2 rounded-xl bg-surfaceAlt border border-stone-800">
             <div class="text-[10px] uppercase text-stone-400">HP</div>
             <div id="char-hp" class="text-sm font-semibold text-emerald-400 mt-0.5">-- / --</div>
+            <div class="flex items-center justify-center gap-1.5 mt-1.5">
+              <button id="btn-hp-minus" type="button" title="Decrease HP by 1" class="w-6 h-5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs leading-none">-</button>
+              <button id="btn-hp-plus" type="button" title="Increase HP by 1" class="w-6 h-5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs leading-none">+</button>
+            </div>
           </div>
-          <div class="p-2.5 rounded-xl bg-surfaceAlt border border-stone-800">
+          <div class="p-2 rounded-xl bg-surfaceAlt border border-stone-800 flex flex-col justify-center">
             <div class="text-[10px] uppercase text-stone-400">AC</div>
             <div id="char-ac" class="text-sm font-semibold text-stone-100 mt-0.5">--</div>
           </div>
-          <div class="p-2.5 rounded-xl bg-surfaceAlt border border-stone-800">
+          <div class="p-2 rounded-xl bg-surfaceAlt border border-stone-800">
             <div class="text-[10px] uppercase text-stone-400">Gold</div>
             <div id="char-gold" class="text-sm font-semibold text-amber-400 mt-0.5">0 gp</div>
+            <div class="flex items-center justify-center gap-1.5 mt-1.5">
+              <button id="btn-gold-minus" type="button" title="Decrease currency by 1" class="w-6 h-5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs leading-none">-</button>
+              <button id="btn-gold-plus" type="button" title="Increase currency by 1" class="w-6 h-5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs leading-none">+</button>
+            </div>
           </div>
         </div>
 
@@ -524,6 +555,7 @@
       characterName: 'Player',
       storyEntries: [],
       turnHistory: [],
+      charSyncTimer: null,
       parsedChar: {
         name: 'Active Character',
         subtitle: 'Load repo to sync character',
@@ -855,11 +887,17 @@
 
     function extractStatValue(md, labelPattern) {
       if (!md) return null;
-      const kvRx = new RegExp(`(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*:\\s*(?:\\*\\*|__)?\\s*([^\\n]+)`, 'i');
+      const kvRx = new RegExp(
+        `(?:^|\\n|\\|)\\s*(?:[-*]\\s*)?(?:\\*\\*|__)?(?:${labelPattern})(?:\\s*\\([^)]+\\))?(?:\\*\\*|__)?\\s*:\\s*(?:\\*\\*|__)?\\s*([^\\n|]+)`,
+        'i'
+      );
       const kvMatch = md.match(kvRx);
       if (kvMatch) return kvMatch[1].replace(/[*_`]/g, '').trim();
 
-      const tblRx = new RegExp(`(?:^|\\n)\\s*\\|\\s*(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*\\|\\s*([^|\\n]+)`, 'i');
+      const tblRx = new RegExp(
+        `(?:^|\\n)\\s*\\|\\s*(?:\\*\\*|__)?(?:${labelPattern})(?:\\s*\\([^)]+\\))?(?:\\*\\*|__)?\\s*\\|\\s*([^|\\n]+)`,
+        'i'
+      );
       const tblMatch = md.match(tblRx);
       if (tblMatch) return tblMatch[1].replace(/[*_`]/g, '').trim();
 
@@ -868,11 +906,20 @@
 
     function replaceStatInMarkdown(md, labelPattern, newValueStr) {
       if (!md) return md;
-      const kvRx = new RegExp(`((?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*:\\s*(?:\\*\\*|__)?\\s*)([^\\n]+)`, 'i');
+      const kvRx = new RegExp(
+        `((?:^|\\n|\\|)\\s*(?:[-*]\\s*)?(?:\\*\\*|__)?(?:${labelPattern})(?:\\s*\\([^)]+\\))?(?:\\*\\*|__)?\\s*:\\s*(?:\\*\\*|__)?\\s*)([^\\n|]+)`,
+        'i'
+      );
       if (kvRx.test(md)) {
-        return md.replace(kvRx, `$1${newValueStr}`);
+        return md.replace(kvRx, (_, prefix, oldVal) => {
+          const trailingSpace = /\s+$/.test(oldVal) ? ' ' : '';
+          return `${prefix}${newValueStr}${trailingSpace}`;
+        });
       }
-      const tblRx = new RegExp(`((?:^|\\n)\\s*\\|\\s*(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*\\|\\s*)([^|\\n]+)`, 'i');
+      const tblRx = new RegExp(
+        `((?:^|\\n)\\s*\\|\\s*(?:\\*\\*|__)?(?:${labelPattern})(?:\\s*\\([^)]+\\))?(?:\\*\\*|__)?\\s*\\|\\s*)([^|\\n]+)`,
+        'i'
+      );
       if (tblRx.test(md)) {
         return md.replace(tblRx, `$1${newValueStr} `);
       }
@@ -915,7 +962,8 @@
 
       let hp = null;
       let maxHp = null;
-      const hpRaw = extractStatValue(md, '(?:Current\\s+)?HP|Hit\\s*Points');
+      const hpRaw = extractStatValue(md, '(?:Current\\s+)?HP|Hit\\s*Points')
+        || (md.match(/\b(?:HP|Hit\s*Points)\b[^\n\d-]{0,6}(-?\d+\s*\/\s*\d+)/i)?.[1] || null);
       if (hpRaw) {
         const slashMatch = hpRaw.match(/(-?\d+)\s*\/\s*(\d+)/);
         if (slashMatch) {
@@ -931,7 +979,8 @@
       }
 
       let ac = null;
-      const acRaw = extractStatValue(md, 'AC|Armor\\s*Class|Defense');
+      const acRaw = extractStatValue(md, 'AC|Armor\\s*Class|Defense')
+        || (md.match(/\b(?:AC|Armor\s*Class)\b[^\n\d]{0,12}(\d+)/i)?.[1] || null);
       if (acRaw) {
         const acMatch = acRaw.match(/(\d+)/);
         if (acMatch) ac = Number(acMatch[1]);
@@ -939,12 +988,18 @@
 
       let gold = 0;
       let currencyUnit = 'gp';
-      const goldRaw = extractStatValue(md, 'Gold|Currency|Wealth|Coins|Credits|Money');
+      const goldRaw = extractStatValue(md, 'Gold|Currency|Wealth|Coins?|Purse|Credits|Money');
       if (goldRaw) {
         const goldMatch = goldRaw.match(/(-?\d+(?:,\d{3})*)\s*([a-zA-Z]+)?/);
         if (goldMatch) {
           gold = Number(goldMatch[1].replace(/,/g, '')) || 0;
           if (goldMatch[2]) currencyUnit = goldMatch[2];
+        }
+      } else {
+        const coinMatch = md.match(/\b(\d+(?:,\d{3})*)\s*(gp|sp|cp|ep|pp|credits?)\b/i);
+        if (coinMatch) {
+          gold = Number(coinMatch[1].replace(/,/g, '')) || 0;
+          currencyUnit = coinMatch[2].toLowerCase();
         }
       }
 
@@ -1093,6 +1148,84 @@
         detailsEl.innerHTML = '<p class="text-stone-400">No extra equipment or resource notes parsed.</p>';
       }
     }
+
+    function scheduleCharacterStatCommit() {
+      if (state.charSyncTimer) clearTimeout(state.charSyncTimer);
+      const cfg = getConfig();
+      if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo || !state.files.character.path || !state.files.character.content) return;
+      state.charSyncTimer = setTimeout(async () => {
+        const latestCfg = getConfig();
+        const fileObj = state.files.character;
+        if (!fileObj.path || !fileObj.content) return;
+        const snapshotHp = state.parsedChar.hp;
+        const snapshotMaxHp = state.parsedChar.maxHp;
+        const snapshotGold = state.parsedChar.gold;
+        const snapshotUnit = state.parsedChar.currencyUnit || 'gp';
+        try {
+          fileObj.sha = await ghPutFile(latestCfg, fileObj.path, fileObj.content, fileObj.sha, `Adjust character stats in ${fileObj.path}`);
+        } catch (err) {
+          if (err.status === 409) {
+            try {
+              const latest = await ghGetFile(latestCfg, fileObj.path);
+              let merged = latest.content;
+              if (snapshotHp !== null && snapshotMaxHp !== null) {
+                merged = replaceStatInMarkdown(merged, '(?:Current\\s+)?HP|Hit\\s*Points', `${snapshotHp} / ${snapshotMaxHp}`);
+              }
+              merged = replaceStatInMarkdown(merged, 'Gold|Currency|Wealth|Coins?|Purse|Credits|Money', `${snapshotGold} ${snapshotUnit}`);
+              fileObj.content = merged;
+              fileObj.sha = latest.sha;
+              fileObj.sha = await ghPutFile(latestCfg, fileObj.path, fileObj.content, fileObj.sha, `Adjust character stats in ${fileObj.path} (merged)`);
+            } catch (err2) {
+              appendSystemMessage(err2.message, 'error');
+            }
+          } else {
+            appendSystemMessage(err.message, 'error');
+          }
+        }
+      }, 900);
+    }
+
+    function adjustCharacterStat(kind, delta) {
+      if (kind === 'hp') {
+        if (state.parsedChar.hp === null || state.parsedChar.maxHp === null) return;
+        const nextHp = Math.max(0, Math.min(state.parsedChar.maxHp, state.parsedChar.hp + delta));
+        if (nextHp === state.parsedChar.hp) return;
+        state.parsedChar.hp = nextHp;
+        if (state.files.character.content) {
+          state.files.character.content = replaceStatInMarkdown(
+            state.files.character.content,
+            '(?:Current\\s+)?HP|Hit\\s*Points',
+            `${nextHp} / ${state.parsedChar.maxHp}`
+          );
+        }
+        renderCharacterUI(state.parsedChar);
+        scheduleCharacterStatCommit();
+      } else if (kind === 'gold') {
+        const nextGold = Math.max(0, (state.parsedChar.gold || 0) + delta);
+        if (nextGold === state.parsedChar.gold) return;
+        const unit = state.parsedChar.currencyUnit || 'gp';
+        state.parsedChar.gold = nextGold;
+        if (state.files.character.content) {
+          const updated = replaceStatInMarkdown(
+            state.files.character.content,
+            'Gold|Currency|Wealth|Coins?|Purse|Credits|Money',
+            `${nextGold} ${unit}`
+          );
+          if (updated !== state.files.character.content) {
+            state.files.character.content = updated;
+          } else {
+            state.files.character.content = `${state.files.character.content.trim()}\n- **Gold:** ${nextGold} ${unit}\n`;
+          }
+        }
+        renderCharacterUI(state.parsedChar);
+        scheduleCharacterStatCommit();
+      }
+    }
+
+    document.getElementById('btn-hp-minus').addEventListener('click', () => adjustCharacterStat('hp', -1));
+    document.getElementById('btn-hp-plus').addEventListener('click', () => adjustCharacterStat('hp', 1));
+    document.getElementById('btn-gold-minus').addEventListener('click', () => adjustCharacterStat('gold', -1));
+    document.getElementById('btn-gold-plus').addEventListener('click', () => adjustCharacterStat('gold', 1));
 
     function parseCampaignTracker(campaignMd, storyMd) {
       const combined = [campaignMd, storyMd].filter(Boolean).join('\n\n');
@@ -1335,7 +1468,6 @@
         state.files[key] = { path, content: fileData.content, sha: fileData.sha };
       }));
 
-      // Scan repo tree once to discover alternate character sheets & campaign assets
       try {
         const tree = await ghListRepoTree(cfg.ghOwner, cfg.ghRepo, cfg.ghBranch, cfg.ghToken);
         const charDir = cfg.charPath && cfg.charPath.includes('/')
@@ -1384,8 +1516,9 @@ For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
 - When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the enemies reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
 - When an Attack roll IS attached and hits: show the inline attack roll math, describe the strike hitting the target, and STOP before declaring the enemy dead or defeated until the player rolls Damage! Put the weapon or spell Damage roll (using the stats from the character sheet) as option 1 in "suggested_rolls".
 - When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against ${activeChar}.
+- CRITICAL STAT DELTAS: Whenever ${activeChar} takes damage this turn, you MUST set "hp_delta" to the negative damage integer (e.g. -6). Whenever ${activeChar} heals or recovers HP (via Hit Dice, short rest, spell, or potion) this turn, you MUST set "hp_delta" to the positive healed integer (e.g. +7). Whenever ${activeChar} spends or gains currency this turn, set "gold_delta" accordingly. Set them to 0 only if no HP or currency changed this turn.
 For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll from the character sheet (dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
-Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") or delta fields 0 if nothing changed for that file.
+Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") if nothing changed for that file.
 
 === DM INSTRUCTIONS (${state.files.rules.path || 'Default'}) ===
 ${state.files.rules.content || 'Prompt skill checks with clear DCs. Track combat HP and consequences fairly.'}
@@ -1420,8 +1553,14 @@ ${state.files.character.content}`;
             }
           },
           location: { type: 'STRING' },
-          hp_delta: { type: 'INTEGER' },
-          gold_delta: { type: 'INTEGER' },
+          hp_delta: {
+            type: 'INTEGER',
+            description: 'Net change to active character HP this turn: negative for damage taken, positive for healing/Hit Dice recovery, 0 if unchanged.'
+          },
+          gold_delta: {
+            type: 'INTEGER',
+            description: 'Net change to active character gold/currency this turn: negative when spent/lost, positive when gained, 0 if unchanged.'
+          },
           campaign_note: { type: 'STRING' },
           story_note: { type: 'STRING' },
           character_note: { type: 'STRING' }
@@ -1558,7 +1697,7 @@ ${state.files.character.content}`;
           if (state.files.character.content) {
             const updatedGoldMd = replaceStatInMarkdown(
               state.files.character.content,
-              'Gold|Currency|Wealth|Coins|Credits|Money',
+              'Gold|Currency|Wealth|Coins?|Purse|Credits|Money',
               `${nextGold} ${unit}`
             );
             if (updatedGoldMd !== state.files.character.content) {
