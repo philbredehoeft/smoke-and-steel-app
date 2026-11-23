@@ -1,17 +1,3 @@
-
-Here is your updated **`index.html`** with those reliability and speed improvements built in, without sacrificing story or combat quality:
-
-### What Was Added
-1. **Automatic Model Failover (`429` & `503`):** If your active model hits a `429` quota limit or stays `503` busy after a quick retry, `callGeminiDM` automatically steps through your preset models (`gemini-3.8-flash` → `gemini-3.6-flash` → `gemini-3.5-flash-lite`), updates the loading overlay so you know what it's trying, and switches your active model button automatically once one succeeds.
-2. **Full Untruncated Gemini Error Messages:** If all models fail, `parseGeminiError` prints the full API error message (including exact `retry in Xs` wait times and which quota was hit) instead of cutting off at 180 characters.
-3. **Smart Prompt Note Trimming (`trimMarkdownNotes`):** Your GitHub files still keep your full history, while the prompt sent to Gemini caps old `- Turn Update:` / `- Arc Note:` / `- Session Note:` tails to the **10 most recent** entries—keeping responses snappier and cutting down input tokens-per-minute.
-4. **DM Thinking Depth Setting (`Auto` / `Low` / `Medium`):** Added a **DM Thinking Depth** selector in **Settings** defaulting to **`Auto (Model Default)`** so you keep full `MEDIUM` planning/combat math by default, with the option to switch to **`Low`** anytime you want to test faster turns.
-
----
-
-### Full Updated `index.html` (Ready to Copy & Replace)
-
-```html
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
