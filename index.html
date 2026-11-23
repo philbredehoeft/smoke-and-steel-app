@@ -191,10 +191,36 @@
 
   <!-- POLYHEDRAL 3D ROLL OVERLAY MODAL -->
   <div id="roll-overlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-surface border border-amber-500/30 p-5 text-center space-y-4 shadow-2xl">
+    <div class="w-full max-w-sm rounded-2xl bg-surface border border-amber-500/30 p-5 text-center space-y-3.5 shadow-2xl">
       <div>
         <div id="overlay-label" class="text-[11px] uppercase tracking-widest text-amber-400 font-semibold">d20 Check</div>
         <div id="roll-summary-line" class="text-xs text-stone-400 mt-1">1d20 Normal · +0</div>
+      </div>
+
+      <!-- Die Type Selector -->
+      <div class="grid grid-cols-6 gap-1.5">
+        <button type="button" data-die="4" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d4</button>
+        <button type="button" data-die="6" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d6</button>
+        <button type="button" data-die="8" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d8</button>
+        <button type="button" data-die="10" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d10</button>
+        <button type="button" data-die="12" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d12</button>
+        <button type="button" data-die="20" class="die-select py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-semibold">d20</button>
+      </div>
+
+      <!-- Mode & Modifier Row -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-1">
+          <button type="button" data-roll-mode="normal" class="mode-select px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium">Normal</button>
+          <button type="button" data-roll-mode="advantage" class="mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px]">Adv</button>
+          <button type="button" data-roll-mode="disadvantage" class="mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px]">Dis</button>
+          <button type="button" data-roll-mode="super_advantage" class="mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px]">3d20</button>
+        </div>
+        <div class="flex items-center gap-1 bg-canvas border border-stone-700 rounded-lg px-1.5 py-0.5 text-[11px]">
+          <span class="text-stone-400 mr-0.5">Mod</span>
+          <button id="btn-mod-minus" type="button" class="px-1.5 py-0.5 rounded hover:bg-stone-700 text-stone-200 font-bold">-</button>
+          <span id="roll-mod-value" class="min-w-[24px] text-amber-300 font-semibold">+0</span>
+          <button id="btn-mod-plus" type="button" class="px-1.5 py-0.5 rounded hover:bg-stone-700 text-stone-200 font-bold">+</button>
+        </div>
       </div>
 
       <div class="flex flex-col items-center justify-center py-1">
@@ -202,7 +228,7 @@
           <canvas id="die-canvas" width="160" height="160"></canvas>
         </button>
         <div id="die-sub" class="text-xs text-stone-400 mt-1">Tap die to roll</div>
-        <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-2 mt-2.5"></div>
+        <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-2 mt-2"></div>
       </div>
 
       <div class="flex items-center justify-between gap-3 pt-2 border-t border-stone-800/80">
@@ -468,6 +494,7 @@
       skillLabel: 'd20 Check',
       rollMode: 'normal',
       lastRoll: null,
+      rollPool: null,
       pendingRoll: null,
       wakeLock: null,
       characterName: 'Player',
@@ -530,7 +557,7 @@
       await releaseWakeLock();
     }
 
-    // --- Step 3: Per-Campaign Story Log & Rolling Turn Memory ---
+    // --- Per-Campaign Story Log & Rolling Turn Memory ---
 
     function loadCampaignMemory(profileId) {
       const pid = profileId || getConfig().profileId;
@@ -1215,7 +1242,6 @@ ${state.files.character.content}`;
         required: ['player_beat', 'narrative', 'suggested_rolls', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
 
-      // Build rolling multi-turn conversation contents
       const currentUserText = `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}`;
       const contents = [];
       state.turnHistory.slice(-MAX_GEMINI_TURNS).forEach((turn) => {
@@ -1261,7 +1287,6 @@ ${state.files.character.content}`;
         const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         const parsed = JSON.parse(rawJson);
 
-        // Save valid turn pair into rolling memory
         state.turnHistory.push({
           userText: currentUserText,
           modelText: JSON.stringify({
@@ -1398,7 +1423,7 @@ ${state.files.character.content}`;
       });
     });
 
-    // Polyhedral 3D Dice Renderer (d20 Icosahedron, d12 Dodecahedron, d8 Octahedron, d6 Cube)
+    // --- Step 4: Full 3D Polyhedral Dice Engine (d4, d6, d8, d10, d12, d20) ---
     const rollOverlay = document.getElementById('roll-overlay');
     const dieBtn = document.getElementById('die-btn');
     const dieCanvas = document.getElementById('die-canvas');
@@ -1408,34 +1433,43 @@ ${state.files.character.content}`;
 
     const PHI = (1 + Math.sqrt(5)) / 2;
 
-    function buildIcosahedron() {
-      const rawVerts = [
-        [-1,  PHI, 0], [ 1,  PHI, 0], [-1, -PHI, 0], [ 1, -PHI, 0],
-        [ 0, -1,  PHI], [ 0,  1,  PHI], [ 0, -1, -PHI], [ 0,  1, -PHI],
-        [ PHI, 0, -1], [ PHI, 0,  1], [-PHI, 0, -1], [-PHI, 0,  1],
-      ];
-      const len = Math.hypot(1, PHI, 0);
-      const vertices = rawVerts.map(([x, y, z]) => [x / len, y / len, z / len]);
-      const faces = [
-        [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
-        [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-        [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
-        [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
-      ];
-      return { vertices, faces, radius: 52 };
+    function orientFacesOutward(vertices, faces) {
+      return faces.map((f) => {
+        const a = vertices[f[0]];
+        const b = vertices[f[1]];
+        const c = vertices[f[2]];
+        const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+        const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        const nx = u[1] * v[2] - u[2] * v[1];
+        const ny = u[2] * v[0] - u[0] * v[2];
+        const nz = u[0] * v[1] - u[1] * v[0];
+
+        let cx = 0, cy = 0, cz = 0;
+        f.forEach((idx) => {
+          cx += vertices[idx][0];
+          cy += vertices[idx][1];
+          cz += vertices[idx][2];
+        });
+        const dot = nx * cx + ny * cy + nz * cz;
+        return dot >= 0 ? f : [...f].reverse();
+      });
     }
 
-    function buildOctahedron() {
+    function buildTetrahedron() {
+      const s = 1 / Math.sqrt(3);
       const vertices = [
-        [ 1,  0,  0], [-1,  0,  0],
-        [ 0,  1,  0], [ 0, -1,  0],
-        [ 0,  0,  1], [ 0,  0, -1],
+        [ s,  s,  s],
+        [ s, -s, -s],
+        [-s,  s, -s],
+        [-s, -s,  s],
       ];
-      const faces = [
-        [0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4],
-        [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5],
+      const rawFaces = [
+        [0, 1, 2],
+        [0, 3, 1],
+        [0, 2, 3],
+        [1, 3, 2],
       ];
-      return { vertices, faces, radius: 54 };
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 56 };
     }
 
     function buildCube() {
@@ -1444,12 +1478,74 @@ ${state.files.character.content}`;
         [-s, -s, -s], [ s, -s, -s], [ s,  s, -s], [-s,  s, -s],
         [-s, -s,  s], [ s, -s,  s], [ s,  s,  s], [-s,  s,  s],
       ];
-      const faces = [
+      const rawFaces = [
         [4, 5, 6, 7], [1, 0, 3, 2],
         [0, 4, 7, 3], [5, 1, 2, 6],
         [3, 7, 6, 2], [0, 1, 5, 4],
       ];
-      return { vertices, faces, radius: 50 };
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 50 };
+    }
+
+    function buildOctahedron() {
+      const vertices = [
+        [ 1,  0,  0], [-1,  0,  0],
+        [ 0,  1,  0], [ 0, -1,  0],
+        [ 0,  0,  1], [ 0,  0, -1],
+      ];
+      const rawFaces = [
+        [0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4],
+        [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5],
+      ];
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 54 };
+    }
+
+    function buildPentagonalTrapezohedron() {
+      const cos36 = Math.cos(Math.PI / 5);
+      const hPole = 1.0;
+      const hRing = (1 - cos36) / (1 + cos36);
+      const r = Math.sqrt(1 - hRing * hRing);
+
+      // 0: Top Pole, 1: Bottom Pole, 2..6: Upper Ring, 7..11: Lower Ring
+      const vertices = [
+        [0, -hPole, 0],
+        [0,  hPole, 0],
+      ];
+      for (let k = 0; k < 5; k++) {
+        const a = (k * 2 * Math.PI) / 5;
+        vertices.push([r * Math.cos(a), -hRing, r * Math.sin(a)]);
+      }
+      for (let k = 0; k < 5; k++) {
+        const a = (k * 2 * Math.PI) / 5 + Math.PI / 5;
+        vertices.push([r * Math.cos(a), hRing, r * Math.sin(a)]);
+      }
+
+      const rawFaces = [];
+      for (let k = 0; k < 5; k++) {
+        const uCur = 2 + k;
+        const uNext = 2 + ((k + 1) % 5);
+        const lCur = 7 + k;
+        const lNext = 7 + ((k + 1) % 5);
+        rawFaces.push([0, uNext, lCur, uCur]);
+        rawFaces.push([1, lCur, uNext, lNext]);
+      }
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 54 };
+    }
+
+    function buildIcosahedron() {
+      const rawVerts = [
+        [-1,  PHI, 0], [ 1,  PHI, 0], [-1, -PHI, 0], [ 1, -PHI, 0],
+        [ 0, -1,  PHI], [ 0,  1,  PHI], [ 0, -1, -PHI], [ 0,  1, -PHI],
+        [ PHI, 0, -1], [ PHI, 0,  1], [-PHI, 0, -1], [-PHI, 0,  1],
+      ];
+      const len = Math.hypot(1, PHI, 0);
+      const vertices = rawVerts.map(([x, y, z]) => [x / len, y / len, z / len]);
+      const rawFaces = [
+        [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
+        [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+        [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
+        [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+      ];
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 52 };
     }
 
     function buildDodecahedron() {
@@ -1463,7 +1559,7 @@ ${state.files.character.content}`;
         return [cx / n, cy / n, cz / n];
       });
 
-      const faces = ico.vertices.map((_, vIdx) => {
+      const rawFaces = ico.vertices.map((_, vIdx) => {
         const incident = [];
         ico.faces.forEach((tri, fIdx) => {
           if (tri.includes(vIdx)) incident.push(fIdx);
@@ -1494,14 +1590,16 @@ ${state.files.character.content}`;
         });
       });
 
-      return { vertices: rawDodecaVerts, faces, radius: 52 };
+      return { vertices: rawDodecaVerts, faces: orientFacesOutward(rawDodecaVerts, rawFaces), radius: 52 };
     }
 
     const POLYHEDRA = {
       20: buildIcosahedron(),
       12: buildDodecahedron(),
+      10: buildPentagonalTrapezohedron(),
       8: buildOctahedron(),
       6: buildCube(),
+      4: buildTetrahedron(),
     };
 
     const die3d = {
@@ -1571,9 +1669,10 @@ ${state.files.character.content}`;
         const crossZ = v1x * v2y - v1y * v2x;
         const isFront = crossZ < 0;
 
-        const light = Math.max(0.25, Math.min(1, 0.62 + (avgZ / poly.radius) * 0.35 + ((cx - avgX) / poly.radius) * 0.14));
+        // Smaller avgZ means closer to camera
+        const light = Math.max(0.25, Math.min(1, 0.62 - (avgZ / poly.radius) * 0.35 + ((cx - avgX) / poly.radius) * 0.14));
         return { pts, avgZ, avgX, avgY, isFront, light, fOrder };
-      }).sort((a, b) => a.avgZ - b.avgZ);
+      }).sort((a, b) => b.avgZ - a.avgZ);
 
       let frontMostFace = null;
 
@@ -1598,7 +1697,7 @@ ${state.files.character.content}`;
         dieCtx.lineJoin = 'round';
         dieCtx.stroke();
 
-        if (face.isFront && (!frontMostFace || face.avgZ > frontMostFace.avgZ)) {
+        if (face.isFront && (!frontMostFace || face.avgZ < frontMostFace.avgZ)) {
           frontMostFace = face;
         }
       });
@@ -1618,6 +1717,30 @@ ${state.files.character.content}`;
       dieCtx.restore();
     }
 
+    function highlightDieSelect(sides) {
+      document.querySelectorAll('.die-select').forEach((btn) => {
+        const active = Number(btn.dataset.die) === Number(sides);
+        btn.className = active
+          ? 'die-select py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-semibold'
+          : 'die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500';
+      });
+    }
+
+    function updateRollSummaryLine() {
+      const modeNames = {
+        normal: 'Normal',
+        advantage: 'Advantage',
+        disadvantage: 'Disadvantage',
+        super_advantage: '3d20 Keep High',
+      };
+      const modeLabel = state.dieSides === 20 ? (modeNames[state.rollMode] || 'Normal') : 'Normal';
+      const modStr = state.modifier >= 0 ? `+${state.modifier}` : `${state.modifier}`;
+      const el = document.getElementById('roll-summary-line');
+      if (el) el.textContent = `1d${state.dieSides} ${modeLabel} · ${modStr}`;
+      const modValEl = document.getElementById('roll-mod-value');
+      if (modValEl) modValEl.textContent = modStr;
+    }
+
     function setIdleDie(sides, mod) {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
       die3d.rx = 0.36;
@@ -1631,7 +1754,7 @@ ${state.files.character.content}`;
       drawPolyhedronDie(sides);
     }
 
-    function openRollOverlay({ label = 'd20 Check', title = 'Tap or Press Space to Roll', sides = 20, mod = 0 }) {
+    function openRollOverlay({ label = 'd20 Check', title = '', sides = 20, mod = 0 }) {
       state.dieSides = sides;
       state.modifier = mod;
       state.skillLabel = label;
@@ -1640,8 +1763,12 @@ ${state.files.character.content}`;
       useRollBtn.disabled = true;
 
       document.getElementById('overlay-label').textContent = label;
-      document.getElementById('roll-summary-line').textContent = title;
       document.getElementById('multi-roll-strip').innerHTML = '';
+      highlightDieSelect(sides);
+      updateRollSummaryLine();
+      if (title) {
+        document.getElementById('roll-summary-line').textContent = title;
+      }
 
       setIdleDie(sides, mod);
       rollOverlay.classList.remove('hidden');
@@ -1710,7 +1837,60 @@ ${state.files.character.content}`;
 
     function setRollMode(mode) {
       state.rollMode = mode || 'normal';
+      document.querySelectorAll('.mode-select').forEach((btn) => {
+        const active = btn.dataset.rollMode === state.rollMode;
+        btn.className = active
+          ? 'mode-select px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium'
+          : 'mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500';
+      });
     }
+
+    document.querySelectorAll('.mode-select').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setRollMode(btn.dataset.rollMode);
+        state.lastRoll = null;
+        state.rollPool = null;
+        useRollBtn.disabled = true;
+        document.getElementById('multi-roll-strip').innerHTML = '';
+        updateRollSummaryLine();
+        setIdleDie(state.dieSides, state.modifier);
+      });
+    });
+
+    document.querySelectorAll('.die-select').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.dieSides = Number(btn.dataset.die);
+        state.skillLabel = `d${state.dieSides} Roll`;
+        state.lastRoll = null;
+        state.rollPool = null;
+        useRollBtn.disabled = true;
+        document.getElementById('multi-roll-strip').innerHTML = '';
+        document.getElementById('overlay-label').textContent = state.skillLabel;
+        highlightDieSelect(state.dieSides);
+        updateRollSummaryLine();
+        setIdleDie(state.dieSides, state.modifier);
+      });
+    });
+
+    document.getElementById('btn-mod-minus').addEventListener('click', () => {
+      state.modifier -= 1;
+      state.lastRoll = null;
+      state.rollPool = null;
+      useRollBtn.disabled = true;
+      document.getElementById('multi-roll-strip').innerHTML = '';
+      updateRollSummaryLine();
+      setIdleDie(state.dieSides, state.modifier);
+    });
+
+    document.getElementById('btn-mod-plus').addEventListener('click', () => {
+      state.modifier += 1;
+      state.lastRoll = null;
+      state.rollPool = null;
+      useRollBtn.disabled = true;
+      document.getElementById('multi-roll-strip').innerHTML = '';
+      updateRollSummaryLine();
+      setIdleDie(state.dieSides, state.modifier);
+    });
 
     function getDiceCountForMode(mode) {
       if (mode === 'advantage' || mode === 'disadvantage') return 2;
