@@ -66,23 +66,21 @@
       <!-- PAGE 1: STORY -->
       <section id="view-story" class="page-view lg:flex lg:col-span-6 flex flex-col bg-surface rounded-2xl border border-stone-800 overflow-hidden">
         <div class="px-4 py-3 border-b border-stone-800/80 flex items-center justify-between gap-2">
-          <div>
+          <div class="min-w-0">
             <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Current Scene</p>
-            <h2 id="scene-location" class="font-display text-base text-stone-100">Opening Scene</h2>
+            <h2 id="scene-location" class="font-display text-base text-stone-100 truncate">Opening Scene</h2>
           </div>
-          <span id="connection-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-stone-800 text-stone-300 border border-stone-700 shrink-0">
-            Local Mode
-          </span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="btn-clear-log" type="button" title="Clear local story log" class="text-[11px] px-2.5 py-1 rounded-full bg-surfaceAlt hover:bg-stone-700 text-stone-300 border border-stone-700 transition">
+              Clear
+            </button>
+            <span id="connection-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-stone-800 text-stone-300 border border-stone-700 shrink-0">
+              Local Mode
+            </span>
+          </div>
         </div>
 
-        <div id="story-log" class="flex-1 p-4 space-y-4 overflow-y-auto max-h-[58vh] lg:max-h-[62vh]">
-          <article class="p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90">
-            <p class="text-[11px] uppercase tracking-wider text-amber-400 mb-1.5 font-semibold">Dungeon Master</p>
-            <div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">
-              <p>Your campaign log is ready. Open <strong>Settings</strong> to connect a GitHub campaign repository and Gemini API key, or describe an opening scene below to begin in Local Mode.</p>
-            </div>
-          </article>
-        </div>
+        <div id="story-log" class="flex-1 p-4 space-y-4 overflow-y-auto max-h-[58vh] lg:max-h-[62vh]"></div>
 
         <!-- Bottom Action Input -->
         <form id="action-form" class="p-3 sm:p-4 border-t border-stone-800 bg-surface space-y-2.5">
@@ -324,6 +322,11 @@
   <script>
     const STORE_KEY = 'solo_rpg_store_v1';
     const LEGACY_STORAGE_KEY = 'smoke_and_steel_cfg_v1';
+    const LOG_STORAGE_PREFIX = 'solo_rpg_log_v1_';
+    const HISTORY_STORAGE_PREFIX = 'solo_rpg_history_v1_';
+    const MAX_LOG_ENTRIES = 40;
+    const MAX_GEMINI_TURNS = 6;
+
     const MODEL_PRESETS = [
       'gemini-3.8-flash',
       'gemini-3.6-flash',
@@ -351,6 +354,20 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    }
+
+    function formatProseHtml(rawText) {
+      return String(rawText || '')
+        .split(/\n+/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => {
+          const safe = escapeHtml(p)
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+          return `<p>${safe}</p>`;
+        })
+        .join('');
     }
 
     function makeDefaultProfile(overrides = {}) {
@@ -454,6 +471,8 @@
       pendingRoll: null,
       wakeLock: null,
       characterName: 'Player',
+      storyEntries: [],
+      turnHistory: [],
       parsedChar: {
         name: 'Active Character',
         subtitle: 'Load repo to sync character',
@@ -511,6 +530,121 @@
       await releaseWakeLock();
     }
 
+    // --- Step 3: Per-Campaign Story Log & Rolling Turn Memory ---
+
+    function loadCampaignMemory(profileId) {
+      const pid = profileId || getConfig().profileId;
+      try {
+        const rawLog = localStorage.getItem(LOG_STORAGE_PREFIX + pid);
+        state.storyEntries = rawLog ? JSON.parse(rawLog) : [];
+        if (!Array.isArray(state.storyEntries)) state.storyEntries = [];
+      } catch (_) {
+        state.storyEntries = [];
+      }
+      try {
+        const rawHist = localStorage.getItem(HISTORY_STORAGE_PREFIX + pid);
+        state.turnHistory = rawHist ? JSON.parse(rawHist) : [];
+        if (!Array.isArray(state.turnHistory)) state.turnHistory = [];
+      } catch (_) {
+        state.turnHistory = [];
+      }
+      renderStoryLogFromState();
+    }
+
+    function saveCampaignMemory(profileId) {
+      const pid = profileId || getConfig().profileId;
+      try {
+        localStorage.setItem(LOG_STORAGE_PREFIX + pid, JSON.stringify(state.storyEntries.slice(-MAX_LOG_ENTRIES)));
+        localStorage.setItem(HISTORY_STORAGE_PREFIX + pid, JSON.stringify(state.turnHistory.slice(-MAX_GEMINI_TURNS)));
+      } catch (_) {}
+    }
+
+    function buildEntryElement(entry, attachSuggested = false) {
+      const el = document.createElement('article');
+      if (entry.type === 'dm') {
+        el.className = 'p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90';
+        const beatHtml = entry.playerBeat
+          ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${formatProseHtml(entry.playerBeat)}</div>`
+          : '';
+        const narrativeHtml = `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${formatProseHtml(entry.narrative)}</div>`;
+        el.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-amber-400 mb-1.5 font-semibold">${escapeHtml(entry.label || 'Dungeon Master')}</p>${beatHtml}${narrativeHtml}`;
+        if (attachSuggested && Array.isArray(entry.suggestedRolls) && entry.suggestedRolls.length > 0) {
+          renderSuggestedButtons(el, entry.suggestedRolls, false);
+        }
+      } else if (entry.type === 'system') {
+        el.className = 'p-3.5 rounded-xl bg-canvas/80 border border-stone-800 text-xs';
+        const toneClass = entry.tone === 'error'
+          ? 'text-rose-300'
+          : entry.tone === 'success'
+            ? 'text-emerald-300'
+            : entry.tone === 'warn'
+              ? 'text-amber-300'
+              : 'text-amber-200';
+        el.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-stone-400 mb-1 font-semibold">System</p><p class="${toneClass}">${escapeHtml(entry.text)}</p>`;
+      } else {
+        el.className = 'p-3.5 rounded-xl bg-canvas/80 border border-stone-800 text-sm text-stone-200';
+        const rollBadge = entry.rollBadge
+          ? `<span class="inline-block mb-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">${escapeHtml(entry.rollBadge)}</span><br/>`
+          : '';
+        el.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-stone-400 mb-1.5 font-semibold">${escapeHtml(entry.label || 'Player')}</p>${rollBadge}${formatProseHtml(entry.text || 'Act on the roll.')}`;
+      }
+      return el;
+    }
+
+    function renderStoryLogFromState() {
+      const log = document.getElementById('story-log');
+      log.innerHTML = '';
+
+      if (state.storyEntries.length === 0) {
+        log.innerHTML = `<article class="p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90">
+          <p class="text-[11px] uppercase tracking-wider text-amber-400 mb-1.5 font-semibold">Dungeon Master</p>
+          <div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">
+            <p>Your campaign log is ready. Open <strong>Settings</strong> to connect a GitHub campaign repository and Gemini API key, or describe an opening scene below to begin in Local Mode.</p>
+          </div>
+        </article>`;
+        return;
+      }
+
+      let lastDmIdx = -1;
+      for (let i = state.storyEntries.length - 1; i >= 0; i--) {
+        if (state.storyEntries[i].type === 'dm') {
+          lastDmIdx = i;
+          break;
+        }
+      }
+
+      state.storyEntries.forEach((entry, idx) => {
+        log.appendChild(buildEntryElement(entry, idx === lastDmIdx));
+      });
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function pushStoryEntry(entry, scrollToTopOfCard = false) {
+      if (state.storyEntries.length === 0) {
+        document.getElementById('story-log').innerHTML = '';
+      }
+      state.storyEntries.push(entry);
+      if (state.storyEntries.length > MAX_LOG_ENTRIES) {
+        state.storyEntries = state.storyEntries.slice(-MAX_LOG_ENTRIES);
+      }
+      saveCampaignMemory();
+
+      const log = document.getElementById('story-log');
+      const cardEl = buildEntryElement(entry, true);
+      log.appendChild(cardEl);
+
+      if (scrollToTopOfCard) {
+        const topOffset = cardEl.offsetTop - log.offsetTop - 8;
+        log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+      } else {
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    function appendSystemMessage(text, tone = 'info') {
+      pushStoryEntry({ type: 'system', text, tone });
+    }
+
     function updateModelButton() {
       const cfg = getConfig();
       const btn = document.getElementById('btn-cycle-model');
@@ -530,7 +664,7 @@
       store.geminiModel = nextModel;
       saveStore(store);
       updateModelButton();
-      appendStoryCard('System', `<p class="text-xs text-amber-200">Switched DM model to <code class="text-amber-300">${escapeHtml(nextModel)}</code>.</p>`, false);
+      appendSystemMessage(`Switched DM model to ${nextModel}.`, 'info');
     }
 
     function updateBadge() {
@@ -629,7 +763,7 @@
       return Array.isArray(data.tree) ? data.tree : [];
     }
 
-    // --- Step 2: Dynamic Markdown Parsers & Two-Way Sync ---
+    // --- Dynamic Markdown Parsers & Two-Way Sync ---
 
     function extractStatValue(md, labelPattern) {
       if (!md) return null;
@@ -691,7 +825,6 @@
       }
       const subtitle = subtitleParts.join(' · ') || 'Synced from repository';
 
-      // HP
       let hp = null;
       let maxHp = null;
       const hpRaw = extractStatValue(md, '(?:Current\\s+)?HP|Hit\\s*Points');
@@ -709,7 +842,6 @@
         }
       }
 
-      // AC
       let ac = null;
       const acRaw = extractStatValue(md, 'AC|Armor\\s*Class|Defense');
       if (acRaw) {
@@ -717,7 +849,6 @@
         if (acMatch) ac = Number(acMatch[1]);
       }
 
-      // Gold / Currency
       let gold = 0;
       let currencyUnit = 'gp';
       const goldRaw = extractStatValue(md, 'Gold|Currency|Wealth|Coins|Credits|Money');
@@ -729,7 +860,6 @@
         }
       }
 
-      // Skills
       const foundSkills = [];
       const seenSkills = new Set();
       const addSkill = (name, mod) => {
@@ -740,25 +870,21 @@
         foundSkills.push({ name: cleanName, mod });
       };
 
-      // 1) Scan explicit Skills / Proficiencies / Saves section if present
       const skillsSection = md.match(/#{2,3}\s*(?:Quick\s*)?(?:Skills|Proficiencies|Checks|Attributes)[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|$)/i);
       if (skillsSection) {
         const lines = skillsSection[1].split('\n');
         lines.forEach((line) => {
           const cleaned = line.replace(/[*_`]/g, '').trim();
-          // Bullet or key-value: "- Persuasion: +5" or "Persuasion (+5)"
           const m1 = cleaned.match(/^(?:[-*]\s*)?([A-Za-z][A-Za-z\s]{1,22}?)\s*[:(]\s*([+-]?\d+)\s*\)?/);
           if (m1) {
             addSkill(m1[1], Number(m1[2]));
             return;
           }
-          // Table row: "| Persuasion | +5 |"
           const m2 = cleaned.match(/^\|\s*([A-Za-z][A-Za-z\s]{1,22}?)\s*\|\s*([+-]?\d+)\s*\|?/);
           if (m2 && !/^skill|attribute|stat$/i.test(m2[1].trim())) {
             addSkill(m2[1], Number(m2[2]));
             return;
           }
-          // Inline comma-separated: "Persuasion +5, Stealth +4"
           const inlineRx = /([A-Za-z][A-Za-z\s]{1,20}?)\s+([+-]\d+)\b/g;
           let im;
           while ((im = inlineRx.exec(cleaned)) !== null) {
@@ -767,7 +893,6 @@
         });
       }
 
-      // 2) Scan whole document for standard D&D skill names with modifiers
       STANDARD_SKILLS.forEach((skillName) => {
         const rx = new RegExp(`\\b(${skillName})\\b[^\\n\\d+-]{0,12}([+-]\\d+)`, 'i');
         const m = md.match(rx);
@@ -776,7 +901,6 @@
 
       const skills = foundSkills.length > 0 ? foundSkills.slice(0, 8) : [...DEFAULT_SKILLS];
 
-      // Details (Weapons, Slots, Resources, etc.)
       const details = [];
       const detailLabels = [
         ['Weapon', 'Weapon|Primary\\s*Weapon|Weapons|Attack'],
@@ -871,7 +995,6 @@
 
       const location = extractStatValue(combined, 'Current\\s*Location|Location|Current\\s*Scene');
 
-      // Parse Clocks
       const clocks = [];
       const seenClocks = new Set();
       const addClock = (label, cur, max) => {
@@ -890,20 +1013,17 @@
         const line = rawLine.replace(/[*_`]/g, '').trim();
         if (!line || /https?:\/\//i.test(line)) return;
 
-        // Table format: | Name | 2 / 6 |
         const tblM = line.match(/^\|\s*([^|]+?)\s*\|\s*(\d+)\s*\/\s*(\d+)\s*\|?/);
         if (tblM) {
           addClock(tblM[1], Number(tblM[2]), Number(tblM[3]));
           return;
         }
-        // Key-value or bracketed: "- Harbor Watch Lockdown: 2 / 6" or "Clock Name [2/6]"
         const kvM = line.match(/^(?:[-*]\s*)?([^:[\]()|]{3,50}?)\s*(?::|\[|\()\s*(\d+)\s*(?:\/|of)\s*(\d+)\s*(?:\]|\))?/i);
         if (kvM) {
           addClock(kvM[1], Number(kvM[2]), Number(kvM[3]));
         }
       });
 
-      // Parse Milestones / Quests / Objectives
       const milestones = [];
       const seenMilestones = new Set();
       const addMilestone = (status, text) => {
@@ -1095,11 +1215,22 @@ ${state.files.character.content}`;
         required: ['player_beat', 'narrative', 'suggested_rolls', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
 
+      // Build rolling multi-turn conversation contents
+      const currentUserText = `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}`;
+      const contents = [];
+      state.turnHistory.slice(-MAX_GEMINI_TURNS).forEach((turn) => {
+        if (turn && turn.userText && turn.modelText) {
+          contents.push({ role: 'user', parts: [{ text: turn.userText }] });
+          contents.push({ role: 'model', parts: [{ text: turn.modelText }] });
+        }
+      });
+      contents.push({ role: 'user', parts: [{ text: currentUserText }] });
+
       const modelId = encodeURIComponent(cfg.geminiModel || 'gemini-3.8-flash');
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(cfg.geminiKey)}`;
       const payload = JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts: [{ text: `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}` }] }],
+        contents,
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: schema,
@@ -1128,7 +1259,26 @@ ${state.files.character.content}`;
 
         const data = await res.json();
         const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        return JSON.parse(rawJson);
+        const parsed = JSON.parse(rawJson);
+
+        // Save valid turn pair into rolling memory
+        state.turnHistory.push({
+          userText: currentUserText,
+          modelText: JSON.stringify({
+            player_beat: parsed.player_beat || '',
+            narrative: parsed.narrative || '',
+            location: parsed.location || '',
+            hp_delta: parsed.hp_delta || 0,
+            gold_delta: parsed.gold_delta || 0,
+            suggested_rolls: Array.isArray(parsed.suggested_rolls) ? parsed.suggested_rolls : [],
+          }),
+        });
+        if (state.turnHistory.length > MAX_GEMINI_TURNS) {
+          state.turnHistory = state.turnHistory.slice(-MAX_GEMINI_TURNS);
+        }
+        saveCampaignMemory(cfg.profileId);
+
+        return parsed;
       }
     }
 
@@ -1168,7 +1318,6 @@ ${state.files.character.content}`;
       const goldDelta = Number(dmResult.gold_delta) || 0;
       const charNote = (dmResult.character_note || '').trim();
 
-      // Update HP in place (both parsed state/UI and Markdown file)
       if (hpDelta !== 0 && state.parsedChar.hp !== null && state.parsedChar.maxHp !== null) {
         const nextHp = Math.max(0, Math.min(state.parsedChar.maxHp, state.parsedChar.hp + hpDelta));
         state.parsedChar.hp = nextHp;
@@ -1185,7 +1334,6 @@ ${state.files.character.content}`;
         }
       }
 
-      // Update Gold / Currency in place (both parsed state/UI and Markdown file)
       if (goldDelta !== 0) {
         const unit = state.parsedChar.currencyUnit || 'gp';
         const nextGold = Math.max(0, (state.parsedChar.gold || 0) + goldDelta);
@@ -1212,7 +1360,6 @@ ${state.files.character.content}`;
         dirtyKeys.add('character');
       }
 
-      // Re-render UI sidebars to reflect updated state/clocks/milestones
       if (state.files.character.content) {
         renderCharacterUI(parseCharacterMarkdown(state.files.character.content));
       } else {
@@ -1231,17 +1378,6 @@ ${state.files.character.content}`;
           fileObj.sha = await ghPutFile(cfg, fileObj.path, fileObj.content, fileObj.sha, `Update ${fileObj.path} from DM turn`);
         }
       }
-    }
-
-    function appendStoryCard(roleLabel, bodyHtml, isDm = false) {
-      const log = document.getElementById('story-log');
-      const el = document.createElement('article');
-      el.className = isDm
-        ? 'p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90'
-        : 'p-3.5 rounded-xl bg-canvas/80 border border-stone-800 text-sm text-stone-200';
-      el.innerHTML = `<p class="text-[11px] uppercase tracking-wider ${isDm ? 'text-amber-400' : 'text-stone-400'} mb-1.5 font-semibold">${escapeHtml(roleLabel)}</p>${bodyHtml}`;
-      log.appendChild(el);
-      log.scrollTop = log.scrollHeight;
     }
 
     document.querySelectorAll('.nav-btn').forEach((btn) => {
@@ -1511,7 +1647,7 @@ ${state.files.character.content}`;
       rollOverlay.classList.remove('hidden');
     }
 
-    function renderSuggestedButtons(cardEl, suggestions) {
+    function renderSuggestedButtons(cardEl, suggestions, autoScroll = true) {
       if (!cardEl || !Array.isArray(suggestions) || suggestions.length === 0) return;
 
       const btnRow = document.createElement('div');
@@ -1563,10 +1699,12 @@ ${state.files.character.content}`;
       });
 
       cardEl.appendChild(btnRow);
-      const log = document.getElementById('story-log');
-      if (log) {
-        const topOffset = cardEl.offsetTop - log.offsetTop - 8;
-        log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+      if (autoScroll) {
+        const log = document.getElementById('story-log');
+        if (log) {
+          const topOffset = cardEl.offsetTop - log.offsetTop - 8;
+          log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
+        }
       }
     }
 
@@ -1750,7 +1888,6 @@ ${state.files.character.content}`;
       rollOverlay.classList.add('hidden');
     });
 
-    // Event delegation for dynamically rendered skill buttons
     document.getElementById('skills-grid').addEventListener('click', (e) => {
       const btn = e.target.closest('.skill-btn');
       if (!btn) return;
@@ -1803,6 +1940,14 @@ ${state.files.character.content}`;
       const pill = document.getElementById('pending-roll-pill');
       pill.classList.add('hidden');
       pill.classList.remove('flex');
+    });
+
+    document.getElementById('btn-clear-log').addEventListener('click', () => {
+      if (!confirm('Clear the local story log and recent turn memory for this campaign? Your GitHub files will not be changed.')) return;
+      state.storyEntries = [];
+      state.turnHistory = [];
+      saveCampaignMemory();
+      renderStoryLogFromState();
     });
 
     document.addEventListener('keydown', (e) => {
@@ -1896,8 +2041,11 @@ ${state.files.character.content}`;
 
     document.getElementById('btn-delete-profile').addEventListener('click', () => {
       if (!draftStore || draftStore.profiles.length <= 1) return;
-      draftStore.profiles = draftStore.profiles.filter((p) => p.id !== draftStore.activeProfileId);
+      const removedId = draftStore.activeProfileId;
+      draftStore.profiles = draftStore.profiles.filter((p) => p.id !== removedId);
       draftStore.activeProfileId = draftStore.profiles[0].id;
+      localStorage.removeItem(LOG_STORAGE_PREFIX + removedId);
+      localStorage.removeItem(HISTORY_STORAGE_PREFIX + removedId);
       populateSettingsForm(draftStore);
     });
 
@@ -1958,16 +2106,17 @@ ${state.files.character.content}`;
       saveStore(draftStore);
       resetLoadedFilesState();
       updateBadge();
+      const cfg = getConfig();
+      loadCampaignMemory(cfg.profileId);
       settingsModal.classList.add('hidden');
 
-      const cfg = getConfig();
       if (cfg.ghToken && cfg.ghOwner && cfg.ghRepo) {
         await beginBusyState('Loading Campaign...', `Reading files for ${cfg.campaignName}`);
         try {
           await loadCampaignFromGitHub();
-          appendStoryCard('System', `<p class="text-xs text-emerald-300">Loaded campaign <strong>${escapeHtml(cfg.campaignName)}</strong> from GitHub.</p>`, false);
+          appendSystemMessage(`Loaded campaign ${cfg.campaignName} from GitHub.`, 'success');
         } catch (err) {
-          appendStoryCard('System', `<p class="text-xs text-rose-300">${escapeHtml(err.message)}</p>`, false);
+          appendSystemMessage(err.message, 'error');
         } finally {
           await endBusyState();
         }
@@ -1983,9 +2132,9 @@ ${state.files.character.content}`;
       await beginBusyState('Loading Campaign...', `Refreshing ${cfg.campaignName} from GitHub`);
       try {
         await loadCampaignFromGitHub();
-        appendStoryCard('System', `<p class="text-xs text-emerald-300">Refreshed <strong>${escapeHtml(cfg.campaignName)}</strong> files from GitHub.</p>`, false);
+        appendSystemMessage(`Refreshed ${cfg.campaignName} files from GitHub.`, 'success');
       } catch (err) {
-        appendStoryCard('System', `<p class="text-xs text-rose-300">${escapeHtml(err.message)}</p>`, false);
+        appendSystemMessage(err.message, 'error');
       } finally {
         await endBusyState();
       }
@@ -1999,11 +2148,13 @@ ${state.files.character.content}`;
       const rollToSend = state.pendingRoll;
       if (!text && !rollToSend) return;
 
-      const rollSummary = rollToSend
-        ? `<span class="inline-block mb-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">${escapeHtml(rollToSend.label)}: ${rollToSend.total}</span><br/>`
-        : '';
-
-      appendStoryCard(state.characterName || 'Player', `${rollSummary}<p>${escapeHtml(text || 'Act on the roll.')}</p>`, false);
+      const rollBadge = rollToSend ? `${rollToSend.label}: ${rollToSend.total}` : '';
+      pushStoryEntry({
+        type: 'player',
+        label: state.characterName || 'Player',
+        rollBadge,
+        text: text || 'Act on the roll.',
+      }, false);
 
       input.value = '';
       state.pendingRoll = null;
@@ -2013,7 +2164,7 @@ ${state.files.character.content}`;
 
       const cfg = getConfig();
       if (!cfg.geminiKey) {
-        appendStoryCard('System', '<p class="text-xs text-amber-300">Add your Google AI Studio API Key in Settings to get live DM responses.</p>', false);
+        appendSystemMessage('Add your Google AI Studio API Key in Settings to get live DM responses.', 'warn');
         return;
       }
 
@@ -2028,39 +2179,13 @@ ${state.files.character.content}`;
         }
         const dmResult = await callGeminiDM(cfg, text, rollToSend);
 
-        const beatHtml = (dmResult.player_beat || '').trim()
-          ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${
-              dmResult.player_beat
-                .split(/\n+/)
-                .filter(Boolean)
-                .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
-                .join('')
-            }</div>`
-          : '';
-
-        const paragraphs = (dmResult.narrative || '')
-          .split(/\n+/)
-          .filter(Boolean)
-          .map((p) => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
-          .join('');
-
-        appendStoryCard(
-          'Dungeon Master',
-          `${rollSummary}${beatHtml}<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${paragraphs}</div>`,
-          true
-        );
-
-        if (Array.isArray(dmResult.suggested_rolls) && dmResult.suggested_rolls.length > 0) {
-          const log = document.getElementById('story-log');
-          renderSuggestedButtons(log && log.lastElementChild, dmResult.suggested_rolls);
-        } else {
-          const log = document.getElementById('story-log');
-          const lastCard = log && log.lastElementChild;
-          if (log && lastCard) {
-            const topOffset = lastCard.offsetTop - log.offsetTop - 8;
-            log.scrollTo({ top: Math.max(0, topOffset), behavior: 'smooth' });
-          }
-        }
+        pushStoryEntry({
+          type: 'dm',
+          label: 'Dungeon Master',
+          playerBeat: (dmResult.player_beat || '').trim(),
+          narrative: (dmResult.narrative || '').trim(),
+          suggestedRolls: Array.isArray(dmResult.suggested_rolls) ? dmResult.suggested_rolls : [],
+        }, true);
 
         const dirtyKeys = applyUpdatesToMarkdown(dmResult);
         if (cfg.ghToken && dirtyKeys.size > 0) {
@@ -2068,7 +2193,7 @@ ${state.files.character.content}`;
           await persistMarkdownToGitHub(cfg, dirtyKeys);
         }
       } catch (err) {
-        appendStoryCard('System', `<p class="text-xs text-rose-300">${escapeHtml(err.message)}</p>`, false);
+        appendSystemMessage(err.message, 'error');
       } finally {
         sendBtn.disabled = false;
         sendBtn.textContent = 'Send';
@@ -2076,10 +2201,11 @@ ${state.files.character.content}`;
       }
     });
 
-    // Initialize neutral defaults and load active campaign if configured
+    // Initialize neutral defaults, restore saved log/memory, and load active campaign if configured
     renderCharacterUI(state.parsedChar);
     updateBadge();
     const initialCfg = getConfig();
+    loadCampaignMemory(initialCfg.profileId);
     if (initialCfg.ghToken && initialCfg.ghOwner && initialCfg.ghRepo) {
       loadCampaignFromGitHub().catch(() => {});
     }
