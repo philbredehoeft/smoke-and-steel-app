@@ -133,20 +133,7 @@
 
         <div>
           <p class="text-xs font-semibold text-stone-300 mb-2">Quick Skill Rolls</p>
-          <div id="skills-grid" class="grid grid-cols-2 gap-2">
-            <button type="button" data-skill="Persuasion" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Persuasion</span><span class="text-amber-400">+0</span>
-            </button>
-            <button type="button" data-skill="Stealth" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Stealth</span><span class="text-amber-400">+0</span>
-            </button>
-            <button type="button" data-skill="Perception" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Perception</span><span class="text-amber-400">+0</span>
-            </button>
-            <button type="button" data-skill="Arcana" data-mod="0" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between">
-              <span>Arcana</span><span class="text-amber-400">+0</span>
-            </button>
-          </div>
+          <div id="skills-grid" class="grid grid-cols-2 gap-2"></div>
         </div>
 
         <div class="text-xs text-stone-300 space-y-1.5 pt-2 border-t border-stone-800/80">
@@ -343,6 +330,29 @@
       'gemini-3.5-flash-lite',
     ];
 
+    const DEFAULT_SKILLS = [
+      { name: 'Persuasion', mod: 0 },
+      { name: 'Stealth', mod: 0 },
+      { name: 'Perception', mod: 0 },
+      { name: 'Arcana', mod: 0 },
+    ];
+
+    const STANDARD_SKILLS = [
+      'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
+      'History', 'Insight', 'Intimidation', 'Investigation', 'Medicine',
+      'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion',
+      'Sleight of Hand', 'Stealth', 'Survival', 'Initiative'
+    ];
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function makeDefaultProfile(overrides = {}) {
       return {
         id: overrides.id || `prof_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
@@ -374,7 +384,6 @@
           }
         }
 
-        // Auto-migrate legacy single-campaign config if present
         const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
         if (legacyRaw) {
           const leg = JSON.parse(legacyRaw);
@@ -445,6 +454,17 @@
       pendingRoll: null,
       wakeLock: null,
       characterName: 'Player',
+      parsedChar: {
+        name: 'Active Character',
+        subtitle: 'Load repo to sync character',
+        hp: null,
+        maxHp: null,
+        ac: null,
+        gold: 0,
+        currencyUnit: 'gp',
+        skills: [...DEFAULT_SKILLS],
+        details: [],
+      },
       repoAssets: [],
       files: {
         rules: { path: '', content: '', sha: null },
@@ -510,7 +530,7 @@
       store.geminiModel = nextModel;
       saveStore(store);
       updateModelButton();
-      appendStoryCard('System', `<p class="text-xs text-amber-200">Switched DM model to <code class="text-amber-300">${nextModel}</code>.</p>`, false);
+      appendStoryCard('System', `<p class="text-xs text-amber-200">Switched DM model to <code class="text-amber-300">${escapeHtml(nextModel)}</code>.</p>`, false);
     }
 
     function updateBadge() {
@@ -609,6 +629,362 @@
       return Array.isArray(data.tree) ? data.tree : [];
     }
 
+    // --- Step 2: Dynamic Markdown Parsers & Two-Way Sync ---
+
+    function extractStatValue(md, labelPattern) {
+      if (!md) return null;
+      const kvRx = new RegExp(`(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*:\\s*(?:\\*\\*|__)?\\s*([^\\n]+)`, 'i');
+      const kvMatch = md.match(kvRx);
+      if (kvMatch) return kvMatch[1].replace(/[*_`]/g, '').trim();
+
+      const tblRx = new RegExp(`(?:^|\\n)\\s*\\|\\s*(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*\\|\\s*([^|\\n]+)`, 'i');
+      const tblMatch = md.match(tblRx);
+      if (tblMatch) return tblMatch[1].replace(/[*_`]/g, '').trim();
+
+      return null;
+    }
+
+    function replaceStatInMarkdown(md, labelPattern, newValueStr) {
+      if (!md) return md;
+      const kvRx = new RegExp(`((?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*:\\s*(?:\\*\\*|__)?\\s*)([^\\n]+)`, 'i');
+      if (kvRx.test(md)) {
+        return md.replace(kvRx, `$1${newValueStr}`);
+      }
+      const tblRx = new RegExp(`((?:^|\\n)\\s*\\|\\s*(?:\\*\\*|__)?(?:${labelPattern})(?:\\*\\*|__)?\\s*\\|\\s*)([^|\\n]+)`, 'i');
+      if (tblRx.test(md)) {
+        return md.replace(tblRx, `$1${newValueStr} `);
+      }
+      return md;
+    }
+
+    function parseCharacterMarkdown(md) {
+      if (!md || !md.trim()) {
+        return {
+          name: 'Active Character',
+          subtitle: 'Load repo to sync character',
+          hp: null,
+          maxHp: null,
+          ac: null,
+          gold: 0,
+          currencyUnit: 'gp',
+          skills: [...DEFAULT_SKILLS],
+          details: [],
+        };
+      }
+
+      const rawName = extractStatValue(md, 'Character\\s*Name|Character|Name')
+        || (md.match(/^#\s+(.+)/m)?.[1] || '').replace(/[*_`]/g, '').trim()
+        || 'Adventurer';
+
+      const classVal = extractStatValue(md, 'Class(?:\\s*&\\s*Level)?|Archetype|Class\\s*/\\s*Level|Role|Profession');
+      const levelVal = extractStatValue(md, 'Level|Lvl');
+      const raceVal = extractStatValue(md, 'Race|Species|Ancestry|Lineage');
+      let subtitleParts = [];
+      if (raceVal) subtitleParts.push(raceVal);
+      if (classVal) subtitleParts.push(classVal);
+      if (levelVal && (!classVal || !/\blevel\b|\blvl\b/i.test(classVal))) {
+        subtitleParts.push(/\d+/.test(levelVal) && !/level/i.test(levelVal) ? `Level ${levelVal}` : levelVal);
+      }
+      if (subtitleParts.length === 0) {
+        const subMatch = md.match(/^#\s+.+\n+(?:[-*]\s*)?(?:##\s*|_)([^\n_]+)/m);
+        if (subMatch) subtitleParts.push(subMatch[1].replace(/[*_`]/g, '').trim());
+      }
+      const subtitle = subtitleParts.join(' · ') || 'Synced from repository';
+
+      // HP
+      let hp = null;
+      let maxHp = null;
+      const hpRaw = extractStatValue(md, '(?:Current\\s+)?HP|Hit\\s*Points');
+      if (hpRaw) {
+        const slashMatch = hpRaw.match(/(-?\d+)\s*\/\s*(\d+)/);
+        if (slashMatch) {
+          hp = Number(slashMatch[1]);
+          maxHp = Number(slashMatch[2]);
+        } else {
+          const singleMatch = hpRaw.match(/(-?\d+)/);
+          if (singleMatch) {
+            hp = Number(singleMatch[1]);
+            maxHp = hp;
+          }
+        }
+      }
+
+      // AC
+      let ac = null;
+      const acRaw = extractStatValue(md, 'AC|Armor\\s*Class|Defense');
+      if (acRaw) {
+        const acMatch = acRaw.match(/(\d+)/);
+        if (acMatch) ac = Number(acMatch[1]);
+      }
+
+      // Gold / Currency
+      let gold = 0;
+      let currencyUnit = 'gp';
+      const goldRaw = extractStatValue(md, 'Gold|Currency|Wealth|Coins|Credits|Money');
+      if (goldRaw) {
+        const goldMatch = goldRaw.match(/(-?\d+(?:,\d{3})*)\s*([a-zA-Z]+)?/);
+        if (goldMatch) {
+          gold = Number(goldMatch[1].replace(/,/g, '')) || 0;
+          if (goldMatch[2]) currencyUnit = goldMatch[2];
+        }
+      }
+
+      // Skills
+      const foundSkills = [];
+      const seenSkills = new Set();
+      const addSkill = (name, mod) => {
+        const cleanName = name.replace(/[*_`]/g, '').trim();
+        const key = cleanName.toLowerCase();
+        if (!cleanName || seenSkills.has(key) || Number.isNaN(mod)) return;
+        seenSkills.add(key);
+        foundSkills.push({ name: cleanName, mod });
+      };
+
+      // 1) Scan explicit Skills / Proficiencies / Saves section if present
+      const skillsSection = md.match(/#{2,3}\s*(?:Quick\s*)?(?:Skills|Proficiencies|Checks|Attributes)[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|$)/i);
+      if (skillsSection) {
+        const lines = skillsSection[1].split('\n');
+        lines.forEach((line) => {
+          const cleaned = line.replace(/[*_`]/g, '').trim();
+          // Bullet or key-value: "- Persuasion: +5" or "Persuasion (+5)"
+          const m1 = cleaned.match(/^(?:[-*]\s*)?([A-Za-z][A-Za-z\s]{1,22}?)\s*[:(]\s*([+-]?\d+)\s*\)?/);
+          if (m1) {
+            addSkill(m1[1], Number(m1[2]));
+            return;
+          }
+          // Table row: "| Persuasion | +5 |"
+          const m2 = cleaned.match(/^\|\s*([A-Za-z][A-Za-z\s]{1,22}?)\s*\|\s*([+-]?\d+)\s*\|?/);
+          if (m2 && !/^skill|attribute|stat$/i.test(m2[1].trim())) {
+            addSkill(m2[1], Number(m2[2]));
+            return;
+          }
+          // Inline comma-separated: "Persuasion +5, Stealth +4"
+          const inlineRx = /([A-Za-z][A-Za-z\s]{1,20}?)\s+([+-]\d+)\b/g;
+          let im;
+          while ((im = inlineRx.exec(cleaned)) !== null) {
+            addSkill(im[1], Number(im[2]));
+          }
+        });
+      }
+
+      // 2) Scan whole document for standard D&D skill names with modifiers
+      STANDARD_SKILLS.forEach((skillName) => {
+        const rx = new RegExp(`\\b(${skillName})\\b[^\\n\\d+-]{0,12}([+-]\\d+)`, 'i');
+        const m = md.match(rx);
+        if (m) addSkill(skillName, Number(m[2]));
+      });
+
+      const skills = foundSkills.length > 0 ? foundSkills.slice(0, 8) : [...DEFAULT_SKILLS];
+
+      // Details (Weapons, Slots, Resources, etc.)
+      const details = [];
+      const detailLabels = [
+        ['Weapon', 'Weapon|Primary\\s*Weapon|Weapons|Attack'],
+        ['Spell / Pact Slots', 'Pact\\s*Slots|Spell\\s*Slots|Slots|Mana'],
+        ['Equipment', 'Equipment|Gear|Inventory'],
+        ['Features', 'Features|Traits|Abilities|Special'],
+      ];
+      detailLabels.forEach(([displayLabel, pattern]) => {
+        const val = extractStatValue(md, pattern);
+        if (val) details.push({ label: displayLabel, value: val });
+      });
+
+      if (details.length === 0) {
+        const attacksSec = md.match(/#{2,3}\s*(?:Attacks|Weapons|Combat|Resources|Equipment)[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|$)/i);
+        if (attacksSec) {
+          attacksSec[1].split('\n').forEach((line) => {
+            const clean = line.replace(/^\s*[-*]\s*/, '').replace(/[*_`]/g, '').trim();
+            if (clean && !clean.startsWith('|---') && details.length < 4) {
+              details.push({ label: 'Note', value: clean.replace(/^\||\|$/g, '').trim() });
+            }
+          });
+        }
+      }
+
+      return {
+        name: rawName,
+        subtitle,
+        hp,
+        maxHp,
+        ac,
+        gold,
+        currencyUnit,
+        skills,
+        details: details.slice(0, 5),
+      };
+    }
+
+    function renderCharacterUI(parsed) {
+      state.parsedChar = parsed;
+      state.characterName = parsed.name || 'Player';
+
+      document.getElementById('char-name').textContent = parsed.name;
+      document.getElementById('char-class').textContent = parsed.subtitle;
+
+      const input = document.getElementById('action-input');
+      if (input) {
+        input.placeholder = parsed.name && parsed.name !== 'Active Character'
+          ? `What does ${parsed.name.split(/\s+/)[0]} do next?`
+          : 'What do you do next?';
+      }
+
+      const hpEl = document.getElementById('char-hp');
+      if (parsed.hp !== null && parsed.maxHp !== null) {
+        hpEl.textContent = `${parsed.hp} / ${parsed.maxHp}`;
+        const ratio = parsed.maxHp > 0 ? parsed.hp / parsed.maxHp : 1;
+        hpEl.className = ratio <= 0.25
+          ? 'text-sm font-semibold text-rose-400 mt-0.5'
+          : ratio <= 0.5
+            ? 'text-sm font-semibold text-amber-400 mt-0.5'
+            : 'text-sm font-semibold text-emerald-400 mt-0.5';
+      } else {
+        hpEl.textContent = '-- / --';
+        hpEl.className = 'text-sm font-semibold text-stone-400 mt-0.5';
+      }
+
+      document.getElementById('char-ac').textContent = parsed.ac !== null ? String(parsed.ac) : '--';
+      document.getElementById('char-gold').textContent = `${parsed.gold} ${parsed.currencyUnit}`;
+
+      const skillsGrid = document.getElementById('skills-grid');
+      skillsGrid.innerHTML = parsed.skills.map((sk) => {
+        const modStr = sk.mod >= 0 ? `+${sk.mod}` : `${sk.mod}`;
+        return `<button type="button" data-skill="${escapeHtml(sk.name)}" data-mod="${sk.mod}" class="skill-btn min-h-[44px] px-3 rounded-xl bg-surfaceAlt hover:bg-stone-700/70 border border-stone-700/80 text-xs font-medium flex items-center justify-between gap-1">
+          <span class="truncate">${escapeHtml(sk.name)}</span><span class="text-amber-400 shrink-0">${modStr}</span>
+        </button>`;
+      }).join('');
+
+      const detailsEl = document.getElementById('char-details');
+      if (parsed.details.length > 0) {
+        detailsEl.innerHTML = parsed.details.map((d) =>
+          `<p><span class="text-stone-400">${escapeHtml(d.label)}:</span> <span class="text-stone-200">${escapeHtml(d.value)}</span></p>`
+        ).join('');
+      } else {
+        detailsEl.innerHTML = '<p class="text-stone-400">No extra equipment or resource notes parsed.</p>';
+      }
+    }
+
+    function parseCampaignTracker(campaignMd, storyMd) {
+      const combined = [campaignMd, storyMd].filter(Boolean).join('\n\n');
+      if (!combined.trim()) {
+        return { location: null, clocks: [], milestones: [] };
+      }
+
+      const location = extractStatValue(combined, 'Current\\s*Location|Location|Current\\s*Scene');
+
+      // Parse Clocks
+      const clocks = [];
+      const seenClocks = new Set();
+      const addClock = (label, cur, max) => {
+        const clean = label.replace(/[*_`]/g, '').replace(/[:\-–]+$/, '').trim();
+        if (!clean || max < 2 || max > 24 || cur < 0 || cur > max) return;
+        if (/^(?:hp|hit points|ac|gold|slots|pact|level|turn|session)$/i.test(clean)) return;
+        const key = clean.toLowerCase();
+        if (seenClocks.has(key)) return;
+        seenClocks.add(key);
+        clocks.push({ label: clean, cur, max });
+      };
+
+      const clockSection = combined.match(/#{2,3}\s*[^\n]*Clocks?[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|$)/i);
+      const clockSourceLines = (clockSection ? clockSection[1] : combined).split('\n');
+      clockSourceLines.forEach((rawLine) => {
+        const line = rawLine.replace(/[*_`]/g, '').trim();
+        if (!line || /https?:\/\//i.test(line)) return;
+
+        // Table format: | Name | 2 / 6 |
+        const tblM = line.match(/^\|\s*([^|]+?)\s*\|\s*(\d+)\s*\/\s*(\d+)\s*\|?/);
+        if (tblM) {
+          addClock(tblM[1], Number(tblM[2]), Number(tblM[3]));
+          return;
+        }
+        // Key-value or bracketed: "- Harbor Watch Lockdown: 2 / 6" or "Clock Name [2/6]"
+        const kvM = line.match(/^(?:[-*]\s*)?([^:[\]()|]{3,50}?)\s*(?::|\[|\()\s*(\d+)\s*(?:\/|of)\s*(\d+)\s*(?:\]|\))?/i);
+        if (kvM) {
+          addClock(kvM[1], Number(kvM[2]), Number(kvM[3]));
+        }
+      });
+
+      // Parse Milestones / Quests / Objectives
+      const milestones = [];
+      const seenMilestones = new Set();
+      const addMilestone = (status, text) => {
+        const clean = text.replace(/[*_`]/g, '').trim();
+        if (!clean || seenMilestones.has(clean.toLowerCase())) return;
+        seenMilestones.add(clean.toLowerCase());
+        milestones.push({ status, text: clean });
+      };
+
+      const milestoneSection = combined.match(/#{2,3}\s*[^\n]*(?:Milestone|Quest|Objective|Mission|Goal|Arc)[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|$)/i);
+      const msLines = (milestoneSection ? milestoneSection[1] : combined).split('\n');
+      msLines.forEach((rawLine) => {
+        const line = rawLine.trim();
+        if (!line) return;
+
+        const tagM = line.match(/^(?:[-*]|\d+\.)?\s*\[(ACTIVE|UPCOMING|COMPLETED|DONE|FAILED|IN PROGRESS)\]\s*(.+)/i);
+        if (tagM) {
+          addMilestone(tagM[1].toUpperCase(), tagM[2]);
+          return;
+        }
+        const chkM = line.match(/^(?:[-*]|\d+\.)?\s*\[([ xX])\]\s*(.+)/);
+        if (chkM) {
+          addMilestone(chkM[1].trim().toLowerCase() === 'x' ? 'COMPLETED' : 'ACTIVE', chkM[2]);
+          return;
+        }
+        if (milestoneSection) {
+          const bulletM = line.match(/^(?:[-*]|\d+\.)\s+(.+)/);
+          if (bulletM && !/^\d+\s*\/\s*\d+$/.test(bulletM[1])) {
+            addMilestone('ACTIVE', bulletM[1]);
+          }
+        }
+      });
+
+      return {
+        location,
+        clocks: clocks.slice(0, 6),
+        milestones: milestones.slice(0, 8),
+      };
+    }
+
+    function renderCampaignTrackerUI(parsed) {
+      if (parsed.location) {
+        document.getElementById('scene-location').textContent = parsed.location;
+      }
+
+      const clocksBox = document.getElementById('clocks-box');
+      if (parsed.clocks.length > 0) {
+        clocksBox.innerHTML = parsed.clocks.map((c) => {
+          const pct = Math.max(0, Math.min(100, Math.round((c.cur / c.max) * 100)));
+          return `<div class="p-3 rounded-xl bg-surfaceAlt border border-stone-800">
+            <div class="flex justify-between gap-2 mb-1.5">
+              <span class="font-medium text-stone-200 truncate">${escapeHtml(c.label)}</span>
+              <span class="text-amber-400 font-semibold shrink-0">${c.cur} / ${c.max}</span>
+            </div>
+            <div class="h-2 rounded-full bg-canvas overflow-hidden">
+              <div class="h-full bg-amber-500 rounded-full transition-all" style="width: ${pct}%"></div>
+            </div>
+          </div>`;
+        }).join('');
+      } else {
+        clocksBox.innerHTML = '<p class="text-stone-400">No clocks found in campaign files.</p>';
+      }
+
+      const msBox = document.getElementById('milestones-box');
+      if (parsed.milestones.length > 0) {
+        const itemsHtml = parsed.milestones.map((m, idx) => {
+          const isDone = m.status === 'COMPLETED' || m.status === 'DONE';
+          const isActive = m.status === 'ACTIVE' || m.status === 'IN PROGRESS';
+          const colorClass = isDone
+            ? 'text-emerald-400/80 line-through'
+            : isActive
+              ? 'text-amber-300'
+              : 'text-stone-400';
+          return `<p class="${colorClass}">${idx + 1}. [${escapeHtml(m.status)}] ${escapeHtml(m.text)}</p>`;
+        }).join('');
+        msBox.innerHTML = `<p class="font-semibold text-stone-300">Milestones & Quests</p>${itemsHtml}`;
+      } else {
+        msBox.innerHTML = '<p class="font-semibold text-stone-300">Milestones & Quests</p><p class="text-stone-400">No milestones found in campaign files.</p>';
+      }
+    }
+
     function resetLoadedFilesState() {
       state.files = {
         rules: { path: '', content: '', sha: null },
@@ -617,9 +993,9 @@
         character: { path: '', content: '', sha: null },
       };
       state.repoAssets = [];
-      state.characterName = 'Player';
-      document.getElementById('char-name').textContent = 'Active Character';
-      document.getElementById('action-input').placeholder = 'What do you do next?';
+      document.getElementById('scene-location').textContent = 'Opening Scene';
+      renderCharacterUI(parseCharacterMarkdown(''));
+      renderCampaignTrackerUI({ location: null, clocks: [], milestones: [] });
     }
 
     async function loadCampaignFromGitHub() {
@@ -642,25 +1018,9 @@
         state.files[key] = { path, content: fileData.content, sha: fileData.sha };
       }));
 
-      // Infer current scene location from campaign file if present
-      const locMatch = state.files.campaign.content.match(/Current Location:\*\*\s*(.+)/i)
-        || state.files.campaign.content.match(/^Current Location:\s*(.+)/im);
-      if (locMatch) {
-        document.getElementById('scene-location').textContent = locMatch[1].trim();
-      }
+      renderCharacterUI(parseCharacterMarkdown(state.files.character.content));
+      renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
 
-      // Lightly infer character name for prompt/card display (full sheet sync in Step 2)
-      const charText = state.files.character.content || '';
-      const nameMatch = charText.match(/(?:Name|Character):\*\*\s*(.+)/i)
-        || charText.match(/^#\s+(.+)/m);
-      if (nameMatch) {
-        const cleanName = nameMatch[1].replace(/[*_`]/g, '').trim();
-        state.characterName = cleanName;
-        document.getElementById('char-name').textContent = cleanName;
-        document.getElementById('action-input').placeholder = `What does ${cleanName.split(' ')[0]} do next?`;
-      }
-
-      // Scan asset folder if configured
       if (cfg.assetsDir) {
         try {
           const tree = await ghListRepoTree(cfg.ghOwner, cfg.ghRepo, cfg.ghBranch, cfg.ghToken);
@@ -780,9 +1140,10 @@ ${state.files.character.content}`;
       if (nextLocation && nextLocation !== currentHeaderLoc) {
         document.getElementById('scene-location').textContent = nextLocation;
         if (state.files.campaign.content) {
-          const updatedCampaign = state.files.campaign.content.replace(
-            /(\*\*Current Location:\*\*\s*).*/i,
-            `$1${nextLocation}`
+          const updatedCampaign = replaceStatInMarkdown(
+            state.files.campaign.content,
+            'Current\\s*Location|Location|Current\\s*Scene',
+            nextLocation
           );
           if (updatedCampaign !== state.files.campaign.content) {
             state.files.campaign.content = updatedCampaign;
@@ -806,32 +1167,58 @@ ${state.files.character.content}`;
       const hpDelta = Number(dmResult.hp_delta) || 0;
       const goldDelta = Number(dmResult.gold_delta) || 0;
       const charNote = (dmResult.character_note || '').trim();
+
+      // Update HP in place (both parsed state/UI and Markdown file)
+      if (hpDelta !== 0 && state.parsedChar.hp !== null && state.parsedChar.maxHp !== null) {
+        const nextHp = Math.max(0, Math.min(state.parsedChar.maxHp, state.parsedChar.hp + hpDelta));
+        state.parsedChar.hp = nextHp;
+        if (state.files.character.content) {
+          const updatedHpMd = replaceStatInMarkdown(
+            state.files.character.content,
+            '(?:Current\\s+)?HP|Hit\\s*Points',
+            `${nextHp} / ${state.parsedChar.maxHp}`
+          );
+          if (updatedHpMd !== state.files.character.content) {
+            state.files.character.content = updatedHpMd;
+            dirtyKeys.add('character');
+          }
+        }
+      }
+
+      // Update Gold / Currency in place (both parsed state/UI and Markdown file)
+      if (goldDelta !== 0) {
+        const unit = state.parsedChar.currencyUnit || 'gp';
+        const nextGold = Math.max(0, (state.parsedChar.gold || 0) + goldDelta);
+        state.parsedChar.gold = nextGold;
+        if (state.files.character.content) {
+          const updatedGoldMd = replaceStatInMarkdown(
+            state.files.character.content,
+            'Gold|Currency|Wealth|Coins|Credits|Money',
+            `${nextGold} ${unit}`
+          );
+          if (updatedGoldMd !== state.files.character.content) {
+            state.files.character.content = updatedGoldMd;
+            dirtyKeys.add('character');
+          }
+        }
+      }
+
       if (((charNote && charNote.toLowerCase() !== 'none') || hpDelta !== 0 || goldDelta !== 0) && state.files.character.path) {
         const notes = [];
-        if (hpDelta) notes.push(`HP delta ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
-        if (goldDelta) notes.push(`Gold delta ${goldDelta > 0 ? '+' : ''}${goldDelta} gp`);
+        if (hpDelta) notes.push(`HP ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
+        if (goldDelta) notes.push(`${state.parsedChar.currencyUnit || 'gp'} ${goldDelta > 0 ? '+' : ''}${goldDelta}`);
         if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
         state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
         dirtyKeys.add('character');
       }
 
-      const hpEl = document.getElementById('char-hp');
-      if (hpEl && hpDelta !== 0) {
-        const match = hpEl.textContent.trim().match(/^(-?\d+)\s*\/\s*(\d+)$/);
-        if (match) {
-          const currentHp = Number(match[1]);
-          const maxHp = Number(match[2]);
-          const nextHp = Math.max(0, Math.min(maxHp, currentHp + hpDelta));
-          hpEl.textContent = `${nextHp} / ${maxHp}`;
-        }
+      // Re-render UI sidebars to reflect updated state/clocks/milestones
+      if (state.files.character.content) {
+        renderCharacterUI(parseCharacterMarkdown(state.files.character.content));
+      } else {
+        renderCharacterUI(state.parsedChar);
       }
-
-      const goldEl = document.getElementById('char-gold');
-      if (goldEl && goldDelta !== 0) {
-        const currentGold = parseInt(goldEl.textContent, 10) || 0;
-        const nextGold = Math.max(0, currentGold + goldDelta);
-        goldEl.textContent = `${nextGold} gp`;
-      }
+      renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
 
       return dirtyKeys;
     }
@@ -852,7 +1239,7 @@ ${state.files.character.content}`;
       el.className = isDm
         ? 'p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90'
         : 'p-3.5 rounded-xl bg-canvas/80 border border-stone-800 text-sm text-stone-200';
-      el.innerHTML = `<p class="text-[11px] uppercase tracking-wider ${isDm ? 'text-amber-400' : 'text-stone-400'} mb-1.5 font-semibold">${roleLabel}</p>${bodyHtml}`;
+      el.innerHTML = `<p class="text-[11px] uppercase tracking-wider ${isDm ? 'text-amber-400' : 'text-stone-400'} mb-1.5 font-semibold">${escapeHtml(roleLabel)}</p>${bodyHtml}`;
       log.appendChild(el);
       log.scrollTop = log.scrollHeight;
     }
@@ -1154,9 +1541,9 @@ ${state.files.character.content}`;
         btn.type = 'button';
         btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
         btn.innerHTML = actionLabel
-          ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${actionLabel}</span>
-             <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${skill} (${rollSpec}${dcStr})${modeBadge}</span>`
-          : `<span class="text-amber-200 text-xs font-semibold">Roll ${skill} (${rollSpec}${dcStr})${modeBadge}</span>`;
+          ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${escapeHtml(actionLabel)}</span>
+             <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${escapeHtml(skill)} (${escapeHtml(rollSpec + dcStr)})${modeBadge}</span>`
+          : `<span class="text-amber-200 text-xs font-semibold">Roll ${escapeHtml(skill)} (${escapeHtml(rollSpec + dcStr)})${modeBadge}</span>`;
 
         btn.addEventListener('click', () => {
           const input = document.getElementById('action-input');
@@ -1363,17 +1750,18 @@ ${state.files.character.content}`;
       rollOverlay.classList.add('hidden');
     });
 
-    document.querySelectorAll('.skill-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const skill = btn.dataset.skill;
-        const mod = Number(btn.dataset.mod);
-        setRollMode('normal');
-        openRollOverlay({
-          label: `${skill} Check`,
-          title: `Roll ${skill} (${mod >= 0 ? '+' + mod : mod})`,
-          sides: 20,
-          mod,
-        });
+    // Event delegation for dynamically rendered skill buttons
+    document.getElementById('skills-grid').addEventListener('click', (e) => {
+      const btn = e.target.closest('.skill-btn');
+      if (!btn) return;
+      const skill = btn.dataset.skill;
+      const mod = Number(btn.dataset.mod) || 0;
+      setRollMode('normal');
+      openRollOverlay({
+        label: `${skill} Check`,
+        title: `Roll ${skill} (${mod >= 0 ? '+' + mod : mod})`,
+        sides: 20,
+        mod,
       });
     });
 
@@ -1442,7 +1830,7 @@ ${state.files.character.content}`;
     function populateSettingsForm(store) {
       profileSelect.innerHTML = store.profiles.map((p) => {
         const selected = p.id === store.activeProfileId ? 'selected' : '';
-        return `<option value="${p.id}" ${selected}>${p.name || 'Unnamed Campaign'}</option>`;
+        return `<option value="${escapeHtml(p.id)}" ${selected}>${escapeHtml(p.name || 'Unnamed Campaign')}</option>`;
       }).join('');
 
       const prof = getActiveProfile(store);
@@ -1529,9 +1917,8 @@ ${state.files.character.content}`;
         const tree = await ghListRepoTree(prof.ghOwner, prof.ghRepo, prof.ghBranch, prof.ghToken);
         const mdFiles = tree.filter((item) => item.type === 'blob' && /\.md$/i.test(item.path)).map((i) => i.path);
         const datalist = document.getElementById('repo-md-list');
-        datalist.innerHTML = mdFiles.map((p) => `<option value="${p}"></option>`).join('');
+        datalist.innerHTML = mdFiles.map((p) => `<option value="${escapeHtml(p)}"></option>`).join('');
 
-        // Auto-match empty or missing default fields from repo structure
         const findMatch = (rx) => mdFiles.find((p) => rx.test(p));
         if (!prof.rulesPath || !mdFiles.includes(prof.rulesPath)) {
           const m = findMatch(/(?:dm_instruction|rules|system)/i);
@@ -1578,9 +1965,9 @@ ${state.files.character.content}`;
         await beginBusyState('Loading Campaign...', `Reading files for ${cfg.campaignName}`);
         try {
           await loadCampaignFromGitHub();
-          appendStoryCard('System', `<p class="text-xs text-emerald-300">Loaded campaign <strong>${cfg.campaignName}</strong> from GitHub.</p>`, false);
+          appendStoryCard('System', `<p class="text-xs text-emerald-300">Loaded campaign <strong>${escapeHtml(cfg.campaignName)}</strong> from GitHub.</p>`, false);
         } catch (err) {
-          appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+          appendStoryCard('System', `<p class="text-xs text-rose-300">${escapeHtml(err.message)}</p>`, false);
         } finally {
           await endBusyState();
         }
@@ -1596,9 +1983,9 @@ ${state.files.character.content}`;
       await beginBusyState('Loading Campaign...', `Refreshing ${cfg.campaignName} from GitHub`);
       try {
         await loadCampaignFromGitHub();
-        appendStoryCard('System', `<p class="text-xs text-emerald-300">Refreshed <strong>${cfg.campaignName}</strong> files from GitHub.</p>`, false);
+        appendStoryCard('System', `<p class="text-xs text-emerald-300">Refreshed <strong>${escapeHtml(cfg.campaignName)}</strong> files from GitHub.</p>`, false);
       } catch (err) {
-        appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+        appendStoryCard('System', `<p class="text-xs text-rose-300">${escapeHtml(err.message)}</p>`, false);
       } finally {
         await endBusyState();
       }
@@ -1613,10 +2000,10 @@ ${state.files.character.content}`;
       if (!text && !rollToSend) return;
 
       const rollSummary = rollToSend
-        ? `<span class="inline-block mb-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">${rollToSend.label}: ${rollToSend.total}</span><br/>`
+        ? `<span class="inline-block mb-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">${escapeHtml(rollToSend.label)}: ${rollToSend.total}</span><br/>`
         : '';
 
-      appendStoryCard(state.characterName || 'Player', `${rollSummary}<p>${text || 'Act on the roll.'}</p>`, false);
+      appendStoryCard(state.characterName || 'Player', `${rollSummary}<p>${escapeHtml(text || 'Act on the roll.')}</p>`, false);
 
       input.value = '';
       state.pendingRoll = null;
@@ -1681,7 +2068,7 @@ ${state.files.character.content}`;
           await persistMarkdownToGitHub(cfg, dirtyKeys);
         }
       } catch (err) {
-        appendStoryCard('System', `<p class="text-xs text-rose-300">${err.message}</p>`, false);
+        appendStoryCard('System', `<p class="text-xs text-rose-300">${escapeHtml(err.message)}</p>`, false);
       } finally {
         sendBtn.disabled = false;
         sendBtn.textContent = 'Send';
@@ -1689,6 +2076,8 @@ ${state.files.character.content}`;
       }
     });
 
+    // Initialize neutral defaults and load active campaign if configured
+    renderCharacterUI(state.parsedChar);
     updateBadge();
     const initialCfg = getConfig();
     if (initialCfg.ghToken && initialCfg.ghOwner && initialCfg.ghRepo) {
