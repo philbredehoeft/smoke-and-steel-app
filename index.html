@@ -1670,15 +1670,16 @@
         : '';
 
       const systemPrompt = `You are a Dungeon Master for a solo tabletop RPG campaign ("${cfg.campaignName}").
-Follow the DM Instructions strictly. Keep prose vivid, concise, and responsive to dice rolls.
-For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's tone. For an unrolled attack, show the approach, movement, and wind-up right up to the moment of the strike, stopping before the blow lands.
-For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
+Follow the DM Instructions strictly. Keep prose vivid, atmospheric, and responsive to dice rolls.
+For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's tone. When ${activeChar} is speaking to someone, coordinating with an ally, or acting around NPCs, include crisp spoken dialogue in quotes ("...") that fits their voice and personality. For an unrolled attack, show the approach, movement, and wind-up right up to the moment of the strike, stopping before the blow lands.
+For "narrative": write 1-3 concise paragraphs as the Dungeon Master.
+- DIALOGUE & BANTER (WHEN APPLICABLE): Whenever any NPC, companion, enemy, or sentient item is present in the scene, weave in natural back-and-forth spoken dialogue ("...") between them and ${activeChar} to convey clues, tension, lore, warnings, or reactions—rather than relying purely on third-person summary. Do not invent random NPCs in an empty room, and keep solo exploration grounded if ${activeChar} is truly alone.
 - Record EVERY roll (player rolls and NPC/enemy rolls for Initiative, Attacks, Damage, and Saves) inline in bracketed math, e.g. [Attack: d20 (16) + 5 = 21 vs AC 14 - Hit!], [Damage: 1d8 (6) + 3 = 9 | Enemy 1 HP: 11 -> 2], or [Enemy Attack: d20 (12) + 3 = 15 vs AC 15 - Hit! Damage: 1d6 (4) + 1 = 5].
 - When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the enemies reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
 - When an Attack roll IS attached and hits: show the inline attack roll math, describe the strike hitting the target, and STOP before declaring the enemy dead or defeated until the player rolls Damage! Put the weapon or spell Damage roll (using the stats from the character sheet) as option 1 in "suggested_rolls".
 - When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against ${activeChar}.
 - CRITICAL HP & GOLD SYNC: Always treat ${hpStatusLine || 'the character sheet HP'} as the starting HP. Whenever ${activeChar} takes damage or heals (including Short Rest Hit Dice, potions, or spells), set BOTH "hp_delta" (negative for damage, positive for healing) AND "current_hp" (exact resulting HP integer matching your narrative [HP: X -> Y / Max]). If HP did not change this turn, set "hp_delta": 0 and "current_hp": -1. Set "gold_delta" whenever currency changes, else 0.
-For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll from the character sheet (dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
+For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. When an NPC, companion, or talkable enemy is present, make at least one option an interactive dialogue or social move (Persuasion, Deception, Intimidation, Insight, or direct questioning/banter). If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll from the character sheet (dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") if nothing changed for that file.
 
 === DM INSTRUCTIONS (${state.files.rules.path || 'Default'}) ===
@@ -2158,7 +2159,7 @@ ${state.files.character.content}`;
       animId: null,
       displayText: '20',
       rawNumeric: null,
-      tone: 'neutral', // 'neutral' | 'crit' | 'fumble'
+      tone: 'neutral',
     };
 
     function rotatePoint([x, y, z], rx, ry, rz) {
@@ -2194,7 +2195,6 @@ ${state.files.character.content}`;
       const cy = h / 2 - die3d.lift;
       const fov = 265;
 
-      // BG3 ambient radial aura behind die
       const auraColor = die3d.tone === 'crit'
         ? 'rgba(245, 158, 11, 0.34)'
         : die3d.tone === 'fumble'
@@ -2208,7 +2208,6 @@ ${state.files.character.content}`;
       dieCtx.arc(cx, cy, 74, 0, Math.PI * 2);
       dieCtx.fill();
 
-      // Subtle floor shadow
       const shadowScale = Math.max(0.5, 1 - die3d.lift / 95);
       dieCtx.save();
       dieCtx.beginPath();
@@ -2255,7 +2254,6 @@ ${state.files.character.content}`;
         }
       });
 
-      // Deterministic neighbor face numbers so every visible facet carries a distinct number
       const faceNumbers = new Array(poly.faces.length);
       const step = Math.max(3, Math.floor(sides / 3) + 1);
       for (let i = 0; i < poly.faces.length; i++) {
@@ -2278,7 +2276,6 @@ ${state.files.character.content}`;
         });
         dieCtx.closePath();
 
-        // BG3 gunmetal/obsidian metallic palette (tinted gold on crit, crimson on fumble)
         let r, g, b;
         if (die3d.tone === 'crit') {
           r = Math.round(54 + 62 * face.light);
@@ -2306,7 +2303,6 @@ ${state.files.character.content}`;
         dieCtx.lineJoin = 'round';
         dieCtx.stroke();
 
-        // Draw subtle neighboring facet numbers on surrounding front facets
         if (face.isFront && face !== frontMostFace && face.area > 210) {
           dieCtx.save();
           dieCtx.font = '600 12px Cinzel, Georgia, serif';
@@ -2678,7 +2674,7 @@ ${state.files.character.content}`;
           } else {
             die3d.lift = 6;
             die3d.rawNumeric = raw;
-            die3d.displayText = String(raw); // Always show RAW roll on the die face
+            die3d.displayText = String(raw);
             die3d.tone = state.dieSides === 20
               ? (raw === 20 ? 'crit' : raw === 1 ? 'fumble' : 'neutral')
               : 'neutral';
@@ -2739,7 +2735,7 @@ ${state.files.character.content}`;
           die3d.lift = 6;
           const finalFaceRaw = allDone ? keptRaw : currentDieVal;
           die3d.rawNumeric = finalFaceRaw;
-          die3d.displayText = String(finalFaceRaw); // Always show RAW roll on the die face
+          die3d.displayText = String(finalFaceRaw);
           if (allDone && state.dieSides === 20) {
             die3d.tone = keptRaw === 20 ? 'crit' : keptRaw === 1 ? 'fumble' : 'neutral';
           }
