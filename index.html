@@ -361,10 +361,14 @@
               <label class="block text-stone-400 mb-1">Active Character File</label>
               <input id="cfg-char-path" list="repo-md-list" type="text" placeholder="Character/Hero.md" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
             </div>
-          </div>
-          <div>
-            <label class="block text-stone-400 mb-1">Assets Folder (optional)</label>
-            <input id="cfg-assets-dir" type="text" placeholder="Assets" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            <div>
+              <label class="block text-stone-400 mb-1">Session Log (Auto-Created)</label>
+              <input id="cfg-session-path" list="repo-md-list" type="text" placeholder="SESSION_LOG.md" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            </div>
+            <div>
+              <label class="block text-stone-400 mb-1">Assets Folder (optional)</label>
+              <input id="cfg-assets-dir" type="text" placeholder="Assets" class="w-full min-h-[38px] px-3 rounded-xl bg-canvas border border-stone-700 text-stone-100" />
+            </div>
           </div>
         </div>
 
@@ -382,7 +386,9 @@
     const LEGACY_STORAGE_KEY = 'smoke_and_steel_cfg_v1';
     const LOG_STORAGE_PREFIX = 'solo_rpg_log_v1_';
     const HISTORY_STORAGE_PREFIX = 'solo_rpg_history_v1_';
+    const META_STORAGE_PREFIX = 'solo_rpg_meta_v1_';
     const MAX_LOG_ENTRIES = 40;
+    const MAX_REPO_LOG_ENTRIES = 12;
     const MAX_GEMINI_TURNS = 6;
 
     const MODEL_PRESETS = [
@@ -440,6 +446,7 @@
         campaignPath: overrides.campaignPath ?? 'CAMPAIGN_STATE.md',
         storyPath: overrides.storyPath ?? 'STORY_ENGINE.md',
         charPath: overrides.charPath ?? '',
+        sessionLogPath: overrides.sessionLogPath ?? 'SESSION_LOG.md',
         assetsDir: overrides.assetsDir ?? 'Assets',
       };
     }
@@ -515,6 +522,7 @@
         campaignPath: (prof.campaignPath || '').trim(),
         storyPath: (prof.storyPath || '').trim(),
         charPath: (prof.charPath || '').trim(),
+        sessionLogPath: (prof.sessionLogPath || '').trim(),
         assetsDir: (prof.assetsDir || '').trim(),
       };
     }
@@ -532,6 +540,8 @@
       characterName: 'Player',
       storyEntries: [],
       turnHistory: [],
+      logUpdatedAt: 0,
+      logClearedAt: 0,
       charSyncTimer: null,
       parsedChar: {
         name: 'Active Character',
@@ -552,6 +562,7 @@
         campaign: { path: '', content: '', sha: null },
         story: { path: '', content: '', sha: null },
         character: { path: '', content: '', sha: null },
+        sessionLog: { path: '', content: '', sha: null },
       }
     };
 
@@ -592,7 +603,7 @@
       await releaseWakeLock();
     }
 
-    // --- Per-Campaign Story Log & Rolling Turn Memory ---
+    // --- Per-Campaign Story Log, Rolling Turn Memory & Repo Session Log ---
 
     function loadCampaignMemory(profileId) {
       const pid = profileId || getConfig().profileId;
@@ -610,6 +621,15 @@
       } catch (_) {
         state.turnHistory = [];
       }
+      try {
+        const rawMeta = localStorage.getItem(META_STORAGE_PREFIX + pid);
+        const meta = rawMeta ? JSON.parse(rawMeta) : {};
+        state.logUpdatedAt = Number(meta.updatedAt) || 0;
+        state.logClearedAt = Number(meta.clearedAt) || 0;
+      } catch (_) {
+        state.logUpdatedAt = 0;
+        state.logClearedAt = 0;
+      }
       renderStoryLogFromState();
     }
 
@@ -618,7 +638,111 @@
       try {
         localStorage.setItem(LOG_STORAGE_PREFIX + pid, JSON.stringify(state.storyEntries.slice(-MAX_LOG_ENTRIES)));
         localStorage.setItem(HISTORY_STORAGE_PREFIX + pid, JSON.stringify(state.turnHistory.slice(-MAX_GEMINI_TURNS)));
+        localStorage.setItem(META_STORAGE_PREFIX + pid, JSON.stringify({
+          updatedAt: state.logUpdatedAt,
+          clearedAt: state.logClearedAt,
+        }));
       } catch (_) {}
+    }
+
+    function buildSessionLogMarkdown(cfg) {
+      const recentEntries = state.storyEntries
+        .filter((e) => e.type === 'player' || e.type === 'dm')
+        .slice(-MAX_REPO_LOG_ENTRIES);
+      const recentTurns = state.turnHistory.slice(-MAX_GEMINI_TURNS);
+      const location = document.getElementById('scene-location').textContent.trim();
+
+      const lines = [
+        `# Session Log — ${cfg.campaignName}`,
+        '',
+        `- **Current Location:** ${location}`,
+        `- **Active Character:** ${state.characterName || 'Player'}`,
+        `- **Last Updated:** ${new Date(state.logUpdatedAt || Date.now()).toISOString()}`,
+        '',
+        '## Recent Turns',
+        '',
+      ];
+
+      recentEntries.forEach((entry) => {
+        if (entry.type === 'player') {
+          const badge = entry.rollBadge ? ` [${entry.rollBadge}]` : '';
+          lines.push(`### ${entry.label || 'Player'}${badge}`);
+          lines.push(entry.text || '');
+          lines.push('');
+        } else if (entry.type === 'dm') {
+          lines.push('### Dungeon Master');
+          if (entry.playerBeat) lines.push(entry.playerBeat);
+          if (entry.narrative) lines.push(entry.narrative);
+          lines.push('');
+        }
+      });
+
+      const embedded = JSON.stringify({
+        updatedAt: state.logUpdatedAt || Date.now(),
+        location,
+        entries: recentEntries,
+        turnHistory: recentTurns,
+      }).replace(/-->/g, '--\\u003e');
+
+      lines.push('<!-- SOLO_RPG_STATE_JSON');
+      lines.push(embedded);
+      lines.push('-->');
+      lines.push('');
+      return lines.join('\n');
+    }
+
+    function hydrateFromSessionLogMarkdown(md) {
+      if (!md) return false;
+      const match = md.match(/<!--\s*SOLO_RPG_STATE_JSON\s*\n([\s\S]*?)\n\s*-->/);
+      if (!match) return false;
+      try {
+        const remote = JSON.parse(match[1]);
+        const remoteEntries = Array.isArray(remote.entries) ? remote.entries : [];
+        const remoteHistory = Array.isArray(remote.turnHistory) ? remote.turnHistory : [];
+        const remoteUpdatedAt = Number(remote.updatedAt) || 0;
+
+        if (remoteEntries.length === 0) return false;
+        if (state.logClearedAt && remoteUpdatedAt <= state.logClearedAt) return false;
+
+        if (state.storyEntries.length === 0 || remoteUpdatedAt > state.logUpdatedAt) {
+          state.storyEntries = remoteEntries;
+          state.turnHistory = remoteHistory;
+          state.logUpdatedAt = remoteUpdatedAt || Date.now();
+          if (remote.location) {
+            document.getElementById('scene-location').textContent = remote.location;
+          }
+          saveCampaignMemory();
+          renderStoryLogFromState();
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    function buildRecapFromMarkdownFiles() {
+      const updates = [];
+      const campLines = (state.files.campaign.content || '').split('\n');
+      campLines.forEach((line) => {
+        const m = line.match(/^\s*[-*]\s*Turn Update:\s*(.+)/i);
+        if (m) updates.push(m[1].trim());
+      });
+      const storyLines = (state.files.story.content || '').split('\n');
+      storyLines.forEach((line) => {
+        const m = line.match(/^\s*[-*]\s*Arc Note:\s*(.+)/i);
+        if (m) updates.push(m[1].trim());
+      });
+      if (updates.length === 0) return false;
+
+      const recent = updates.slice(-5).map((u) => `• ${u}`).join('\n');
+      state.storyEntries = [{
+        type: 'dm',
+        label: 'Session Recap (From Repo)',
+        playerBeat: '',
+        narrative: recent,
+        suggestedRolls: [],
+      }];
+      renderStoryLogFromState();
+      return true;
     }
 
     function buildEntryElement(entry, attachSuggested = false) {
@@ -688,6 +812,9 @@
       state.storyEntries.push(entry);
       if (state.storyEntries.length > MAX_LOG_ENTRIES) {
         state.storyEntries = state.storyEntries.slice(-MAX_LOG_ENTRIES);
+      }
+      if (entry.type === 'player' || entry.type === 'dm') {
+        state.logUpdatedAt = Date.now();
       }
       saveCampaignMemory();
 
@@ -1414,6 +1541,7 @@
         campaign: { path: '', content: '', sha: null },
         story: { path: '', content: '', sha: null },
         character: { path: '', content: '', sha: null },
+        sessionLog: { path: '', content: '', sha: null },
       };
       state.repoCharacters = [];
       state.repoAssets = [];
@@ -1434,6 +1562,7 @@
         ['campaign', cfg.campaignPath],
         ['story', cfg.storyPath],
         ['character', cfg.charPath],
+        ['sessionLog', cfg.sessionLogPath],
       ];
 
       await Promise.all(entries.map(async ([key, path]) => {
@@ -1473,6 +1602,12 @@
       renderCharacterSwitcher();
       renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
       renderAssetsUI();
+
+      // Hydrate recent adventure turns from GitHub SESSION_LOG.md (or fallback recap)
+      const hydrated = hydrateFromSessionLogMarkdown(state.files.sessionLog.content);
+      if (!hydrated && state.storyEntries.length === 0 && !state.logClearedAt) {
+        buildRecapFromMarkdownFiles();
+      }
     }
 
     function sleep(ms) {
@@ -1484,6 +1619,9 @@
         ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
         : 'Dice Roll: None';
       const activeChar = state.characterName || 'the player character';
+      const hpStatusLine = state.parsedChar.hp !== null && state.parsedChar.maxHp !== null
+        ? `Authoritative Character Sheet HP: ${state.parsedChar.hp} / ${state.parsedChar.maxHp}`
+        : '';
 
       const systemPrompt = `You are a Dungeon Master for a solo tabletop RPG campaign ("${cfg.campaignName}").
 Follow the DM Instructions strictly. Keep prose vivid, concise, and responsive to dice rolls.
@@ -1493,7 +1631,7 @@ For "narrative": write 1-2 concise paragraphs as the Dungeon Master.
 - When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the enemies reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
 - When an Attack roll IS attached and hits: show the inline attack roll math, describe the strike hitting the target, and STOP before declaring the enemy dead or defeated until the player rolls Damage! Put the weapon or spell Damage roll (using the stats from the character sheet) as option 1 in "suggested_rolls".
 - When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against ${activeChar}.
-- CRITICAL STAT DELTAS: Whenever ${activeChar} takes damage this turn, you MUST set "hp_delta" to the negative damage integer (e.g. -6). Whenever ${activeChar} heals or recovers HP (via Hit Dice, short rest, spell, or potion) this turn, you MUST set "hp_delta" to the positive healed integer (e.g. +7). Whenever ${activeChar} spends or gains currency this turn, set "gold_delta" accordingly. Set them to 0 only if no HP or currency changed this turn.
+- CRITICAL HP & GOLD SYNC: Always treat ${hpStatusLine || 'the character sheet HP'} as the starting HP. Whenever ${activeChar} takes damage or heals (including Short Rest Hit Dice, potions, or spells), set BOTH "hp_delta" (negative for damage, positive for healing) AND "current_hp" (exact resulting HP integer matching your narrative [HP: X -> Y / Max]). If HP did not change this turn, set "hp_delta": 0 and "current_hp": -1. Set "gold_delta" whenever currency changes, else 0.
 For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll from the character sheet (dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
 Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") if nothing changed for that file.
 
@@ -1530,6 +1668,10 @@ ${state.files.character.content}`;
             }
           },
           location: { type: 'STRING' },
+          current_hp: {
+            type: 'INTEGER',
+            description: 'Exact resulting HP of the active character at the end of this turn (e.g. 11). Return -1 if HP did not change.'
+          },
           hp_delta: {
             type: 'INTEGER',
             description: 'Net change to active character HP this turn: negative for damage taken, positive for healing/Hit Dice recovery, 0 if unchanged.'
@@ -1542,10 +1684,10 @@ ${state.files.character.content}`;
           story_note: { type: 'STRING' },
           character_note: { type: 'STRING' }
         },
-        required: ['player_beat', 'narrative', 'suggested_rolls', 'location', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
+        required: ['player_beat', 'narrative', 'suggested_rolls', 'location', 'current_hp', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
       };
 
-      const currentUserText = `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}`;
+      const currentUserText = `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}${hpStatusLine ? `\n${hpStatusLine}` : ''}`;
       const contents = [];
       state.turnHistory.slice(-MAX_GEMINI_TURNS).forEach((turn) => {
         if (turn && turn.userText && turn.modelText) {
@@ -1596,6 +1738,7 @@ ${state.files.character.content}`;
             player_beat: parsed.player_beat || '',
             narrative: parsed.narrative || '',
             location: parsed.location || '',
+            current_hp: typeof parsed.current_hp === 'number' ? parsed.current_hp : -1,
             hp_delta: parsed.hp_delta || 0,
             gold_delta: parsed.gold_delta || 0,
             suggested_rolls: Array.isArray(parsed.suggested_rolls) ? parsed.suggested_rolls : [],
@@ -1610,7 +1753,23 @@ ${state.files.character.content}`;
       }
     }
 
-    function applySingleFileUpdate(key, dmResult) {
+    function resolveNextHp(dmResult, baseHp, maxHp) {
+      if (baseHp === null || maxHp === null) return null;
+      const narrativeMatch = (dmResult.narrative || '').match(/\bHP:\s*-?\d+\s*(?:->|→|to)\s*(-?\d+)/i);
+      if (narrativeMatch) {
+        return Math.max(0, Math.min(maxHp, Number(narrativeMatch[1])));
+      }
+      if (typeof dmResult.current_hp === 'number' && dmResult.current_hp >= 0) {
+        return Math.max(0, Math.min(maxHp, dmResult.current_hp));
+      }
+      const hpDelta = Number(dmResult.hp_delta) || 0;
+      if (hpDelta !== 0) {
+        return Math.max(0, Math.min(maxHp, baseHp + hpDelta));
+      }
+      return null;
+    }
+
+    function applySingleFileUpdate(key, dmResult, cfg) {
       let changed = false;
 
       if (key === 'campaign') {
@@ -1649,8 +1808,9 @@ ${state.files.character.content}`;
           ? parseCharacterMarkdown(state.files.character.content)
           : state.parsedChar;
 
-        if (hpDelta !== 0 && baseParsed.hp !== null && baseParsed.maxHp !== null) {
-          const nextHp = Math.max(0, Math.min(baseParsed.maxHp, baseParsed.hp + hpDelta));
+        const nextHp = resolveNextHp(dmResult, baseParsed.hp, baseParsed.maxHp);
+        const hpChanged = nextHp !== null && nextHp !== baseParsed.hp;
+        if (hpChanged) {
           state.parsedChar.hp = nextHp;
           state.parsedChar.maxHp = baseParsed.maxHp;
           if (state.files.character.content) {
@@ -1684,12 +1844,18 @@ ${state.files.character.content}`;
           }
         }
 
-        if (((charNote && charNote.toLowerCase() !== 'none') || hpDelta !== 0 || goldDelta !== 0) && state.files.character.path) {
+        if (((charNote && charNote.toLowerCase() !== 'none') || hpChanged || hpDelta !== 0 || goldDelta !== 0) && state.files.character.path) {
           const notes = [];
-          if (hpDelta) notes.push(`HP ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
+          if (hpChanged) notes.push(`HP -> ${nextHp}/${baseParsed.maxHp}`);
+          else if (hpDelta) notes.push(`HP ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
           if (goldDelta) notes.push(`${baseParsed.currencyUnit || 'gp'} ${goldDelta > 0 ? '+' : ''}${goldDelta}`);
           if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
           state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
+          changed = true;
+        }
+      } else if (key === 'sessionLog') {
+        if (state.files.sessionLog.path && cfg) {
+          state.files.sessionLog.content = buildSessionLogMarkdown(cfg);
           changed = true;
         }
       }
@@ -1697,10 +1863,10 @@ ${state.files.character.content}`;
       return changed;
     }
 
-    function applyUpdatesToMarkdown(dmResult) {
+    function applyUpdatesToMarkdown(dmResult, cfg) {
       const dirtyKeys = new Set();
-      ['campaign', 'story', 'character'].forEach((key) => {
-        if (applySingleFileUpdate(key, dmResult)) {
+      ['campaign', 'story', 'character', 'sessionLog'].forEach((key) => {
+        if (applySingleFileUpdate(key, dmResult, cfg)) {
           dirtyKeys.add(key);
         }
       });
@@ -1728,11 +1894,11 @@ ${state.files.character.content}`;
             const latest = await ghGetFile(cfg, fileObj.path);
             fileObj.content = latest.content;
             fileObj.sha = latest.sha;
-            applySingleFileUpdate(key, dmResult);
+            applySingleFileUpdate(key, dmResult, cfg);
             fileObj.sha = await ghPutFile(cfg, fileObj.path, fileObj.content, fileObj.sha, `Update ${fileObj.path} from DM turn (merged)`);
             if (key === 'character' && fileObj.content) {
               renderCharacterUI(parseCharacterMarkdown(fileObj.content));
-            } else {
+            } else if (key !== 'sessionLog') {
               renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
             }
           } else {
@@ -2461,6 +2627,8 @@ ${state.files.character.content}`;
       if (!confirm('Clear the local story log and recent turn memory for this campaign? Your GitHub files will not be changed.')) return;
       state.storyEntries = [];
       state.turnHistory = [];
+      state.logClearedAt = Date.now();
+      state.logUpdatedAt = 0;
       saveCampaignMemory();
       renderStoryLogFromState();
     });
@@ -2516,6 +2684,7 @@ ${state.files.character.content}`;
       document.getElementById('cfg-campaign-path').value = prof.campaignPath ?? '';
       document.getElementById('cfg-story-path').value = prof.storyPath ?? '';
       document.getElementById('cfg-char-path').value = prof.charPath ?? '';
+      document.getElementById('cfg-session-path').value = prof.sessionLogPath ?? 'SESSION_LOG.md';
       document.getElementById('cfg-assets-dir').value = prof.assetsDir ?? '';
       document.getElementById('btn-delete-profile').disabled = store.profiles.length <= 1;
       document.getElementById('btn-delete-profile').classList.toggle('opacity-40', store.profiles.length <= 1);
@@ -2535,6 +2704,7 @@ ${state.files.character.content}`;
       prof.campaignPath = document.getElementById('cfg-campaign-path').value.trim();
       prof.storyPath = document.getElementById('cfg-story-path').value.trim();
       prof.charPath = document.getElementById('cfg-char-path').value.trim();
+      prof.sessionLogPath = document.getElementById('cfg-session-path').value.trim();
       prof.assetsDir = document.getElementById('cfg-assets-dir').value.trim();
     }
 
@@ -2572,6 +2742,7 @@ ${state.files.character.content}`;
       draftStore.activeProfileId = draftStore.profiles[0].id;
       localStorage.removeItem(LOG_STORAGE_PREFIX + removedId);
       localStorage.removeItem(HISTORY_STORAGE_PREFIX + removedId);
+      localStorage.removeItem(META_STORAGE_PREFIX + removedId);
       populateSettingsForm(draftStore);
     });
 
@@ -2609,6 +2780,10 @@ ${state.files.character.content}`;
         if (!prof.charPath || !mdFiles.includes(prof.charPath)) {
           const m = findMatch(/(?:character|sheet|pc|hero)/i);
           if (m) prof.charPath = m;
+        }
+        if (!prof.sessionLogPath) {
+          const m = findMatch(/(?:session_log|session|transcript)/i);
+          prof.sessionLogPath = m || 'SESSION_LOG.md';
         }
         const assetDirMatch = tree.find((item) => item.type === 'tree' && /^(?:assets|images|maps|media)$/i.test(item.path.split('/').pop()));
         if (assetDirMatch && !prof.assetsDir) {
@@ -2713,7 +2888,7 @@ ${state.files.character.content}`;
           suggestedRolls: Array.isArray(dmResult.suggested_rolls) ? dmResult.suggested_rolls : [],
         }, true);
 
-        const dirtyKeys = applyUpdatesToMarkdown(dmResult);
+        const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg);
         if (cfg.ghToken && dirtyKeys.size > 0) {
           updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
           await persistMarkdownToGitHub(cfg, dirtyKeys, dmResult);
