@@ -1,3 +1,15 @@
+
+Great feedback—putting the modified total directly on the die face is confusing, and giving it a **Baldur's Gate 3** roll presentation makes every check way clearer at a glance.
+
+### What Changed in the Dice Roll Modal
+* **Raw Roll Only on the 3D Die:** The 3D die face now **always displays the raw die roll** (e.g., `4`), never the modified total.
+* **BG3 Obsidian & Gold Polyhedron + Multi-Face Numbers:** Styled the 3D dice in BG3 dark metallic slate with antique-gold edge inlays and neighboring numbers (`15`, `17`, `1`, etc.) rendered subtly across adjacent visible facets—plus a gold/crimson glow on Natural `20` / `1`.
+* **Ornate BG3 Difficulty Class Frame:** Displays the Check name & type (`ARCANA` · `Skill Check`) at the top, a **DIFFICULTY CLASS** medallion above the gold divider bar (or **FREE ROLL** when there's no DC), and a glowing **Outcome Banner** (`4 + 3 = 7 · FAILED` or `SUCCESS!`).
+* **BG3 Modifier Card Animation:** Added a framed **Roll Modifier** bonus card below the die (`+3`) that pulses gold as the roll lands and calculates your total—while keeping the die face showing `4` so raw vs. total is unmistakable.
+
+Replace your HTML with this updated version:
+
+```html
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -34,6 +46,14 @@
     }
     .animate-ember {
       animation: emberPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes bonusPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+      45% { transform: scale(1.07); box-shadow: 0 0 18px 2px rgba(245, 158, 11, 0.45); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    .animate-bonus-pop {
+      animation: bonusPulse 0.55s ease-out;
     }
   </style>
 </head>
@@ -207,49 +227,85 @@
     </div>
   </div>
 
-  <!-- POLYHEDRAL 3D ROLL OVERLAY MODAL -->
-  <div id="roll-overlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-surface border border-amber-500/30 p-5 text-center space-y-3.5 shadow-2xl">
-      <div>
-        <div id="overlay-label" class="text-[11px] uppercase tracking-widest text-amber-400 font-semibold">d20 Check</div>
-        <div id="roll-summary-line" class="text-xs text-stone-400 mt-1">1d20 Normal · +0</div>
+  <!-- BG3-STYLE POLYHEDRAL 3D ROLL OVERLAY MODAL -->
+  <div id="roll-overlay" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+    <div class="w-full max-w-sm rounded-2xl bg-gradient-to-b from-[#171522] via-[#12111a] to-[#17141d] border border-amber-500/40 p-4 text-center space-y-3 shadow-2xl">
+      <!-- BG3 Header -->
+      <div class="space-y-0.5">
+        <h3 id="overlay-label" class="font-display text-lg sm:text-xl tracking-wide text-stone-100">Arcana</h3>
+        <p id="overlay-subtitle" class="text-[11px] tracking-wider uppercase text-amber-300/80 font-medium">Skill Check</p>
       </div>
 
-      <!-- Die Type Selector -->
-      <div class="grid grid-cols-6 gap-1.5">
-        <button type="button" data-die="4" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d4</button>
-        <button type="button" data-die="6" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d6</button>
-        <button type="button" data-die="8" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d8</button>
-        <button type="button" data-die="10" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d10</button>
-        <button type="button" data-die="12" class="die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500">d12</button>
-        <button type="button" data-die="20" class="die-select py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-semibold">d20</button>
-      </div>
-
-      <!-- Mode & Modifier Row -->
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-1">
-          <button type="button" data-roll-mode="normal" class="mode-select px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium">Normal</button>
-          <button type="button" data-roll-mode="advantage" class="mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px]">Adv</button>
-          <button type="button" data-roll-mode="disadvantage" class="mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px]">Dis</button>
-          <button type="button" data-roll-mode="super_advantage" class="mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px]">3d20</button>
+      <!-- Compact Utility Bar (Die / Mode / Mod) -->
+      <div class="space-y-1.5">
+        <div class="grid grid-cols-6 gap-1">
+          <button type="button" data-die="4" class="die-select py-1 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] font-medium hover:border-amber-500">d4</button>
+          <button type="button" data-die="6" class="die-select py-1 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] font-medium hover:border-amber-500">d6</button>
+          <button type="button" data-die="8" class="die-select py-1 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] font-medium hover:border-amber-500">d8</button>
+          <button type="button" data-die="10" class="die-select py-1 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] font-medium hover:border-amber-500">d10</button>
+          <button type="button" data-die="12" class="die-select py-1 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] font-medium hover:border-amber-500">d12</button>
+          <button type="button" data-die="20" class="die-select py-1 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-semibold">d20</button>
         </div>
-        <div class="flex items-center gap-1 bg-canvas border border-stone-700 rounded-lg px-1.5 py-0.5 text-[11px]">
-          <span class="text-stone-400 mr-0.5">Mod</span>
-          <button id="btn-mod-minus" type="button" class="px-1.5 py-0.5 rounded hover:bg-stone-700 text-stone-200 font-bold">-</button>
-          <span id="roll-mod-value" class="min-w-[24px] text-amber-300 font-semibold">+0</span>
-          <button id="btn-mod-plus" type="button" class="px-1.5 py-0.5 rounded hover:bg-stone-700 text-stone-200 font-bold">+</button>
+
+        <div class="flex items-center justify-between gap-1.5">
+          <div class="flex items-center gap-1">
+            <button type="button" data-roll-mode="normal" class="mode-select px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-medium">Normal</button>
+            <button type="button" data-roll-mode="advantage" class="mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">Adv</button>
+            <button type="button" data-roll-mode="disadvantage" class="mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">Dis</button>
+            <button type="button" data-roll-mode="super_advantage" class="mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">3d20</button>
+          </div>
+          <div class="flex items-center gap-1 bg-black/40 border border-stone-700/80 rounded-md px-1.5 py-0.5 text-[10px]">
+            <span class="text-stone-400">Mod</span>
+            <button id="btn-mod-minus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">-</button>
+            <span id="roll-mod-value" class="min-w-[20px] text-amber-300 font-semibold">+0</span>
+            <button id="btn-mod-plus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">+</button>
+          </div>
         </div>
       </div>
 
-      <div class="flex flex-col items-center justify-center py-1">
-        <button id="die-btn" type="button" class="cursor-pointer focus:outline-none">
-          <canvas id="die-canvas" width="160" height="160"></canvas>
-        </button>
-        <div id="die-sub" class="text-xs text-stone-400 mt-1">Tap die to roll</div>
-        <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-2 mt-2"></div>
+      <!-- Ornate BG3 Filigree Frame -->
+      <div class="relative rounded-2xl border border-amber-500/45 bg-gradient-to-b from-[#1e1a2b]/95 via-[#151320]/95 to-[#1b1624]/95 px-4 pt-3.5 pb-4 shadow-inner">
+        <div class="pointer-events-none absolute inset-1.5 rounded-xl border border-amber-400/20"></div>
+
+        <!-- Difficulty Class Medallion -->
+        <div id="dc-box" class="relative z-10 pb-2.5">
+          <div id="dc-kicker" class="text-[9px] tracking-[0.22em] uppercase text-stone-300/90 font-semibold">Difficulty Class</div>
+          <div id="dc-value" class="font-display text-3xl font-bold text-stone-100 leading-tight mt-0.5">11</div>
+        </div>
+
+        <!-- Gold Filigree Divider -->
+        <div class="relative z-10 flex items-center justify-center my-0.5">
+          <div class="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/60 to-amber-400/80"></div>
+          <div class="mx-2 h-2 w-2 rotate-45 border border-amber-400 bg-amber-500/40"></div>
+          <div class="h-px flex-1 bg-gradient-to-l from-transparent via-amber-500/60 to-amber-400/80"></div>
+        </div>
+
+        <!-- Center 3D Die -->
+        <div class="relative z-10 flex flex-col items-center justify-center pt-1.5">
+          <button id="die-btn" type="button" class="cursor-pointer focus:outline-none group">
+            <canvas id="die-canvas" width="176" height="168" class="transition-transform group-active:scale-95"></canvas>
+          </button>
+          <div id="die-sub" class="text-[11px] text-stone-300/90 -mt-1">Tap die to roll</div>
+
+          <!-- Multi-die pool strip (Adv/Dis/3d20) -->
+          <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-1.5 mt-2"></div>
+
+          <!-- Outcome Banner (Raw + Mod = Total vs DC) -->
+          <div id="roll-outcome-banner" class="hidden mt-2.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-wide"></div>
+        </div>
       </div>
 
-      <div class="flex items-center justify-between gap-3 pt-2 border-t border-stone-800/80">
+      <!-- BG3 Bottom Modifier Bonus Card -->
+      <div class="flex items-center justify-center gap-2">
+        <div id="roll-bonus-card" class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-amber-500/50 shadow-md">
+          <span id="bonus-card-val" class="font-display text-sm font-bold text-amber-300">+0</span>
+          <span class="h-4 w-px bg-amber-500/30"></span>
+          <span id="bonus-card-label" class="text-[11px] text-stone-200 font-medium">Roll Modifier</span>
+        </div>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="flex items-center justify-between gap-3 pt-1">
         <button id="btn-close-roll" type="button" class="flex-1 py-2.5 rounded-xl bg-surfaceAlt border border-stone-700 text-stone-300 text-xs font-medium cursor-pointer">
           Close
         </button>
@@ -531,7 +587,10 @@
       activePage: 'story',
       dieSides: 20,
       modifier: 0,
+      dc: 0,
       skillLabel: 'd20 Check',
+      rollDisplayName: 'd20 Roll',
+      rollSubtitle: 'Ability Check',
       rollMode: 'normal',
       lastRoll: null,
       rollPool: null,
@@ -1603,7 +1662,6 @@
       renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
       renderAssetsUI();
 
-      // Hydrate recent adventure turns from GitHub SESSION_LOG.md (or fallback recap)
       const hydrated = hydrateFromSessionLogMarkdown(state.files.sessionLog.content);
       if (!hydrated && state.storyEntries.length === 0 && !state.logClearedAt) {
         buildRecapFromMarkdownFiles();
@@ -1926,7 +1984,7 @@ ${state.files.character.content}`;
       });
     });
 
-    // --- Full 3D Polyhedral Dice Engine (d4, d6, d8, d10, d12, d20) ---
+    // --- BG3-Style Polyhedral 3D Dice Engine (Raw face display + multi-face numbers) ---
     const rollOverlay = document.getElementById('roll-overlay');
     const dieBtn = document.getElementById('die-btn');
     const dieCanvas = document.getElementById('die-canvas');
@@ -1972,7 +2030,7 @@ ${state.files.character.content}`;
         [0, 2, 3],
         [1, 3, 2],
       ];
-      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 56 };
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 58 };
     }
 
     function buildCube() {
@@ -1986,7 +2044,7 @@ ${state.files.character.content}`;
         [0, 4, 7, 3], [5, 1, 2, 6],
         [3, 7, 6, 2], [0, 1, 5, 4],
       ];
-      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 50 };
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 52 };
     }
 
     function buildOctahedron() {
@@ -1999,7 +2057,7 @@ ${state.files.character.content}`;
         [0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4],
         [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5],
       ];
-      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 54 };
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 56 };
     }
 
     function buildPentagonalTrapezohedron() {
@@ -2030,7 +2088,7 @@ ${state.files.character.content}`;
         rawFaces.push([0, uNext, lCur, uCur]);
         rawFaces.push([1, lCur, uNext, lNext]);
       }
-      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 54 };
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 56 };
     }
 
     function buildIcosahedron() {
@@ -2047,7 +2105,7 @@ ${state.files.character.content}`;
         [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
         [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
       ];
-      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 52 };
+      return { vertices, faces: orientFacesOutward(vertices, rawFaces), radius: 55 };
     }
 
     function buildDodecahedron() {
@@ -2092,7 +2150,7 @@ ${state.files.character.content}`;
         });
       });
 
-      return { vertices: rawDodecaVerts, faces: orientFacesOutward(rawDodecaVerts, rawFaces), radius: 52 };
+      return { vertices: rawDodecaVerts, faces: orientFacesOutward(rawDodecaVerts, rawFaces), radius: 55 };
     }
 
     const POLYHEDRA = {
@@ -2105,12 +2163,14 @@ ${state.files.character.content}`;
     };
 
     const die3d = {
-      rx: 0.36,
-      ry: -0.45,
+      rx: 0.34,
+      ry: -0.44,
       rz: 0.08,
-      lift: 8,
+      lift: 6,
       animId: null,
-      displayText: 'd20',
+      displayText: '20',
+      rawNumeric: null,
+      tone: 'neutral', // 'neutral' | 'crit' | 'fumble'
     };
 
     function rotatePoint([x, y, z], rx, ry, rz) {
@@ -2127,6 +2187,15 @@ ${state.files.character.content}`;
       return [x3, y3, z2];
     }
 
+    function polygonArea2D(pts) {
+      let area = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const j = (i + 1) % pts.length;
+        area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+      }
+      return Math.abs(area) / 2;
+    }
+
     function drawPolyhedronDie(sides) {
       const poly = POLYHEDRA[sides] || POLYHEDRA[20];
       const w = dieCanvas.width;
@@ -2135,13 +2204,28 @@ ${state.files.character.content}`;
 
       const cx = w / 2;
       const cy = h / 2 - die3d.lift;
-      const fov = 260;
+      const fov = 265;
 
+      // BG3 ambient radial aura behind die
+      const auraColor = die3d.tone === 'crit'
+        ? 'rgba(245, 158, 11, 0.34)'
+        : die3d.tone === 'fumble'
+          ? 'rgba(225, 29, 72, 0.28)'
+          : 'rgba(168, 139, 250, 0.14)';
+      const aura = dieCtx.createRadialGradient(cx, cy, 8, cx, cy, 74);
+      aura.addColorStop(0, auraColor);
+      aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      dieCtx.fillStyle = aura;
+      dieCtx.beginPath();
+      dieCtx.arc(cx, cy, 74, 0, Math.PI * 2);
+      dieCtx.fill();
+
+      // Subtle floor shadow
       const shadowScale = Math.max(0.5, 1 - die3d.lift / 95);
       dieCtx.save();
       dieCtx.beginPath();
-      dieCtx.ellipse(cx, h - 18, 44 * shadowScale, 10 * shadowScale, 0, 0, Math.PI * 2);
-      dieCtx.fillStyle = `rgba(217, 119, 6, ${0.24 * shadowScale})`;
+      dieCtx.ellipse(cx, h - 14, 42 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);
+      dieCtx.fillStyle = `rgba(0, 0, 0, ${0.48 * shadowScale})`;
       dieCtx.fill();
       dieCtx.restore();
 
@@ -2171,11 +2255,32 @@ ${state.files.character.content}`;
         const crossZ = v1x * v2y - v1y * v2x;
         const isFront = crossZ < 0;
 
-        const light = Math.max(0.25, Math.min(1, 0.62 - (avgZ / poly.radius) * 0.35 + ((cx - avgX) / poly.radius) * 0.14));
-        return { pts, avgZ, avgX, avgY, isFront, light, fOrder };
+        const light = Math.max(0.24, Math.min(1, 0.62 - (avgZ / poly.radius) * 0.36 + ((cx - avgX) / poly.radius) * 0.14));
+        const area = polygonArea2D(pts);
+        return { pts, avgZ, avgX, avgY, isFront, light, fOrder, area };
       }).sort((a, b) => b.avgZ - a.avgZ);
 
       let frontMostFace = null;
+      facesWithDepth.forEach((face) => {
+        if (face.isFront && (!frontMostFace || face.avgZ < frontMostFace.avgZ)) {
+          frontMostFace = face;
+        }
+      });
+
+      // Deterministic neighbor face numbers so every visible facet carries a distinct number
+      const faceNumbers = new Array(poly.faces.length);
+      const step = Math.max(3, Math.floor(sides / 3) + 1);
+      for (let i = 0; i < poly.faces.length; i++) {
+        faceNumbers[i] = ((i * step) % sides) + 1;
+      }
+      const centerNumeric = die3d.rawNumeric !== null ? die3d.rawNumeric : sides;
+      if (frontMostFace) {
+        const prevIdx = faceNumbers.indexOf(centerNumeric);
+        if (prevIdx !== -1 && prevIdx !== frontMostFace.fOrder) {
+          faceNumbers[prevIdx] = faceNumbers[frontMostFace.fOrder];
+        }
+        faceNumbers[frontMostFace.fOrder] = centerNumeric;
+      }
 
       facesWithDepth.forEach((face) => {
         dieCtx.beginPath();
@@ -2185,21 +2290,43 @@ ${state.files.character.content}`;
         });
         dieCtx.closePath();
 
-        const r = Math.round(78 + 96 * face.light);
-        const g = Math.round(28 + 38 * face.light);
-        const b = Math.round(26 + 24 * face.light);
+        // BG3 gunmetal/obsidian metallic palette (tinted gold on crit, crimson on fumble)
+        let r, g, b;
+        if (die3d.tone === 'crit') {
+          r = Math.round(54 + 62 * face.light);
+          g = Math.round(44 + 48 * face.light);
+          b = Math.round(30 + 26 * face.light);
+        } else if (die3d.tone === 'fumble') {
+          r = Math.round(62 + 58 * face.light);
+          g = Math.round(26 + 22 * face.light);
+          b = Math.round(34 + 26 * face.light);
+        } else {
+          r = Math.round(34 + 46 * face.light);
+          g = Math.round(32 + 44 * face.light);
+          b = Math.round(48 + 56 * face.light);
+        }
+
         dieCtx.fillStyle = face.isFront
           ? `rgba(${r}, ${g}, ${b}, 0.96)`
-          : `rgba(${Math.round(r * 0.65)}, ${Math.round(g * 0.65)}, ${Math.round(b * 0.65)}, 0.55)`;
+          : `rgba(${Math.round(r * 0.55)}, ${Math.round(g * 0.55)}, ${Math.round(b * 0.55)}, 0.45)`;
         dieCtx.fill();
 
-        dieCtx.lineWidth = face.isFront ? 2.1 : 1.2;
-        dieCtx.strokeStyle = face.isFront ? '#120d0d' : 'rgba(251, 191, 36, 0.25)';
+        dieCtx.lineWidth = face === frontMostFace ? 2.0 : (face.isFront ? 1.5 : 1.0);
+        dieCtx.strokeStyle = face.isFront
+          ? (die3d.tone === 'crit' ? 'rgba(251, 191, 36, 0.85)' : 'rgba(212, 175, 110, 0.58)')
+          : 'rgba(148, 163, 184, 0.14)';
         dieCtx.lineJoin = 'round';
         dieCtx.stroke();
 
-        if (face.isFront && (!frontMostFace || face.avgZ < frontMostFace.avgZ)) {
-          frontMostFace = face;
+        // Draw subtle neighboring facet numbers on surrounding front facets
+        if (face.isFront && face !== frontMostFace && face.area > 210) {
+          dieCtx.save();
+          dieCtx.font = '600 12px Cinzel, Georgia, serif';
+          dieCtx.textAlign = 'center';
+          dieCtx.textBaseline = 'middle';
+          dieCtx.fillStyle = 'rgba(231, 224, 210, 0.42)';
+          dieCtx.fillText(String(faceNumbers[face.fOrder]), face.avgX, face.avgY + 0.5);
+          dieCtx.restore();
         }
       });
 
@@ -2211,9 +2338,13 @@ ${state.files.character.content}`;
       dieCtx.textAlign = 'center';
       dieCtx.textBaseline = 'middle';
       dieCtx.lineWidth = 4;
-      dieCtx.strokeStyle = 'rgba(14, 10, 10, 0.92)';
+      dieCtx.strokeStyle = 'rgba(10, 9, 16, 0.94)';
       dieCtx.strokeText(die3d.displayText, labelX, labelY + 1);
-      dieCtx.fillStyle = '#fde68a';
+      dieCtx.fillStyle = die3d.tone === 'crit'
+        ? '#fde68a'
+        : die3d.tone === 'fumble'
+          ? '#fda4af'
+          : '#f5f5f4';
       dieCtx.fillText(die3d.displayText, labelX, labelY + 1);
       dieCtx.restore();
     }
@@ -2222,56 +2353,130 @@ ${state.files.character.content}`;
       document.querySelectorAll('.die-select').forEach((btn) => {
         const active = Number(btn.dataset.die) === Number(sides);
         btn.className = active
-          ? 'die-select py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-semibold'
-          : 'die-select py-1.5 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] font-medium hover:border-amber-500';
+          ? 'die-select py-1 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-semibold'
+          : 'die-select py-1 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] font-medium hover:border-amber-500';
       });
     }
 
-    function updateRollSummaryLine() {
-      const modeNames = {
-        normal: 'Normal',
-        advantage: 'Advantage',
-        disadvantage: 'Disadvantage',
-        super_advantage: '3d20 Keep High',
-      };
-      const modeLabel = state.dieSides === 20 ? (modeNames[state.rollMode] || 'Normal') : 'Normal';
+    function updateRollMetaUI() {
       const modStr = state.modifier >= 0 ? `+${state.modifier}` : `${state.modifier}`;
-      const el = document.getElementById('roll-summary-line');
-      if (el) el.textContent = `1d${state.dieSides} ${modeLabel} · ${modStr}`;
       const modValEl = document.getElementById('roll-mod-value');
       if (modValEl) modValEl.textContent = modStr;
+
+      const bonusValEl = document.getElementById('bonus-card-val');
+      if (bonusValEl) bonusValEl.textContent = modStr;
+
+      const bonusLabelEl = document.getElementById('bonus-card-label');
+      if (bonusLabelEl) {
+        bonusLabelEl.textContent = state.rollDisplayName
+          ? `${state.rollDisplayName} Bonus`
+          : 'Roll Modifier';
+      }
+
+      const dcKicker = document.getElementById('dc-kicker');
+      const dcValue = document.getElementById('dc-value');
+      if (state.dc > 0) {
+        dcKicker.textContent = 'Difficulty Class';
+        dcValue.textContent = String(state.dc);
+        dcValue.className = 'font-display text-3xl font-bold text-stone-100 leading-tight mt-0.5';
+      } else {
+        dcKicker.textContent = `1d${state.dieSides}`;
+        dcValue.textContent = 'FREE ROLL';
+        dcValue.className = 'font-display text-xl font-bold text-amber-200/90 leading-tight mt-1';
+      }
     }
 
-    function setIdleDie(sides, mod) {
+    function hideOutcomeBanner() {
+      const banner = document.getElementById('roll-outcome-banner');
+      if (banner) {
+        banner.classList.add('hidden');
+        banner.textContent = '';
+      }
+    }
+
+    function showOutcomeBanner(raw, mod, total) {
+      const banner = document.getElementById('roll-outcome-banner');
+      const bonusCard = document.getElementById('roll-bonus-card');
+      if (!banner) return;
+
+      if (bonusCard && mod !== 0) {
+        bonusCard.classList.remove('animate-bonus-pop');
+        void bonusCard.offsetWidth;
+        bonusCard.classList.add('animate-bonus-pop');
+      }
+
+      const modPart = mod === 0 ? '' : (mod > 0 ? ` + ${mod} = ${total}` : ` - ${Math.abs(mod)} = ${total}`);
+      const mathText = mod === 0 ? `Result: ${total}` : `${raw}${modPart}`;
+
+      let verdict = '';
+      let styleClass = 'bg-amber-500/15 border-amber-500/50 text-amber-200';
+      if (state.dieSides === 20 && raw === 20) {
+        verdict = ' · CRITICAL SUCCESS!';
+        styleClass = 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/20';
+      } else if (state.dieSides === 20 && raw === 1) {
+        verdict = ' · CRITICAL FAILURE';
+        styleClass = 'bg-rose-500/20 border-rose-500/60 text-rose-200';
+      } else if (state.dc > 0) {
+        if (total >= state.dc) {
+          verdict = ' · SUCCESS';
+          styleClass = 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200';
+        } else {
+          verdict = ' · FAILED';
+          styleClass = 'bg-rose-500/20 border-rose-500/50 text-rose-200';
+        }
+      }
+
+      banner.className = `mt-2.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-wide ${styleClass}`;
+      banner.textContent = `${mathText}${verdict}`;
+      banner.classList.remove('hidden');
+    }
+
+    function setIdleDie(sides) {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
-      die3d.rx = 0.36;
-      die3d.ry = -0.45;
+      die3d.rx = 0.34;
+      die3d.ry = -0.44;
       die3d.rz = 0.08;
-      die3d.lift = 8;
+      die3d.lift = 6;
+      die3d.tone = 'neutral';
+      die3d.rawNumeric = sides;
       die3d.displayText = `d${sides}`;
       if (dieSubEl) {
-        dieSubEl.textContent = mod ? `Modifier ${mod >= 0 ? '+' + mod : mod} · Tap to roll` : `Tap d${sides} to roll`;
+        const modeHint = state.dieSides === 20 && state.rollMode !== 'normal'
+          ? ` (${state.rollMode.replace('_', ' ').toUpperCase()})`
+          : '';
+        dieSubEl.textContent = `Tap die to roll 1d${sides}${modeHint}`;
       }
       drawPolyhedronDie(sides);
     }
 
-    function openRollOverlay({ label = 'd20 Check', title = '', sides = 20, mod = 0 }) {
+    function inferRollSubtitle(skill, sides) {
+      const s = (skill || '').toLowerCase();
+      if (/damage|hit die|healing/.test(s)) return `Damage / Recovery (1d${sides})`;
+      if (/attack|strike|slash|shot|spell attack/.test(s)) return 'Attack Roll';
+      if (/initiative/.test(s)) return 'Initiative Check';
+      if (/save|saving/.test(s)) return 'Saving Throw';
+      return 'Skill Check';
+    }
+
+    function openRollOverlay({ label = 'd20 Check', subtitle = 'Ability Check', sides = 20, mod = 0, dc = 0, fullLabel = '' }) {
       state.dieSides = sides;
       state.modifier = mod;
-      state.skillLabel = label;
+      state.dc = Number(dc) || 0;
+      state.rollDisplayName = label;
+      state.rollSubtitle = subtitle;
+      state.skillLabel = fullLabel || (dc > 0 ? `${label} (DC ${dc})` : label);
       state.lastRoll = null;
       state.rollPool = null;
       useRollBtn.disabled = true;
 
       document.getElementById('overlay-label').textContent = label;
+      document.getElementById('overlay-subtitle').textContent = subtitle;
       document.getElementById('multi-roll-strip').innerHTML = '';
+      hideOutcomeBanner();
       highlightDieSelect(sides);
-      updateRollSummaryLine();
-      if (title) {
-        document.getElementById('roll-summary-line').textContent = title;
-      }
+      updateRollMetaUI();
 
-      setIdleDie(sides, mod);
+      setIdleDie(sides);
       rollOverlay.classList.remove('hidden');
     }
 
@@ -2316,10 +2521,12 @@ ${state.files.character.content}`;
           }
           setRollMode(normalizedMode);
           openRollOverlay({
-            label: `${skill} Check${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
-            title: `${skill} (${rollSpec}${dcStr})${modeBadge}`,
+            label: skill,
+            subtitle: `${inferRollSubtitle(skill, sides)}${modeBadge}`,
             sides,
             mod,
+            dc,
+            fullLabel: `${skill}${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
           });
         });
 
@@ -2341,8 +2548,8 @@ ${state.files.character.content}`;
       document.querySelectorAll('.mode-select').forEach((btn) => {
         const active = btn.dataset.rollMode === state.rollMode;
         btn.className = active
-          ? 'mode-select px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[11px] font-medium'
-          : 'mode-select px-2 py-1 rounded-lg bg-surfaceAlt border border-stone-700 text-stone-300 text-[11px] hover:border-amber-500';
+          ? 'mode-select px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-medium'
+          : 'mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] hover:border-amber-500';
       });
     }
 
@@ -2353,23 +2560,26 @@ ${state.files.character.content}`;
         state.rollPool = null;
         useRollBtn.disabled = true;
         document.getElementById('multi-roll-strip').innerHTML = '';
-        updateRollSummaryLine();
-        setIdleDie(state.dieSides, state.modifier);
+        hideOutcomeBanner();
+        updateRollMetaUI();
+        setIdleDie(state.dieSides);
       });
     });
 
     document.querySelectorAll('.die-select').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.dieSides = Number(btn.dataset.die);
+        state.rollDisplayName = `d${state.dieSides} Roll`;
         state.skillLabel = `d${state.dieSides} Roll`;
         state.lastRoll = null;
         state.rollPool = null;
         useRollBtn.disabled = true;
         document.getElementById('multi-roll-strip').innerHTML = '';
-        document.getElementById('overlay-label').textContent = state.skillLabel;
+        document.getElementById('overlay-label').textContent = state.rollDisplayName;
+        hideOutcomeBanner();
         highlightDieSelect(state.dieSides);
-        updateRollSummaryLine();
-        setIdleDie(state.dieSides, state.modifier);
+        updateRollMetaUI();
+        setIdleDie(state.dieSides);
       });
     });
 
@@ -2379,8 +2589,9 @@ ${state.files.character.content}`;
       state.rollPool = null;
       useRollBtn.disabled = true;
       document.getElementById('multi-roll-strip').innerHTML = '';
-      updateRollSummaryLine();
-      setIdleDie(state.dieSides, state.modifier);
+      hideOutcomeBanner();
+      updateRollMetaUI();
+      setIdleDie(state.dieSides);
     });
 
     document.getElementById('btn-mod-plus').addEventListener('click', () => {
@@ -2389,8 +2600,9 @@ ${state.files.character.content}`;
       state.rollPool = null;
       useRollBtn.disabled = true;
       document.getElementById('multi-roll-strip').innerHTML = '';
-      updateRollSummaryLine();
-      setIdleDie(state.dieSides, state.modifier);
+      hideOutcomeBanner();
+      updateRollMetaUI();
+      setIdleDie(state.dieSides);
     });
 
     function getDiceCountForMode(mode) {
@@ -2412,34 +2624,34 @@ ${state.files.character.content}`;
       return bestIdx;
     }
 
-    function renderMultiRollStrip(pool, mod) {
+    function renderMultiRollStrip(pool) {
       const strip = document.getElementById('multi-roll-strip');
       if (!strip) return;
       if (!pool || !Array.isArray(pool.rolls) || pool.rolls.length === 0) {
         strip.innerHTML = '';
         return;
       }
-      const modStr = mod ? ` ${mod >= 0 ? '+' + mod : mod}` : '';
       const finished = pool.revealedCount >= pool.rolls.length;
 
       strip.innerHTML = pool.rolls.map((val, idx) => {
         if (idx >= pool.revealedCount) {
-          return `<span class="px-2.5 py-1 rounded-lg bg-stone-900/60 border border-dashed border-stone-700 text-stone-400 text-xs">Die ${idx + 1}: ?</span>`;
+          return `<span class="px-2.5 py-1 rounded-lg bg-stone-900/70 border border-dashed border-stone-700 text-stone-400 text-[11px]">Die ${idx + 1}: ?</span>`;
         }
         const isWinner = finished && idx === pool.keptIdx;
         const isLoser = finished && idx !== pool.keptIdx;
         if (isWinner) {
-          return `<span class="px-2.5 py-1 rounded-lg bg-amber-500/25 border border-amber-400 text-amber-100 text-xs font-bold ring-2 ring-amber-300/70 shadow-md shadow-amber-500/30">${val}${modStr} ★</span>`;
+          return `<span class="px-2.5 py-1 rounded-lg bg-amber-500/25 border border-amber-400 text-amber-100 text-[11px] font-bold ring-1 ring-amber-300/70">Raw ${val} ★</span>`;
         }
         if (isLoser) {
-          return `<span class="px-2.5 py-1 rounded-lg bg-stone-950/70 border border-stone-800/70 text-stone-500 text-xs opacity-40 line-through">${val}</span>`;
+          return `<span class="px-2.5 py-1 rounded-lg bg-stone-950/70 border border-stone-800/70 text-stone-500 text-[11px] opacity-45 line-through">${val}</span>`;
         }
-        return `<span class="px-2.5 py-1 rounded-lg bg-stone-800 border border-stone-600 text-stone-200 text-xs font-semibold">${val}</span>`;
+        return `<span class="px-2.5 py-1 rounded-lg bg-stone-800 border border-stone-600 text-stone-200 text-[11px] font-semibold">Raw ${val}</span>`;
       }).join('');
     }
 
     function performDieRoll() {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
+      hideOutcomeBanner();
 
       const mode = state.rollMode || 'normal';
       const totalCount = state.dieSides === 20 ? getDiceCountForMode(mode) : 1;
@@ -2450,8 +2662,9 @@ ${state.files.character.content}`;
         const total = raw + state.modifier;
         state.lastRoll = { raw, total, sides: state.dieSides, mod: state.modifier, label: state.skillLabel };
         useRollBtn.disabled = true;
-        renderMultiRollStrip(null, state.modifier);
-        dieSubEl.textContent = `Tumbling d${state.dieSides}...`;
+        renderMultiRollStrip(null);
+        die3d.tone = 'neutral';
+        dieSubEl.textContent = `Rolling 1d${state.dieSides}...`;
 
         const duration = 740;
         const start = performance.now();
@@ -2464,21 +2677,26 @@ ${state.files.character.content}`;
           die3d.rx = startRx + (targetRx - startRx) * ease;
           die3d.ry = startRy + (targetRy - startRy) * ease;
           die3d.rz = startRz + (targetRz - startRz) * ease;
-          die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
-          die3d.displayText = t < 0.86
-            ? String(Math.floor(Math.random() * state.dieSides) + 1)
-            : String(state.modifier ? total : raw);
+          die3d.lift = Math.sin(t * Math.PI) * 22 + 6;
+          const showingVal = t < 0.86
+            ? Math.floor(Math.random() * state.dieSides) + 1
+            : raw;
+          die3d.rawNumeric = showingVal;
+          die3d.displayText = String(showingVal);
           drawPolyhedronDie(state.dieSides);
 
           if (t < 1) {
             die3d.animId = requestAnimationFrame(step);
           } else {
-            die3d.lift = 8;
-            die3d.displayText = state.modifier ? `${total}` : `${raw}`;
+            die3d.lift = 6;
+            die3d.rawNumeric = raw;
+            die3d.displayText = String(raw); // Always show RAW roll on the die face
+            die3d.tone = state.dieSides === 20
+              ? (raw === 20 ? 'crit' : raw === 1 ? 'fumble' : 'neutral')
+              : 'neutral';
             drawPolyhedronDie(state.dieSides);
-            dieSubEl.textContent = state.modifier
-              ? `Rolled ${raw} (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})`
-              : `Rolled d${state.dieSides}`;
+            dieSubEl.textContent = `Natural die roll: ${raw}`;
+            showOutcomeBanner(raw, state.modifier, total);
             useRollBtn.disabled = false;
           }
         }
@@ -2499,8 +2717,9 @@ ${state.files.character.content}`;
       const currentDieVal = pool.rolls[currentIdx];
       const nextStepNum = currentIdx + 1;
 
-      renderMultiRollStrip(pool, state.modifier);
-      dieSubEl.textContent = `Tumbling die ${nextStepNum} of ${totalCount}...`;
+      renderMultiRollStrip(pool);
+      die3d.tone = 'neutral';
+      dieSubEl.textContent = `Rolling die ${nextStepNum} of ${totalCount}...`;
 
       const duration = 620;
       const start = performance.now();
@@ -2513,10 +2732,12 @@ ${state.files.character.content}`;
         die3d.rx = startRx + (targetRx - startRx) * ease;
         die3d.ry = startRy + (targetRy - startRy) * ease;
         die3d.rz = startRz + (targetRz - startRz) * ease;
-        die3d.lift = Math.sin(t * Math.PI) * 24 + 8;
-        die3d.displayText = t < 0.85
-          ? String(Math.floor(Math.random() * state.dieSides) + 1)
-          : String(currentDieVal);
+        die3d.lift = Math.sin(t * Math.PI) * 22 + 6;
+        const showingVal = t < 0.85
+          ? Math.floor(Math.random() * state.dieSides) + 1
+          : currentDieVal;
+        die3d.rawNumeric = showingVal;
+        die3d.displayText = String(showingVal);
         drawPolyhedronDie(state.dieSides);
 
         if (t < 1) {
@@ -2527,15 +2748,18 @@ ${state.files.character.content}`;
           const keptRaw = pool.rolls[pool.keptIdx];
           const finalTotal = keptRaw + state.modifier;
 
-          die3d.lift = 8;
-          die3d.displayText = allDone
-            ? (state.modifier ? `${finalTotal}` : `${keptRaw}`)
-            : `${currentDieVal}`;
+          die3d.lift = 6;
+          const finalFaceRaw = allDone ? keptRaw : currentDieVal;
+          die3d.rawNumeric = finalFaceRaw;
+          die3d.displayText = String(finalFaceRaw); // Always show RAW roll on the die face
+          if (allDone && state.dieSides === 20) {
+            die3d.tone = keptRaw === 20 ? 'crit' : keptRaw === 1 ? 'fumble' : 'neutral';
+          }
           drawPolyhedronDie(state.dieSides);
-          renderMultiRollStrip(pool, state.modifier);
+          renderMultiRollStrip(pool);
 
           if (!allDone) {
-            dieSubEl.textContent = `Die ${nextStepNum} landed ${currentDieVal} · Tap again for die ${nextStepNum + 1} of ${totalCount}`;
+            dieSubEl.textContent = `Die ${nextStepNum} landed ${currentDieVal} · Tap die for ${nextStepNum + 1} of ${totalCount}`;
             useRollBtn.disabled = true;
           } else {
             state.lastRoll = {
@@ -2548,7 +2772,8 @@ ${state.files.character.content}`;
               mod: state.modifier,
               label: state.skillLabel,
             };
-            dieSubEl.textContent = `Kept ${keptRaw} from [${pool.rolls.join(', ')}]${state.modifier ? ` (${state.modifier >= 0 ? '+' + state.modifier : state.modifier})` : ''}`;
+            dieSubEl.textContent = `Kept natural ${keptRaw} from [${pool.rolls.join(', ')}]`;
+            showOutcomeBanner(keptRaw, state.modifier, finalTotal);
             useRollBtn.disabled = false;
           }
         }
@@ -2562,7 +2787,7 @@ ${state.files.character.content}`;
     }
     document.getElementById('btn-open-roll').addEventListener('click', () => {
       setRollMode('normal');
-      openRollOverlay({});
+      openRollOverlay({ label: 'Free Roll', subtitle: 'Manual Check', sides: 20, mod: 0, dc: 0 });
     });
     document.getElementById('btn-close-roll').addEventListener('click', () => {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
@@ -2576,10 +2801,12 @@ ${state.files.character.content}`;
       const mod = Number(btn.dataset.mod) || 0;
       setRollMode('normal');
       openRollOverlay({
-        label: `${skill} Check`,
-        title: `Roll ${skill} (${mod >= 0 ? '+' + mod : mod})`,
+        label: skill,
+        subtitle: 'Skill Check',
         sides: 20,
         mod,
+        dc: 0,
+        fullLabel: `${skill} Check`,
       });
     });
 
@@ -2596,7 +2823,7 @@ ${state.files.character.content}`;
         : '';
 
       document.getElementById('pending-roll-text').textContent =
-        `${state.pendingRoll.label}: ${state.pendingRoll.total} [kept ${state.pendingRoll.raw}${modStr}${poolStr}]`;
+        `${state.pendingRoll.label}: ${state.pendingRoll.total} [raw ${state.pendingRoll.raw}${modStr}${poolStr}]`;
       pill.classList.remove('hidden');
       pill.classList.add('flex');
       rollOverlay.classList.add('hidden');
