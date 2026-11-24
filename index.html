@@ -3168,6 +3168,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       hideOutcomeBanner();
       highlightDieSelect(sides);
       updateRollMetaUI();
+      buildMultiDiePool(state.dieSides, state.diceCount, state.rollMode || 'normal');
       setIdleDie(sides);
       rollOverlay.classList.remove('hidden');
     }
@@ -3264,6 +3265,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
     function invalidateCurrentRollDisplay() {
       state.lastRoll = null; state.rollPool = null; state.bonusRoll = null;
+      buildMultiDiePool(state.dieSides, state.diceCount, state.rollMode || 'normal');
       useRollBtn.disabled = true;
       document.getElementById('multi-roll-strip').innerHTML = '';
       const rollBtn = document.getElementById('btn-roll-bonus-die');
@@ -3328,6 +3330,26 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       strip.innerHTML = rolls.map((val, idx) => `${idx > 0 ? '<span class="text-stone-400 text-xs font-bold">+</span>' : ''}<span class="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/60 text-amber-100 text-[11px] font-bold">${val}</span>`).join('');
     }
 
+    function syncMultiDieFromPool(pool, allDone) {
+      if (!pool || !Array.isArray(pool.rolls)) return;
+      if (multiDieState.mode !== 'pair_adv') return;
+      multiDieState.dice.forEach((item, idx) => {
+        if (idx < pool.revealedCount) {
+          item.value = pool.rolls[idx];
+          item.rolled = true;
+          if (allDone) {
+            item.kept = idx === pool.keptIdx;
+          } else {
+            item.kept = null;
+          }
+        } else {
+          item.value = null;
+          item.rolled = false;
+          item.kept = null;
+        }
+      });
+    }
+
     function performDieRoll() {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
       hideOutcomeBanner();
@@ -3341,6 +3363,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       if (!isAdvPool) {
         state.rollPool = null;
         const count = Math.max(1, state.diceCount || 1);
+        buildMultiDiePool(state.dieSides, count, 'normal');
         const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * state.dieSides) + 1);
         const rawSum = rolls.reduce((a, b) => a + b, 0);
         const total = rawSum + state.modifier;
@@ -3360,6 +3383,15 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           die3d.ry = startRy + (targetRy - startRy) * ease;
           die3d.rz = startRz + (targetRz - startRz) * ease;
           die3d.lift = Math.sin(t * Math.PI) * 22 + 6;
+
+          if (multiDieState.mode === 'pair_sum') {
+            multiDieState.dice.forEach((d, idx) => {
+              d.value = t < 0.86 ? (Math.floor(Math.random() * state.dieSides) + 1) : rolls[idx];
+              d.kept = true;
+              d.rolled = t >= 0.86;
+            });
+          }
+
           const showingVal = t < 0.86 ? Math.floor(Math.random() * state.dieSides) + 1 : (count === 1 ? rawSum : rolls[0]);
           die3d.rawNumeric = showingVal;
           die3d.displayText = t < 0.86 ? String(showingVal) : String(rawSum);
@@ -3371,6 +3403,13 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
             die3d.rawNumeric = count === 1 ? rawSum : rolls[0];
             die3d.displayText = String(rawSum);
             die3d.tone = (state.dieSides === 20 && count === 1) ? (rawSum === 20 ? 'crit' : rawSum === 1 ? 'fumble' : 'neutral') : 'neutral';
+            if (multiDieState.mode === 'pair_sum') {
+              multiDieState.dice.forEach((d, idx) => {
+                d.value = rolls[idx];
+                d.kept = true;
+                d.rolled = true;
+              });
+            }
             drawPolyhedronDie(state.dieSides);
             if (count > 1) { renderSumRollStrip(rolls); dieSubEl.textContent = `Rolled ${count}d${state.dieSides}: [${rolls.join(' + ')}] = ${rawSum}`; }
             else { dieSubEl.textContent = `Natural die roll: ${rawSum}`; }
@@ -3382,6 +3421,69 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         die3d.animId = requestAnimationFrame(step);
         return;
       }
+
+      const totalCount = getDiceCountForMode(mode);
+      if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
+        const rolls = Array.from({ length: totalCount }, () => Math.floor(Math.random() * state.dieSides) + 1);
+        state.rollPool = { rolls, keptIdx: pickKeptIndex(rolls, mode), mode, revealedCount: 0 };
+        state.lastRoll = null;
+        useRollBtn.disabled = true;
+        buildMultiDiePool(state.dieSides, state.diceCount, mode);
+      }
+
+      const pool = state.rollPool, currentIdx = pool.revealedCount, currentDieVal = pool.rolls[currentIdx], nextStepNum = currentIdx + 1;
+      renderMultiRollStrip(pool);
+      die3d.tone = 'neutral';
+      dieSubEl.textContent = `Rolling die ${nextStepNum} of ${totalCount}...`;
+
+      const duration = 620, start = performance.now();
+      const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
+      const targetRx = startRx + Math.PI * 2.5, targetRy = startRy + Math.PI * 3.5, targetRz = startRz + Math.PI * 1.25;
+
+      function stepPool(now) {
+        const t = Math.min(1, (now - start) / duration), ease = 1 - Math.pow(1 - t, 3);
+        die3d.rx = startRx + (targetRx - startRx) * ease;
+        die3d.ry = startRy + (targetRy - startRy) * ease;
+        die3d.rz = startRz + (targetRz - startRz) * ease;
+        die3d.lift = Math.sin(t * Math.PI) * 22 + 6;
+
+        const showingVal = t < 0.85 ? Math.floor(Math.random() * state.dieSides) + 1 : currentDieVal;
+        if (multiDieState.mode === 'pair_adv' && multiDieState.dice[currentIdx]) {
+          multiDieState.dice[currentIdx].value = showingVal;
+          multiDieState.dice[currentIdx].kept = null;
+        }
+
+        die3d.rawNumeric = showingVal;
+        die3d.displayText = String(showingVal);
+        drawPolyhedronDie(state.dieSides);
+
+        if (t < 1) { die3d.animId = requestAnimationFrame(stepPool); }
+        else {
+          pool.revealedCount = nextStepNum;
+          const allDone = pool.revealedCount >= totalCount, keptRaw = pool.rolls[pool.keptIdx], finalTotal = keptRaw + state.modifier;
+          die3d.lift = 6;
+          const finalFaceRaw = allDone ? keptRaw : currentDieVal;
+          die3d.rawNumeric = finalFaceRaw;
+          die3d.displayText = String(finalFaceRaw);
+          if (allDone && state.dieSides === 20) die3d.tone = keptRaw === 20 ? 'crit' : keptRaw === 1 ? 'fumble' : 'neutral';
+          syncMultiDieFromPool(pool, allDone);
+          drawPolyhedronDie(state.dieSides);
+          renderMultiRollStrip(pool);
+
+          if (!allDone) {
+            dieSubEl.textContent = `Die ${nextStepNum} landed ${currentDieVal} · Tap die for ${nextStepNum + 1} of ${totalCount}`;
+            useRollBtn.disabled = true;
+          } else {
+            state.lastRoll = { raw: keptRaw, rolls: pool.rolls, keptIdx: pool.keptIdx, diceCount: 1, mode, total: finalTotal, sides: state.dieSides, mod: state.modifier, bonus: null, label: state.skillLabel };
+            dieSubEl.textContent = `Kept natural ${keptRaw} from [${pool.rolls.join(', ')}]`;
+            if (state.bonusDieSides > 0) applyBonusDieRoll(state.bonusDieSides);
+            else showOutcomeBanner(keptRaw, state.modifier, finalTotal, null, 1);
+            useRollBtn.disabled = false;
+          }
+        }
+      }
+      die3d.animId = requestAnimationFrame(stepPool);
+    }
 
       const totalCount = getDiceCountForMode(mode);
       if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
