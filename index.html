@@ -2810,12 +2810,6 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       }
 
       const cx = w / 2, cy = h / 2 - die3d.lift, fov = 265;
-    
-    function drawPolyhedronDie(sides) {
-      const poly = POLYHEDRA[sides] || POLYHEDRA[20];
-      const w = dieCanvas.width, h = dieCanvas.height;
-      dieCtx.clearRect(0, 0, w, h);
-      const cx = w / 2, cy = h / 2 - die3d.lift, fov = 265;
 
       const auraColor = die3d.tone === 'crit'
         ? 'rgba(245, 158, 11, 0.34)'
@@ -2844,6 +2838,80 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         const scale = fov / (fov + worldZ + 115);
         return { x: cx + worldX * scale, y: cy + worldY * scale, z: worldZ };
       });
+
+      const facesWithDepth = poly.faces.map((fIdx, fOrder) => {
+        const pts = fIdx.map((i) => projVerts[i]);
+        const avgZ = pts.reduce((acc, p) => acc + p.z, 0) / pts.length;
+        const avgX = pts.reduce((acc, p) => acc + p.x, 0) / pts.length;
+        const avgY = pts.reduce((acc, p) => acc + p.y, 0) / pts.length;
+        const crossZ = (pts[1].x - pts[0].x) * (pts[2].y - pts[0].y) - (pts[1].y - pts[0].y) * (pts[2].x - pts[0].x);
+        const isFront = crossZ < 0;
+        const light = Math.max(0.24, Math.min(1, 0.62 - (avgZ / poly.radius) * 0.36 + ((cx - avgX) / poly.radius) * 0.14));
+        return { pts, avgZ, avgX, avgY, isFront, light, fOrder, area: polygonArea2D(pts) };
+      }).sort((a, b) => b.avgZ - a.avgZ);
+
+      let frontMostFace = null;
+      facesWithDepth.forEach((face) => {
+        if (face.isFront && (!frontMostFace || face.avgZ < frontMostFace.avgZ)) frontMostFace = face;
+      });
+
+      const faceNumbers = new Array(poly.faces.length);
+      const step = Math.max(3, Math.floor(sides / 3) + 1);
+      for (let i = 0; i < poly.faces.length; i++) faceNumbers[i] = ((i * step) % sides) + 1;
+      const centerNumeric = die3d.rawNumeric !== null ? die3d.rawNumeric : sides;
+      if (frontMostFace) {
+        const prevIdx = faceNumbers.indexOf(centerNumeric);
+        if (prevIdx !== -1 && prevIdx !== frontMostFace.fOrder) faceNumbers[prevIdx] = faceNumbers[frontMostFace.fOrder];
+        faceNumbers[frontMostFace.fOrder] = centerNumeric;
+      }
+
+      facesWithDepth.forEach((face) => {
+        dieCtx.beginPath();
+        face.pts.forEach((p, i) => { if (i === 0) dieCtx.moveTo(p.x, p.y); else dieCtx.lineTo(p.x, p.y); });
+        dieCtx.closePath();
+        let r, g, b;
+        if (die3d.tone === 'crit') {
+          r = Math.round(54 + 62 * face.light); g = Math.round(44 + 48 * face.light); b = Math.round(30 + 26 * face.light);
+        } else if (die3d.tone === 'fumble') {
+          r = Math.round(62 + 58 * face.light); g = Math.round(26 + 22 * face.light); b = Math.round(34 + 26 * face.light);
+        } else {
+          r = Math.round(34 + 46 * face.light); g = Math.round(32 + 44 * face.light); b = Math.round(48 + 56 * face.light);
+        }
+        dieCtx.fillStyle = face.isFront
+          ? `rgba(${r}, ${g}, ${b}, 0.96)`
+          : `rgba(${Math.round(r * 0.55)}, ${Math.round(g * 0.55)}, ${Math.round(b * 0.55)}, 0.45)`;
+        dieCtx.fill();
+        dieCtx.lineWidth = face === frontMostFace ? 2.0 : (face.isFront ? 1.5 : 1.0);
+        dieCtx.strokeStyle = face.isFront
+          ? (die3d.tone === 'crit' ? 'rgba(251, 191, 36, 0.85)' : 'rgba(212, 175, 110, 0.58)')
+          : 'rgba(148, 163, 184, 0.14)';
+        dieCtx.lineJoin = 'round';
+        dieCtx.stroke();
+
+        if (face.isFront && face !== frontMostFace && face.area > 210) {
+          dieCtx.save();
+          dieCtx.font = '600 12px Cinzel, Georgia, serif';
+          dieCtx.textAlign = 'center';
+          dieCtx.textBaseline = 'middle';
+          dieCtx.fillStyle = 'rgba(231, 224, 210, 0.42)';
+          dieCtx.fillText(String(faceNumbers[face.fOrder]), face.avgX, face.avgY + 0.5);
+          dieCtx.restore();
+        }
+      });
+
+      const labelX = frontMostFace ? frontMostFace.avgX : cx;
+      const labelY = frontMostFace ? frontMostFace.avgY : cy;
+      dieCtx.save();
+      dieCtx.font = '700 24px Cinzel, Georgia, serif';
+      dieCtx.textAlign = 'center';
+      dieCtx.textBaseline = 'middle';
+      dieCtx.lineWidth = 4;
+      dieCtx.strokeStyle = 'rgba(10, 9, 16, 0.94)';
+      dieCtx.strokeText(die3d.displayText, labelX, labelY + 1);
+      dieCtx.fillStyle = die3d.tone === 'crit' ? '#fde68a' : die3d.tone === 'fumble' ? '#fda4af' : '#f5f5f4';
+      dieCtx.fillText(die3d.displayText, labelX, labelY + 1);
+      dieCtx.restore();
+    }
 
       const facesWithDepth = poly.faces.map((fIdx, fOrder) => {
         const pts = fIdx.map((i) => projVerts[i]);
