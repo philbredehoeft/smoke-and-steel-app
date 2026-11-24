@@ -2755,6 +2755,53 @@ function buildMultiDiePool(sides, diceCount, normalizedMode) {
   return multiDieState;
 }
 
+    function drawSideBySidePair(ctx, w, h, baseRadius) {
+  const pair = multiDieState.dice.slice(0, 2);
+  const positions = [w * 0.27, w * 0.73];
+
+  pair.forEach((dieItem, idx) => {
+    const cx = positions[idx];
+    const cy = h * 0.50;
+    const isDimmed = dieItem.kept === false;
+    const isKept = dieItem.kept === true;
+
+    ctx.save();
+    if (isDimmed) {
+      ctx.globalAlpha = 0.42;
+    }
+
+    // Ground shadow under each die
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + baseRadius * 0.90, baseRadius * 0.52, baseRadius * 0.13, 0, 0, Math.PI * 2);
+    ctx.fillStyle = isKept ? 'rgba(251, 191, 36, 0.24)' : 'rgba(0, 0, 0, 0.35)';
+    ctx.fill();
+
+    // Die medallion ring
+    const r = baseRadius * 0.72;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = isKept ? 'rgba(245, 158, 11, 0.18)' : 'rgba(41, 37, 36, 0.78)';
+    ctx.fill();
+    ctx.lineWidth = isKept ? 2.5 : 1.5;
+    ctx.strokeStyle = isKept ? '#fbbf24' : '#78716c';
+    ctx.stroke();
+
+    // Rolled value or '?'
+    ctx.fillStyle = isKept ? '#fef3c7' : '#d6d3d1';
+    ctx.font = 'bold 24px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(dieItem.value != null ? String(dieItem.value) : '?', cx, cy);
+
+    // Label below die
+    ctx.fillStyle = isKept ? '#fbbf24' : '#a8a29e';
+    ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText(dieItem.label, cx, cy + r + 14);
+
+    ctx.restore();
+  });
+}
+    
     function drawPolyhedronDie(sides) {
       const poly = POLYHEDRA[sides] || POLYHEDRA[20];
       const w = dieCanvas.width, h = dieCanvas.height;
