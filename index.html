@@ -2095,13 +2095,14 @@ TWO MODES (Story Mode vs. Turn-Based Combat Mode):
 - COMBAT MODE (combat.active: true): Enter ONLY once an enemy is visible/engaged and Initiative is established; stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
 
 COMBAT & ENEMY AGENCY:
-- NEVER AUTO-ROLL PLAYER DICE: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves), and you resolve enemy turns directly in prose—NEVER ask ${activeChar} to roll an enemy's attack or enemy check. If the player initiates an unrolled attack ("Dice Roll: None"), pause right before the blow lands and prompt their Attack roll. When their Attack hits, stop for their Damage roll, then resolve remaining enemies in Initiative order.
+- NEVER AUTO-ROLL PLAYER DICE: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves) and resolve NPC/enemy turns completely in prose. Never roll ${activeChar}'s d20/damage/saves.
+- ENEMY INITIATIVE TURN: Whenever an enemy has higher Initiative than ${activeChar} (or acts before ${activeChar} in the round), resolve that enemy's full turn right now in "narrative"—movement, attack roll, hit/miss, and damage/effect against ${activeChar}—and apply any HP loss to ${activeChar} via "hp_delta" and "current_hp". Do NOT stop after moving into melee range without attacking unless the enemy is specifically using a non-attack action/telegraph.
+- PLAYER ATTACKS: When ${activeChar} makes a melee or ranged attack, roll enemy AC/reactions as needed, and if the player hasn't rolled their attack yet, prompt ${activeChar}'s Attack roll (or if they already rolled a hit, prompt their Damage roll, then resolve any remaining enemies in Initiative order).
 - ACTIVE ENEMIES & TELEGRAPHED INTENT: Basic mobs do NOT get free Ripostes on every missed player swing, but Bosses/Elites may have a defined 1/round Reaction, and ALL active enemies must still fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field (e.g. "Lunging for shield leg", "Hurling hot pit-ash", "Charging heavy slam").
 - TELEGRAPH AT ROUND END: At the end of a combat round, weave what active enemies are preparing next into "narrative" so the player feels the threat closing in.
-- RECORD ALL ROLLS INLINE: e.g. [Kael Attack: d20 (16) + 5 = 21 vs AC 14 — Hit!], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5], [Goblin 1 Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d6 (3) + 2 = 5 | ${activeChar} HP: 22 -> 17].
+- RECORD ALL ROLLS INLINE: e.g. [Kael Attack: d20 (16) + 5 = 21 vs AC 14 — Hit!], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5], [Sentry Slam: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d8 (5) + 3 = 8 | Kael HP: 22 -> 14].
 - ACCURATE 5E MECHANICS: Trip Attack triggers ON A MELEE HIT (+1d8 damage + STR Save), NOT as a standalone Athletics check; Precision Attack adds +1d8 to an Attack roll; Action Surge grants an extra Weapon Attack/Action; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
 - DIALOGUE & BANTER: Whenever NPCs, allies, enemies, or sentient gear are present, weave natural spoken dialogue ("...") to convey clues, taunts, and warnings.
-
 STRICT PLAYER-ONLY STAT SYNC:
 - "current_hp", "hp_delta", "current_gold", and "gold_delta" apply STRICTLY to ${activeChar} (NEVER enemy HP!).
 - Treat ${hpStatusLine || 'the character sheet'} as the starting state for this turn.
