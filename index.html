@@ -2095,7 +2095,7 @@ TWO MODES (Story Mode vs. Turn-Based Combat Mode):
 - COMBAT MODE (combat.active: true): Enter ONLY once an enemy is visible/engaged and Initiative is established; stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
 
 COMBAT & ENEMY AGENCY:
-- NEVER AUTO-ROLL PLAYER DICE: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves), but NEVER roll ${activeChar}'s dice. If the player initiates an unrolled attack ("Dice Roll: None"), pause right before the blow lands and prompt their Attack roll. When their Attack hits, stop for their Damage roll, then resolve remaining enemies in Initiative order.
+- NEVER AUTO-ROLL PLAYER DICE: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves), and you resolve enemy turns directly in prose—NEVER ask ${activeChar} to roll an enemy's attack or enemy check. If the player initiates an unrolled attack ("Dice Roll: None"), pause right before the blow lands and prompt their Attack roll. When their Attack hits, stop for their Damage roll, then resolve remaining enemies in Initiative order.
 - ACTIVE ENEMIES & TELEGRAPHED INTENT: Basic mobs do NOT get free Ripostes on every missed player swing, but Bosses/Elites may have a defined 1/round Reaction, and ALL active enemies must still fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field (e.g. "Lunging for shield leg", "Hurling hot pit-ash", "Charging heavy slam").
 - TELEGRAPH AT ROUND END: At the end of a combat round, weave what active enemies are preparing next into "narrative" so the player feels the threat closing in.
 - RECORD ALL ROLLS INLINE: e.g. [Kael Attack: d20 (16) + 5 = 21 vs AC 14 — Hit!], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5], [Goblin 1 Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d6 (3) + 2 = 5 | ${activeChar} HP: 22 -> 17].
@@ -2113,11 +2113,12 @@ WRITING & SUGGESTED ROLLS:
 - HONOR PLAYER POSTURE & INTENT: When the player picks a specific approach or posture (such as Tactical Insight, a Defensive Stance, scouting/stealth, or bold engagement), explicitly reflect that posture and mindset in "player_beat" and let it shape how the scene and enemies respond in "narrative" (including enemy "intent").
 - For "player_beat": embellish the player's action in 1-2 paragraphs (include spoken lines in quotes when appropriate; stop right before impact on unrolled attacks).
 - For "narrative": write 1-3 concise paragraphs as DM (no Markdown tables or numbered lists—the UI handles those).
-- For "suggested_rolls" — MANDATORY PHASE LOCK:
-  * Initiative called -> ALL 3 options MUST roll Initiative (dc: 0, sides: 20, dice_count: 1). No pre-combat filler.
-  * Attack just hit -> ALL options (1–3) MUST roll Damage (dc: 0)—Option 1 base weapon/spell damage; Options 2–3 Maneuver or Bonus Action combos (e.g. Trip Attack 2d8+3) if resources remain. No non-damage filler.
-  * Saving Throw forced -> ALL 3 options MUST roll that Saving Throw (dc: <save DC>).
-- Regular Combat / Story choices: frame 3 distinct tactical risk/reward trade-offs (e.g. Reckless/Advantage vs. Shield Wall/Defensive vs. Terrain/Class Skill or Social dialogue when talkable NPCs exist). For Attack rolls, set "dc" to enemy AC.
+- For "suggested_rolls" — MANDATORY PHASE LOCK & PLAYER-ONLY RULE:
+  * Every suggested option MUST be an action or roll performed by ${activeChar}—NEVER roll or act on behalf of an enemy (no "Sentry Attack", "Goblin Slam", etc.). If an enemy wins initiative and attacks first, resolve the enemy's attack in "narrative" and offer ${activeChar} defensive/reaction/counter options instead.
+  * Initiative called -> ALL 3 options MUST roll Initiative for ${activeChar} (dc: 0, sides: 20, dice_count: 1). No pre-combat filler.
+  * Attack just hit -> ALL options (1–3) MUST roll ${activeChar}'s Damage (dc: 0)—Option 1 base weapon/spell damage; Options 2–3 Maneuver or Bonus Action combos (e.g. Trip Attack 2d8+3) if resources remain. No non-damage filler.
+  * Saving Throw forced on ${activeChar} -> ALL 3 options MUST roll ${activeChar}'s Saving Throw (dc: <save DC>).
+- Regular Combat / Story choices: frame 3 distinct tactical risk/reward trade-offs for ${activeChar} (e.g. Reckless/Advantage vs. Shield Wall/Defensive vs. Terrain/Class Skill or Social dialogue when talkable NPCs exist). For ${activeChar}'s Attack rolls, set "dc" to enemy AC.
 - When offering a Battle Master maneuver option (like Precision Attack), write the action clearly (e.g. "Use Maneuver Precision: Attack and add 1d8 to the roll") and set "skill" to include "+1d8" so the roll summary reads cleanly.
 
 Return ONLY valid JSON matching schema.
