@@ -281,7 +281,7 @@
 
         <div class="relative z-10 flex flex-col items-center justify-center pt-1">
           <button id="die-btn" type="button" class="cursor-pointer focus:outline-none group">
-            <canvas id="die-canvas" width="176" height="164" class="transition-transform group-active:scale-95"></canvas>
+            <canvas id="die-canvas" width="248" height="164" class="mx-auto block"></canvas>
           </button>
           <div id="die-sub" class="text-[11px] text-stone-300/90 -mt-1">Tap die to roll</div>
           <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-1.5 mt-2"></div>
@@ -2709,6 +2709,51 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       }
       return Math.abs(area) / 2;
     }
+
+    const multiDieState = {
+  dice: [],      // e.g. [{ id: 0, sides: 20, value: null, label: 'Die 1', kept: null, rolled: false }, ...]
+  mode: 'single' // 'single' | 'pair_adv' | 'pair_sum' | 'pool_multi'
+};
+
+function buildMultiDiePool(sides, diceCount, normalizedMode) {
+  const isAdvOrDis = (normalizedMode === 'advantage' || normalizedMode === 'disadvantage') && diceCount === 1 && sides === 20;
+  if (isAdvOrDis) {
+    multiDieState.mode = 'pair_adv';
+    multiDieState.dice = [
+      { id: 0, sides: 20, value: null, label: normalizedMode === 'advantage' ? 'Adv 1' : 'Dis 1', kept: null, rolled: false },
+      { id: 1, sides: 20, value: null, label: normalizedMode === 'advantage' ? 'Adv 2' : 'Dis 2', kept: null, rolled: false }
+    ];
+    return multiDieState;
+  }
+
+  if (diceCount === 2) {
+    multiDieState.mode = 'pair_sum';
+    multiDieState.dice = [
+      { id: 0, sides, value: null, label: `d${sides} #1`, kept: true, rolled: false },
+      { id: 1, sides, value: null, label: `d${sides} #2`, kept: true, rolled: false }
+    ];
+    return multiDieState;
+  }
+
+  if (diceCount >= 3) {
+    multiDieState.mode = 'pool_multi';
+    multiDieState.dice = Array.from({ length: diceCount }, (_, idx) => ({
+      id: idx,
+      sides,
+      value: null,
+      label: `d${sides} #${idx + 1}`,
+      kept: null,
+      rolled: false
+    }));
+    return multiDieState;
+  }
+
+  multiDieState.mode = 'single';
+  multiDieState.dice = [
+    { id: 0, sides, value: null, label: `d${sides}`, kept: true, rolled: false }
+  ];
+  return multiDieState;
+}
 
     function drawPolyhedronDie(sides) {
       const poly = POLYHEDRA[sides] || POLYHEDRA[20];
