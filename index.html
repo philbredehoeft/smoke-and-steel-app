@@ -3019,10 +3019,12 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
         const isAttack = inferIsAttackRoll(skill);
         const sides = Number(opt.sides) || 20;
-        const isManeuverChoice = /precision|maneuver|superiority|trip attack|riposte|menacing|goading/i.test(
+        const isSavingThrowChoice = /\bsave\b|\bsaving throw\b/i.test(`${actionLabel} ${skill}`);
+        const isManeuverAttackChoice = !isSavingThrowChoice && /precision|maneuver|superiority/i.test(`${actionLabel} ${skill}`) && !/damage/i.test(`${actionLabel} ${skill}`);
+        const isManeuverChoice = !isSavingThrowChoice && /precision|maneuver|superiority|trip attack|riposte|menacing|goading/i.test(
           `${actionLabel} ${skill}`
         );
-        const isDamageOrHeal = !isManeuverChoice && (/damage|healing|hit die/i.test(skill) || sides !== 20 || diceCount > 1);
+        const isDamageOrHeal = !isSavingThrowChoice && !isManeuverAttackChoice && (/damage|healing|hit die/i.test(skill) || sides !== 20 || diceCount > 1);
 
         const dieTag = (sides !== 20 || diceCount > 1) ? `${diceCount}d${sides}` : '';
         const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
@@ -3047,15 +3049,15 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
             ? 'text-rose-300 text-[11px] font-semibold tracking-wide'
             : 'text-amber-300/90 text-[11px] font-semibold tracking-wide';
 
-        const maneuverSpec = isManeuverChoice
+        const displaySpec = isManeuverAttackChoice
           ? (dc > 0 ? `Attack ${modStr} + 1d8 - ${targetLabel}${dc}` : `Attack ${modStr} + 1d8`)
           : `${skill} (${rollSpec}${dcStr})`;
 
         btn.innerHTML = actionLabel
           ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${escapeHtml(actionLabel)}</span>
-             <span class="${subTextClass}">${escapeHtml(maneuverSpec)}${modeBadge}</span>`
-          : `<span class="${isManeuverChoice ? 'text-amber-200 font-bold' : (isDamageOrHeal ? 'text-rose-200 font-semibold' : 'text-amber-200 font-semibold')} text-xs">Roll ${escapeHtml(maneuverSpec)}${modeBadge}</span>`;
-        
+             <span class="${subTextClass}">${escapeHtml(displaySpec)}${modeBadge}</span>`
+          : `<span class="${isManeuverChoice ? 'text-amber-200 font-bold' : (isDamageOrHeal ? 'text-rose-200 font-semibold' : 'text-amber-200 font-semibold')} text-xs">Roll ${escapeHtml(displaySpec)}${modeBadge}</span>`;
+
         btn.addEventListener('click', () => {
           const input = document.getElementById('action-input');
           if (input && actionLabel) input.value = actionLabel;
