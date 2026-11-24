@@ -2711,96 +2711,105 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
     }
 
     const multiDieState = {
-  dice: [],      // e.g. [{ id: 0, sides: 20, value: null, label: 'Die 1', kept: null, rolled: false }, ...]
-  mode: 'single' // 'single' | 'pair_adv' | 'pair_sum' | 'pool_multi'
-};
+      dice: [],
+      mode: 'single' // 'single' | 'pair_adv' | 'pair_sum' | 'pool_multi'
+    };
 
-function buildMultiDiePool(sides, diceCount, normalizedMode) {
-  const isAdvOrDis = (normalizedMode === 'advantage' || normalizedMode === 'disadvantage') && diceCount === 1 && sides === 20;
-  if (isAdvOrDis) {
-    multiDieState.mode = 'pair_adv';
-    multiDieState.dice = [
-      { id: 0, sides: 20, value: null, label: normalizedMode === 'advantage' ? 'Adv 1' : 'Dis 1', kept: null, rolled: false },
-      { id: 1, sides: 20, value: null, label: normalizedMode === 'advantage' ? 'Adv 2' : 'Dis 2', kept: null, rolled: false }
-    ];
-    return multiDieState;
-  }
+    function buildMultiDiePool(sides, diceCount, normalizedMode) {
+      const isAdvOrDis = (normalizedMode === 'advantage' || normalizedMode === 'disadvantage') && diceCount === 1 && sides === 20;
+      if (isAdvOrDis) {
+        multiDieState.mode = 'pair_adv';
+        multiDieState.dice = [
+          { id: 0, sides: 20, value: null, label: normalizedMode === 'advantage' ? 'Adv 1' : 'Dis 1', kept: null, rolled: false },
+          { id: 1, sides: 20, value: null, label: normalizedMode === 'advantage' ? 'Adv 2' : 'Dis 2', kept: null, rolled: false }
+        ];
+        return multiDieState;
+      }
 
-  if (diceCount === 2) {
-    multiDieState.mode = 'pair_sum';
-    multiDieState.dice = [
-      { id: 0, sides, value: null, label: `d${sides} #1`, kept: true, rolled: false },
-      { id: 1, sides, value: null, label: `d${sides} #2`, kept: true, rolled: false }
-    ];
-    return multiDieState;
-  }
+      if (diceCount === 2) {
+        multiDieState.mode = 'pair_sum';
+        multiDieState.dice = [
+          { id: 0, sides, value: null, label: `d${sides} #1`, kept: true, rolled: false },
+          { id: 1, sides, value: null, label: `d${sides} #2`, kept: true, rolled: false }
+        ];
+        return multiDieState;
+      }
 
-  if (diceCount >= 3) {
-    multiDieState.mode = 'pool_multi';
-    multiDieState.dice = Array.from({ length: diceCount }, (_, idx) => ({
-      id: idx,
-      sides,
-      value: null,
-      label: `d${sides} #${idx + 1}`,
-      kept: null,
-      rolled: false
-    }));
-    return multiDieState;
-  }
+      if (diceCount >= 3) {
+        multiDieState.mode = 'pool_multi';
+        multiDieState.dice = Array.from({ length: diceCount }, (_, idx) => ({
+          id: idx,
+          sides,
+          value: null,
+          label: `d${sides} #${idx + 1}`,
+          kept: null,
+          rolled: false
+        }));
+        return multiDieState;
+      }
 
-  multiDieState.mode = 'single';
-  multiDieState.dice = [
-    { id: 0, sides, value: null, label: `d${sides}`, kept: true, rolled: false }
-  ];
-  return multiDieState;
-}
-
-    function drawSideBySidePair(ctx, w, h, baseRadius) {
-  const pair = multiDieState.dice.slice(0, 2);
-  const positions = [w * 0.27, w * 0.73];
-
-  pair.forEach((dieItem, idx) => {
-    const cx = positions[idx];
-    const cy = h * 0.50;
-    const isDimmed = dieItem.kept === false;
-    const isKept = dieItem.kept === true;
-
-    ctx.save();
-    if (isDimmed) {
-      ctx.globalAlpha = 0.42;
+      multiDieState.mode = 'single';
+      multiDieState.dice = [
+        { id: 0, sides, value: null, label: `d${sides}`, kept: true, rolled: false }
+      ];
+      return multiDieState;
     }
 
-    // Ground shadow under each die
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + baseRadius * 0.90, baseRadius * 0.52, baseRadius * 0.13, 0, 0, Math.PI * 2);
-    ctx.fillStyle = isKept ? 'rgba(251, 191, 36, 0.24)' : 'rgba(0, 0, 0, 0.35)';
-    ctx.fill();
+    function drawSideBySidePair(ctx, w, h, baseRadius) {
+      const pair = multiDieState.dice.slice(0, 2);
+      const positions = [w * 0.27, w * 0.73];
 
-    // Die medallion ring
-    const r = baseRadius * 0.72;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = isKept ? 'rgba(245, 158, 11, 0.18)' : 'rgba(41, 37, 36, 0.78)';
-    ctx.fill();
-    ctx.lineWidth = isKept ? 2.5 : 1.5;
-    ctx.strokeStyle = isKept ? '#fbbf24' : '#78716c';
-    ctx.stroke();
+      pair.forEach((dieItem, idx) => {
+        const cx = positions[idx];
+        const cy = h * 0.50;
+        const isDimmed = dieItem.kept === false;
+        const isKept = dieItem.kept === true;
 
-    // Rolled value or '?'
-    ctx.fillStyle = isKept ? '#fef3c7' : '#d6d3d1';
-    ctx.font = 'bold 24px ui-sans-serif, system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(dieItem.value != null ? String(dieItem.value) : '?', cx, cy);
+        ctx.save();
+        if (isDimmed) {
+          ctx.globalAlpha = 0.42;
+        }
 
-    // Label below die
-    ctx.fillStyle = isKept ? '#fbbf24' : '#a8a29e';
-    ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillText(dieItem.label, cx, cy + r + 14);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + baseRadius * 0.90, baseRadius * 0.52, baseRadius * 0.13, 0, 0, Math.PI * 2);
+        ctx.fillStyle = isKept ? 'rgba(251, 191, 36, 0.24)' : 'rgba(0, 0, 0, 0.35)';
+        ctx.fill();
 
-    ctx.restore();
-  });
-}
+        const r = baseRadius * 0.72;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = isKept ? 'rgba(245, 158, 11, 0.18)' : 'rgba(41, 37, 36, 0.78)';
+        ctx.fill();
+        ctx.lineWidth = isKept ? 2.5 : 1.5;
+        ctx.strokeStyle = isKept ? '#fbbf24' : '#78716c';
+        ctx.stroke();
+
+        ctx.fillStyle = isKept ? '#fef3c7' : '#d6d3d1';
+        ctx.font = 'bold 24px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(dieItem.value != null ? String(dieItem.value) : '?', cx, cy);
+
+        ctx.fillStyle = isKept ? '#fbbf24' : '#a8a29e';
+        ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillText(dieItem.label, cx, cy + r + 14);
+
+        ctx.restore();
+      });
+    }
+
+    function drawPolyhedronDie(sides) {
+      const poly = POLYHEDRA[sides] || POLYHEDRA[20];
+      const w = dieCanvas.width, h = dieCanvas.height;
+      dieCtx.clearRect(0, 0, w, h);
+
+      if (multiDieState.mode === 'pair_adv' || multiDieState.mode === 'pair_sum') {
+        const baseRadius = Math.min(w, h) * 0.38;
+        drawSideBySidePair(dieCtx, w, h, baseRadius);
+        return;
+      }
+
+      const cx = w / 2, cy = h / 2 - die3d.lift, fov = 265;
     
     function drawPolyhedronDie(sides) {
       const poly = POLYHEDRA[sides] || POLYHEDRA[20];
