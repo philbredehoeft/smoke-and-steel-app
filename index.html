@@ -1897,6 +1897,17 @@
       const cfg = getConfig();
       if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo) return;
 
+      const hasPendingLocalCharEdit = Boolean(state.charSyncTimer);
+      const localCharSnapshot = hasPendingLocalCharEdit
+        ? {
+            hp: state.parsedChar.hp,
+            maxHp: state.parsedChar.maxHp,
+            gold: state.parsedChar.gold,
+            currencyUnit: state.parsedChar.currencyUnit || 'gp',
+            resources: (state.parsedChar.resources || []).map((r) => ({ ...r })),
+          }
+        : null;
+
       const entries = [
         ['rules', cfg.rulesPath],
         ['campaign', cfg.campaignPath],
@@ -1938,7 +1949,37 @@
         state.repoAssets = [];
       }
 
-      renderCharacterUI(parseCharacterMarkdown(state.files.character.content));
+      const parsedChar = parseCharacterMarkdown(state.files.character.content);
+      if (hasPendingLocalCharEdit && localCharSnapshot && state.files.character.content) {
+        if (localCharSnapshot.hp !== null && localCharSnapshot.maxHp !== null) {
+          state.files.character.content = replaceStatInMarkdown(
+            state.files.character.content,
+            '(?:Current\\s+)?HP|Hit\\s*Points',
+            `${localCharSnapshot.hp} / ${localCharSnapshot.maxHp}`
+          );
+          parsedChar.hp = localCharSnapshot.hp;
+          parsedChar.maxHp = localCharSnapshot.maxHp;
+        }
+        state.files.character.content = replaceStatInMarkdown(
+          state.files.character.content,
+          'Gold|Currency|Wealth|Coins?|Purse|Credits|Money',
+          `${localCharSnapshot.gold} ${localCharSnapshot.currencyUnit}`
+        );
+        parsedChar.gold = localCharSnapshot.gold;
+        parsedChar.currencyUnit = localCharSnapshot.currencyUnit;
+        (localCharSnapshot.resources || []).forEach((lr) => {
+          state.files.character.content = replaceResourceInMarkdown(
+            state.files.character.content,
+            lr.name,
+            lr.cur,
+            lr.max
+          );
+          const match = (parsedChar.resources || []).find((r) => r.name.toLowerCase() === lr.name.toLowerCase());
+          if (match) match.cur = lr.cur;
+        });
+      }
+
+      renderCharacterUI(parsedChar);
       renderCharacterSwitcher();
       renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
       renderAssetsUI();
@@ -1948,7 +1989,6 @@
         buildRecapFromMarkdownFiles();
       }
     }
-
     function cleanFallbackMarkdownReset(md, type) {
       if (!md) return md;
       let out = md.replace(/\n*-\s*(?:Turn Update|Arc Note|Session Note):[^\n]*/gi, '').trim();
