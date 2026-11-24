@@ -2095,15 +2095,19 @@ TWO MODES (Story Mode vs. Turn-Based Combat Mode):
 - COMBAT MODE (combat.active: true): Enter ONLY once an enemy is visible/engaged and Initiative is established; stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
 
 COMBAT & ENEMY AGENCY:
-- NEVER AUTO-ROLL PLAYER DICE: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves) and resolve NPC/enemy turns completely in prose. Never roll ${activeChar}'s d20/damage/saves.
+- NEVER AUTO-ROLL PLAYER DICE OR INVENT ROLL TOTALS: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves) and resolve NPC/enemy turns completely in prose. Never roll ${activeChar}'s d20/damage/saves, and NEVER override or re-roll the player's submitted roll total—always treat the exact total shown in the player's roll message as ground truth (e.g., if the player rolled 9 against AC 14, it is a MISS, even if a d8 was rolled for Precision Attack).
 - ENEMY INITIATIVE TURN: Whenever an enemy has higher Initiative than ${activeChar} (or acts before ${activeChar} in the round), resolve that enemy's full turn right now in "narrative"—movement, attack roll, hit/miss, and damage/effect against ${activeChar}—and apply any HP loss to ${activeChar} via "hp_delta" and "current_hp". Do NOT stop after moving into melee range without attacking unless the enemy is specifically using a non-attack action/telegraph.
-- PLAYER ATTACKS: When ${activeChar} makes a melee or ranged attack, roll enemy AC/reactions as needed, and if the player hasn't rolled their attack yet, prompt ${activeChar}'s Attack roll (or if they already rolled a hit, prompt their Damage roll, then resolve any remaining enemies in Initiative order).
-- ACTIVE ENEMIES & TELEGRAPHED INTENT: Basic mobs do NOT get free Ripostes on every missed player swing, but Bosses/Elites may have a defined 1/round Reaction, and ALL active enemies must still fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field (e.g. "Lunging for shield leg", "Hurling hot pit-ash", "Charging heavy slam").
+- PLAYER ATTACKS & HITS VS. MISSES: When ${activeChar} initiates an unrolled attack, prompt their Attack roll first. Once the player submits an Attack roll:
+  * If total < enemy AC -> IT IS A MISS. Describe the miss in prose, do NOT offer damage rolls, expend superiority dice only if the character sheet specifies using Precision Attack before/after seeing the roll, and present ${activeChar}'s next turn/reaction options.
+  * If total >= enemy AC -> IT IS A HIT. Prompt ${activeChar}'s Damage roll (and only include maneuver bonus damage like Trip Attack if that maneuver was used on a hit).
+- ACCURATE 5E MANEUVERS & RESOURCES:
+  * Precision Attack: adds +1d8 to the ATTACK roll ONLY (never added to damage).
+  * Trip Attack: triggers ON A MELEE HIT, adding +1d8 to DAMAGE and forcing a STR save.
+  * Action Surge grants an extra Action; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
+- ACTIVE ENEMIES & TELEGRAPHED INTENT: Basic mobs do NOT get free Ripostes on every missed player swing, but Bosses/Elites may have a defined 1/round Reaction, and ALL active enemies must still fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field.
 - TELEGRAPH AT ROUND END: At the end of a combat round, weave what active enemies are preparing next into "narrative" so the player feels the threat closing in.
-- RECORD ALL ROLLS INLINE: e.g. [Kael Attack: d20 (16) + 5 = 21 vs AC 14 — Hit!], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5], [Sentry Slam: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d8 (5) + 3 = 8 | Kael HP: 22 -> 14].
-- ACCURATE 5E MECHANICS: Trip Attack triggers ON A MELEE HIT (+1d8 damage + STR Save), NOT as a standalone Athletics check; Precision Attack adds +1d8 to an Attack roll; Action Surge grants an extra Weapon Attack/Action; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
+- RECORD ALL ROLLS INLINE: e.g. [Sentry Slam: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d8 (5) + 3 = 8 | Kael HP: 22 -> 14], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5].
 - DIALOGUE & BANTER: Whenever NPCs, allies, enemies, or sentient gear are present, weave natural spoken dialogue ("...") to convey clues, taunts, and warnings.
-STRICT PLAYER-ONLY STAT SYNC:
 - "current_hp", "hp_delta", "current_gold", and "gold_delta" apply STRICTLY to ${activeChar} (NEVER enemy HP!).
 - Treat ${hpStatusLine || 'the character sheet'} as the starting state for this turn.
 - Whenever ${activeChar}'s HP changes, ALWAYS set "hp_delta" (negative for damage taken, positive for healing) AND set "current_hp" to the new HP total; when unchanged, set "hp_delta": 0 and "current_hp": -1.
@@ -2117,9 +2121,9 @@ WRITING & SUGGESTED ROLLS:
 - For "suggested_rolls" — MANDATORY PHASE LOCK & PLAYER-ONLY RULE:
   * Every suggested option MUST be an action or roll performed by ${activeChar}—NEVER roll or act on behalf of an enemy (no "Sentry Attack", "Goblin Slam", etc.). If an enemy wins initiative and attacks first, resolve the enemy's attack in "narrative" and offer ${activeChar} defensive/reaction/counter options instead.
   * Initiative called -> ALL 3 options MUST roll Initiative for ${activeChar} (dc: 0, sides: 20, dice_count: 1). No pre-combat filler.
-  * Attack just hit -> ALL options (1–3) MUST roll ${activeChar}'s Damage (dc: 0)—Option 1 base weapon/spell damage; Options 2–3 Maneuver or Bonus Action combos (e.g. Trip Attack 2d8+3) if resources remain. No non-damage filler.
-  * Saving Throw forced on ${activeChar} -> ALL 3 options MUST roll ${activeChar}'s Saving Throw (dc: <save DC>).
-- Regular Combat / Story choices: frame 3 distinct tactical risk/reward trade-offs for ${activeChar} (e.g. Reckless/Advantage vs. Shield Wall/Defensive vs. Terrain/Class Skill or Social dialogue when talkable NPCs exist). For ${activeChar}'s Attack rolls, set "dc" to enemy AC.
+  * Attack just HIT (player roll >= enemy AC) -> ALL options (1–3) MUST roll ${activeChar}'s Damage (dc: 0)—Option 1 base weapon/spell damage; Options 2–3 hit-triggered maneuver or Bonus Action damage (e.g. Trip Attack 2d8+3) if resources remain. NEVER add Precision Attack's d8 to damage.
+  * Attack just MISSED (player roll < enemy AC) -> Do NOT offer Damage rolls. Offer ${activeChar}'s next valid actions/reactions or end-of-turn choices instead.
+  * Saving Throw forced on ${activeChar} -> ALL 3 options MUST roll ${activeChar}'s Saving Throw (dc: <save DC>).- Regular Combat / Story choices: frame 3 distinct tactical risk/reward trade-offs for ${activeChar} (e.g. Reckless/Advantage vs. Shield Wall/Defensive vs. Terrain/Class Skill or Social dialogue when talkable NPCs exist). For ${activeChar}'s Attack rolls, set "dc" to enemy AC.
 - When offering a Battle Master maneuver option (like Precision Attack), write the action clearly (e.g. "Use Maneuver Precision: Attack and add 1d8 to the roll") and set "skill" to include "+1d8" so the roll summary reads cleanly.
 
 Return ONLY valid JSON matching schema.
