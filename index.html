@@ -3085,6 +3085,21 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       dieCtx.fillText(die3d.displayText, labelX, labelY + 1);
       dieCtx.restore();
     }
+      });
+
+      const labelX = frontMostFace ? frontMostFace.avgX : cx;
+      const labelY = frontMostFace ? frontMostFace.avgY : cy;
+      dieCtx.save();
+      dieCtx.font = '700 24px Cinzel, Georgia, serif';
+      dieCtx.textAlign = 'center';
+      dieCtx.textBaseline = 'middle';
+      dieCtx.lineWidth = 4;
+      dieCtx.strokeStyle = 'rgba(10, 9, 16, 0.94)';
+      dieCtx.strokeText(die3d.displayText, labelX, labelY + 1);
+      dieCtx.fillStyle = die3d.tone === 'crit' ? '#fde68a' : die3d.tone === 'fumble' ? '#fda4af' : '#f5f5f4';
+      dieCtx.fillText(die3d.displayText, labelX, labelY + 1);
+      dieCtx.restore();
+    }
 
       const facesWithDepth = poly.faces.map((fIdx, fOrder) => {
         const pts = fIdx.map((i) => projVerts[i]);
@@ -4051,12 +4066,17 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         const dmResult = await callGeminiDM(cfg, text, rollObj);
         state.lastFailedRequest = null;
 
+        if (state.combatState && !state.combatState.active) {
+          ensureCombatEconomy();
+        }
+        const safeSuggestions = sanitizeSuggestedRolls(dmResult.suggested_rolls);
+
         pushStoryEntry({
           type: 'dm',
           label: 'Dungeon Master',
           playerBeat: (dmResult.player_beat || '').trim(),
           narrative: (dmResult.narrative || '').trim(),
-          suggestedRolls: Array.isArray(dmResult.suggested_rolls) ? dmResult.suggested_rolls : [],
+          suggestedRolls: safeSuggestions,
         }, true);
 
         if (dmResult._autoSwitchedTo) {
