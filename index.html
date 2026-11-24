@@ -88,6 +88,9 @@
           </div>
         </div>
 
+        <!-- Temporary Active Combat & Initiative Tracker -->
+        <div id="combat-tracker-bar" class="hidden px-3.5 py-2.5 bg-rose-950/25 border-b border-rose-500/30 space-y-2 text-xs"></div>
+
         <div id="story-log" class="flex-1 p-4 space-y-4 overflow-y-auto max-h-[58vh] lg:max-h-[62vh]"></div>
 
         <!-- Bottom Action Input -->
@@ -148,6 +151,12 @@
               <button id="btn-gold-plus" type="button" title="Increase currency by 1" class="w-6 h-5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs leading-none">+</button>
             </div>
           </div>
+        </div>
+
+        <!-- Class Resources & Slots -->
+        <div id="resources-wrap" class="hidden space-y-1.5">
+          <p class="text-xs font-semibold text-stone-300">Class Resources</p>
+          <div id="resources-box" class="space-y-1.5"></div>
         </div>
 
         <div>
@@ -224,7 +233,7 @@
         <p id="overlay-subtitle" class="text-[11px] tracking-wider uppercase text-amber-300/80 font-medium">Skill Check</p>
       </div>
 
-      <!-- Compact Utility Bar (Die / Mode / Mod) -->
+      <!-- Compact Utility Bar (Die / Count / Mode / Mod) -->
       <div class="space-y-1.5">
         <div class="grid grid-cols-6 gap-1">
           <button type="button" data-die="4" class="die-select py-1 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] font-medium hover:border-amber-500">d4</button>
@@ -235,28 +244,35 @@
           <button type="button" data-die="20" class="die-select py-1 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-semibold">d20</button>
         </div>
 
-        <div class="flex items-center justify-between gap-1.5">
+        <div class="flex flex-wrap items-center justify-between gap-1">
           <div class="flex items-center gap-1">
-            <button type="button" data-roll-mode="normal" class="mode-select px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-medium">Normal</button>
-            <button type="button" data-roll-mode="advantage" class="mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">Adv</button>
-            <button type="button" data-roll-mode="disadvantage" class="mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">Dis</button>
-            <button type="button" data-roll-mode="super_advantage" class="mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">3d20</button>
+            <button type="button" data-roll-mode="normal" class="mode-select px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-medium">Norm</button>
+            <button type="button" data-roll-mode="advantage" class="mode-select px-1.5 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">Adv</button>
+            <button type="button" data-roll-mode="disadvantage" class="mode-select px-1.5 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">Dis</button>
+            <button type="button" data-roll-mode="super_advantage" class="mode-select px-1.5 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px]">3d20</button>
           </div>
-          <div class="flex items-center gap-1 bg-black/40 border border-stone-700/80 rounded-md px-1.5 py-0.5 text-[10px]">
-            <span class="text-stone-400">Mod</span>
-            <button id="btn-mod-minus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">-</button>
-            <span id="roll-mod-value" class="min-w-[20px] text-amber-300 font-semibold">+0</span>
-            <button id="btn-mod-plus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">+</button>
+          <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-0.5 bg-black/40 border border-stone-700/80 rounded-md px-1 py-0.5 text-[10px]">
+              <button id="btn-count-minus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">-</button>
+              <span id="roll-count-value" class="min-w-[18px] text-stone-200 font-semibold">1d</span>
+              <button id="btn-count-plus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">+</button>
+            </div>
+            <div class="flex items-center gap-0.5 bg-black/40 border border-stone-700/80 rounded-md px-1 py-0.5 text-[10px]">
+              <span class="text-stone-400">Mod</span>
+              <button id="btn-mod-minus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">-</button>
+              <span id="roll-mod-value" class="min-w-[20px] text-amber-300 font-semibold">+0</span>
+              <button id="btn-mod-plus" type="button" class="px-1 rounded hover:bg-stone-700 text-stone-200 font-bold">+</button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Ornate BG3 Filigree Frame -->
-      <div class="relative rounded-2xl border border-amber-500/45 bg-gradient-to-b from-[#1e1a2b]/95 via-[#151320]/95 to-[#1b1624]/95 px-4 pt-3.5 pb-4 shadow-inner">
+      <div class="relative rounded-2xl border border-amber-500/45 bg-gradient-to-b from-[#1e1a2b]/95 via-[#151320]/95 to-[#1b1624]/95 px-4 pt-3 pb-3.5 shadow-inner">
         <div class="pointer-events-none absolute inset-1.5 rounded-xl border border-amber-400/20"></div>
 
         <!-- Difficulty Class Medallion -->
-        <div id="dc-box" class="relative z-10 pb-2.5">
+        <div id="dc-box" class="relative z-10 pb-2">
           <div id="dc-kicker" class="text-[9px] tracking-[0.22em] uppercase text-stone-300/90 font-semibold">Difficulty Class</div>
           <div id="dc-value" class="font-display text-3xl font-bold text-stone-100 leading-tight mt-0.5">11</div>
         </div>
@@ -269,26 +285,41 @@
         </div>
 
         <!-- Center 3D Die -->
-        <div class="relative z-10 flex flex-col items-center justify-center pt-1.5">
+        <div class="relative z-10 flex flex-col items-center justify-center pt-1">
           <button id="die-btn" type="button" class="cursor-pointer focus:outline-none group">
-            <canvas id="die-canvas" width="176" height="168" class="transition-transform group-active:scale-95"></canvas>
+            <canvas id="die-canvas" width="176" height="164" class="transition-transform group-active:scale-95"></canvas>
           </button>
           <div id="die-sub" class="text-[11px] text-stone-300/90 -mt-1">Tap die to roll</div>
 
-          <!-- Multi-die pool strip (Adv/Dis/3d20) -->
+          <!-- Multi-die pool strip (Adv/Dis/3d20 or 2d8/2d4) -->
           <div id="multi-roll-strip" class="flex flex-wrap items-center justify-center gap-1.5 mt-2"></div>
 
-          <!-- Outcome Banner (Raw + Mod = Total vs DC) -->
+          <!-- Outcome Banner (Raw + Mod + Bonus Die = Total vs DC) -->
           <div id="roll-outcome-banner" class="hidden mt-2.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-wide"></div>
         </div>
       </div>
 
-      <!-- BG3 Bottom Modifier Bonus Card -->
-      <div class="flex items-center justify-center gap-2">
-        <div id="roll-bonus-card" class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-amber-500/50 shadow-md">
+      <!-- BG3 Bottom Modifier + Bonus Die Cards -->
+      <div class="flex flex-wrap items-center justify-center gap-2">
+        <div id="roll-bonus-card" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-amber-500/50 shadow-md">
           <span id="bonus-card-val" class="font-display text-sm font-bold text-amber-300">+0</span>
           <span class="h-4 w-px bg-amber-500/30"></span>
           <span id="bonus-card-label" class="text-[11px] text-stone-200 font-medium">Roll Modifier</span>
+        </div>
+
+        <div id="bonus-die-card" class="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-stone-600/80 shadow-md">
+          <select id="bonus-die-select" aria-label="Add bonus die (Precision Attack / Guidance)" title="Add extra die (Precision Attack, Guidance, etc.)" class="bg-transparent text-amber-300 font-display text-xs font-bold focus:outline-none cursor-pointer">
+            <option value="0" class="bg-surface text-stone-300">+Bonus Die</option>
+            <option value="4" class="bg-surface text-amber-200">+1d4</option>
+            <option value="6" class="bg-surface text-amber-200">+1d6</option>
+            <option value="8" class="bg-surface text-amber-200">+1d8 (Sup.)</option>
+            <option value="10" class="bg-surface text-amber-200">+1d10</option>
+            <option value="12" class="bg-surface text-amber-200">+1d12</option>
+          </select>
+          <button id="btn-roll-bonus-die" type="button" class="hidden px-2 py-0.5 rounded-md bg-amber-500/25 hover:bg-amber-500/40 border border-amber-400/60 text-amber-200 text-[10px] font-semibold">
+            Roll
+          </button>
+          <span id="bonus-die-result" class="hidden text-xs font-bold text-emerald-300"></span>
         </div>
       </div>
 
@@ -473,6 +504,10 @@
         .replace(/'/g, '&#39;');
     }
 
+    function escapeRegex(str) {
+      return String(str ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     function formatProseHtml(rawText) {
       return String(rawText || '')
         .split(/\n+/)
@@ -623,6 +658,7 @@
     const state = {
       activePage: 'story',
       dieSides: 20,
+      diceCount: 1,
       modifier: 0,
       dc: 0,
       skillLabel: 'd20 Check',
@@ -631,11 +667,14 @@
       rollMode: 'normal',
       lastRoll: null,
       rollPool: null,
+      bonusDieSides: 0,
+      bonusRoll: null,
       pendingRoll: null,
       wakeLock: null,
       characterName: 'Player',
       storyEntries: [],
       turnHistory: [],
+      combatState: null,
       logUpdatedAt: 0,
       logClearedAt: 0,
       charSyncTimer: null,
@@ -647,6 +686,7 @@
         ac: null,
         gold: 0,
         currencyUnit: 'gp',
+        resources: [],
         skills: [...DEFAULT_SKILLS],
         details: [],
       },
@@ -699,6 +739,59 @@
       await releaseWakeLock();
     }
 
+    // --- Live Combat & Initiative Tracker Bar ---
+
+    function renderCombatTrackerUI() {
+      const bar = document.getElementById('combat-tracker-bar');
+      const cs = state.combatState;
+      if (!bar) return;
+
+      if (!cs || !cs.active) {
+        bar.classList.add('hidden');
+        bar.innerHTML = '';
+        return;
+      }
+
+      const roundNum = Number(cs.round) || 1;
+      const currentTurn = (cs.current_turn || '').trim();
+      const orderHtml = Array.isArray(cs.turn_order) && cs.turn_order.length > 0
+        ? cs.turn_order.map((slot) => {
+            const cleanSlot = String(slot || '').trim();
+            const isActiveTurn = currentTurn && cleanSlot.toLowerCase().includes(currentTurn.toLowerCase());
+            return isActiveTurn
+              ? `<span class="px-2 py-0.5 rounded bg-amber-500/25 border border-amber-400/70 text-amber-200 font-semibold">► ${escapeHtml(cleanSlot)}</span>`
+              : `<span class="px-2 py-0.5 rounded bg-surfaceAlt border border-stone-700/80 text-stone-300">${escapeHtml(cleanSlot)}</span>`;
+          }).join('')
+        : (currentTurn ? `<span class="text-amber-200 font-semibold">Turn: ► ${escapeHtml(currentTurn)}</span>` : '');
+
+      const enemiesHtml = Array.isArray(cs.enemies) && cs.enemies.length > 0
+        ? cs.enemies.map((en) => {
+            const hp = Number(en.hp) || 0;
+            const maxHp = Math.max(hp, Number(en.max_hp) || 0);
+            const status = (en.status || 'Active').trim();
+            const isDead = hp <= 0 || /defeated|dead|slain/i.test(status);
+            if (isDead) {
+              return `<span class="px-2 py-1 rounded-lg bg-stone-900/80 border border-stone-800 text-stone-500 line-through">${escapeHtml(en.name)} · Defeated</span>`;
+            }
+            const statusTag = status && !/^active|healthy|alive$/i.test(status)
+              ? ` <span class="text-amber-300">(${escapeHtml(status)})</span>`
+              : '';
+            return `<span class="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/40 text-stone-100">
+              <strong class="text-rose-200">${escapeHtml(en.name)}</strong> · AC ${Number(en.ac) || '?'} · <span class="text-emerald-300 font-semibold">${hp}/${maxHp}</span>${statusTag}
+            </span>`;
+          }).join('')
+        : '';
+
+      bar.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-1.5">
+          <span class="text-[11px] uppercase tracking-wider font-bold text-rose-300">&#9876; Combat · Round ${roundNum}</span>
+          <div class="flex flex-wrap items-center gap-1 text-[11px]">${orderHtml}</div>
+        </div>
+        ${enemiesHtml ? `<div class="flex flex-wrap items-center gap-1.5 text-[11px]">${enemiesHtml}</div>` : ''}
+      `;
+      bar.classList.remove('hidden');
+    }
+
     // --- Per-Campaign Story Log, Rolling Turn Memory & Repo Session Log ---
 
     function loadCampaignMemory(profileId) {
@@ -722,10 +815,13 @@
         const meta = rawMeta ? JSON.parse(rawMeta) : {};
         state.logUpdatedAt = Number(meta.updatedAt) || 0;
         state.logClearedAt = Number(meta.clearedAt) || 0;
+        state.combatState = meta.combatState || null;
       } catch (_) {
         state.logUpdatedAt = 0;
         state.logClearedAt = 0;
+        state.combatState = null;
       }
+      renderCombatTrackerUI();
       renderStoryLogFromState();
     }
 
@@ -737,6 +833,7 @@
         localStorage.setItem(META_STORAGE_PREFIX + pid, JSON.stringify({
           updatedAt: state.logUpdatedAt,
           clearedAt: state.logClearedAt,
+          combatState: state.combatState,
         }));
       } catch (_) {}
     }
@@ -776,6 +873,7 @@
       const embedded = JSON.stringify({
         updatedAt: state.logUpdatedAt || Date.now(),
         location,
+        combatState: state.combatState,
         entries: recentEntries,
         turnHistory: recentTurns,
       }).replace(/-->/g, '--\\u003e');
@@ -803,11 +901,13 @@
         if (state.storyEntries.length === 0 || remoteUpdatedAt > state.logUpdatedAt) {
           state.storyEntries = remoteEntries;
           state.turnHistory = remoteHistory;
+          state.combatState = remote.combatState || null;
           state.logUpdatedAt = remoteUpdatedAt || Date.now();
           if (remote.location) {
             document.getElementById('scene-location').textContent = remote.location;
           }
           saveCampaignMemory();
+          renderCombatTrackerUI();
           renderStoryLogFromState();
           return true;
         }
@@ -1126,6 +1226,49 @@
       return md;
     }
 
+    function replaceResourceInMarkdown(md, name, nextCur, max) {
+      if (!md || !name) return md;
+      const escaped = escapeRegex(name.trim());
+      const colonRx = new RegExp(`(${escaped}(?:\\*\\*|__)?\\s*:\\s*)(\\d+\\s*\\/\\s*\\d+)`, 'i');
+      if (colonRx.test(md)) {
+        return md.replace(colonRx, `$1${nextCur} / ${max}`);
+      }
+      const parenRx = new RegExp(`(${escaped}\\s*\\(\\s*)(\\d+\\s*\\/\\s*\\d+)`, 'i');
+      if (parenRx.test(md)) {
+        return md.replace(parenRx, `$1${nextCur}/${max}`);
+      }
+      return md;
+    }
+
+    function parseCharacterResources(md) {
+      if (!md) return [];
+      const resources = [];
+      const seen = new Set();
+      const addRes = (rawName, cur, max) => {
+        const cleanName = rawName.replace(/[*_`]/g, '').trim();
+        if (!cleanName || max < 1 || max > 20 || cur < 0 || cur > max) return;
+        if (/^(?:current\s+)?(?:hp|hit\s*points|resources?|session\s*note)$/i.test(cleanName)) return;
+        const key = cleanName.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        resources.push({ name: cleanName, cur, max });
+      };
+
+      const cleanMd = md.replace(/^\s*-\s*Session Note:.*$/gim, '');
+      const colonRx = /(?:^|\n|\||·|•|[-*]|:)\s*(?:\*\*|__)?([A-Za-z0-9][A-Za-z0-9\s/+-]{1,26}?)(?:\*\*|__)?\s*:\s*(\d+)\s*\/\s*(\d+)/g;
+      let m;
+      while ((m = colonRx.exec(cleanMd)) !== null) {
+        addRes(m[1], Number(m[2]), Number(m[3]));
+      }
+
+      const parenRx = /(?:^|\n|\||·|•|[-*]|:)\s*(?:\*\*|__)?([A-Za-z0-9][A-Za-z0-9\s/+-]{1,26}?)(?:\*\*|__)?\s*\(\s*(\d+)\s*\/\s*(\d+)(?:[^)]*)\)/g;
+      while ((m = parenRx.exec(cleanMd)) !== null) {
+        addRes(m[1], Number(m[2]), Number(m[3]));
+      }
+
+      return resources.slice(0, 6);
+    }
+
     function parseCharacterMarkdown(md) {
       if (!md || !md.trim()) {
         return {
@@ -1136,6 +1279,7 @@
           ac: null,
           gold: 0,
           currencyUnit: 'gp',
+          resources: [],
           skills: [...DEFAULT_SKILLS],
           details: [],
         };
@@ -1203,6 +1347,8 @@
         }
       }
 
+      const resources = parseCharacterResources(md);
+
       const foundSkills = [];
       const seenSkills = new Set();
       const addSkill = (name, mod) => {
@@ -1247,7 +1393,8 @@
       const details = [];
       const detailLabels = [
         ['Weapon', 'Weapon|Primary\\s*Weapon|Weapons|Attack'],
-        ['Spell / Pact Slots', 'Pact\\s*Slots|Spell\\s*Slots|Slots|Mana'],
+        ['Resources', 'Resources|Superiority\\s*Dice|Pact\\s*Slots|Spell\\s*Slots|Slots|Mana'],
+        ['Maneuvers', 'Maneuvers'],
         ['Equipment', 'Equipment|Gear|Inventory'],
         ['Features', 'Features|Traits|Abilities|Special'],
       ];
@@ -1276,6 +1423,7 @@
         ac,
         gold,
         currencyUnit,
+        resources,
         skills,
         details: details.slice(0, 5),
       };
@@ -1331,6 +1479,27 @@
       document.getElementById('char-ac').textContent = parsed.ac !== null ? String(parsed.ac) : '--';
       document.getElementById('char-gold').textContent = `${parsed.gold} ${parsed.currencyUnit}`;
 
+      // Class Resources
+      const resWrap = document.getElementById('resources-wrap');
+      const resBox = document.getElementById('resources-box');
+      if (Array.isArray(parsed.resources) && parsed.resources.length > 0) {
+        resBox.innerHTML = parsed.resources.map((r, idx) => {
+          const emptyClass = r.cur <= 0 ? 'text-rose-300' : 'text-amber-300';
+          return `<div class="px-2.5 py-1.5 rounded-xl bg-surfaceAlt border border-stone-800 flex items-center justify-between gap-2 text-xs">
+            <span class="truncate text-stone-200 font-medium">${escapeHtml(r.name)}</span>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" data-res-idx="${idx}" data-res-delta="-1" class="res-adj-btn w-5 h-5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs leading-none">-</button>
+              <span class="${emptyClass} font-semibold min-w-[28px] text-center">${r.cur}/${r.max}</span>
+              <button type="button" data-res-idx="${idx}" data-res-delta="1" class="res-adj-btn w-5 h-5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs leading-none">+</button>
+            </div>
+          </div>`;
+        }).join('');
+        resWrap.classList.remove('hidden');
+      } else {
+        resWrap.classList.add('hidden');
+        resBox.innerHTML = '';
+      }
+
       const skillsGrid = document.getElementById('skills-grid');
       skillsGrid.innerHTML = parsed.skills.map((sk) => {
         const modStr = sk.mod >= 0 ? `+${sk.mod}` : `${sk.mod}`;
@@ -1361,6 +1530,7 @@
         const snapshotMaxHp = state.parsedChar.maxHp;
         const snapshotGold = state.parsedChar.gold;
         const snapshotUnit = state.parsedChar.currencyUnit || 'gp';
+        const snapshotRes = (state.parsedChar.resources || []).map((r) => ({ ...r }));
         try {
           fileObj.sha = await ghPutFile(latestCfg, fileObj.path, fileObj.content, fileObj.sha, `Adjust character stats in ${fileObj.path}`);
         } catch (err) {
@@ -1372,6 +1542,9 @@
                 merged = replaceStatInMarkdown(merged, '(?:Current\\s+)?HP|Hit\\s*Points', `${snapshotHp} / ${snapshotMaxHp}`);
               }
               merged = replaceStatInMarkdown(merged, 'Gold|Currency|Wealth|Coins?|Purse|Credits|Money', `${snapshotGold} ${snapshotUnit}`);
+              snapshotRes.forEach((r) => {
+                merged = replaceResourceInMarkdown(merged, r.name, r.cur, r.max);
+              });
               fileObj.content = merged;
               fileObj.sha = latest.sha;
               fileObj.sha = await ghPutFile(latestCfg, fileObj.path, fileObj.content, fileObj.sha, `Adjust character stats in ${fileObj.path} (merged)`);
@@ -1421,6 +1594,23 @@
         scheduleCharacterStatCommit();
       }
     }
+
+    document.getElementById('resources-box').addEventListener('click', (e) => {
+      const btn = e.target.closest('.res-adj-btn');
+      if (!btn) return;
+      const idx = Number(btn.dataset.resIdx);
+      const delta = Number(btn.dataset.resDelta);
+      const res = state.parsedChar.resources?.[idx];
+      if (!res) return;
+      const nextCur = Math.max(0, Math.min(res.max, res.cur + delta));
+      if (nextCur === res.cur) return;
+      res.cur = nextCur;
+      if (state.files.character.content) {
+        state.files.character.content = replaceResourceInMarkdown(state.files.character.content, res.name, nextCur, res.max);
+      }
+      renderCharacterUI(state.parsedChar);
+      scheduleCharacterStatCommit();
+    });
 
     document.getElementById('btn-hp-minus').addEventListener('click', () => adjustCharacterStat('hp', -1));
     document.getElementById('btn-hp-plus').addEventListener('click', () => adjustCharacterStat('hp', 1));
@@ -1642,7 +1832,9 @@
       state.repoCharacters = [];
       state.repoAssets = [];
       state.assetCache = {};
+      state.combatState = null;
       document.getElementById('scene-location').textContent = 'Opening Scene';
+      renderCombatTrackerUI();
       renderCharacterUI(parseCharacterMarkdown(''));
       renderCharacterSwitcher();
       renderCampaignTrackerUI({ location: null, clocks: [], milestones: [] });
@@ -1678,8 +1870,8 @@
         state.repoCharacters = tree
           .filter((item) => {
             if (item.type !== 'blob' || !/\.md$/i.test(item.path)) return false;
-            if (charDir && item.path.startsWith(charDir)) return true;
-            return /(?:^|\/)(?:characters?|pc|party|heroes?)\/[^/]+\.md$/i.test(item.path);
+            if (charDir) return item.path.startsWith(charDir);
+            return /^characters?\/[^/]+\.md$/i.test(item.path);
           })
           .map((item) => item.path);
 
@@ -1710,26 +1902,55 @@
     }
 
     async function callGeminiDM(cfg, actionText, rollObj) {
-      const rollLine = rollObj
-        ? `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (raw ${rollObj.raw}, mod ${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})`
-        : 'Dice Roll: None';
+      let rollLine = 'Dice Roll: None';
+      if (rollObj) {
+        const dicePrefix = rollObj.diceCount > 1 ? `${rollObj.diceCount}d${rollObj.sides}` : `d${rollObj.sides}`;
+        const rawPart = Array.isArray(rollObj.rolls) && rollObj.rolls.length > 1
+          ? (rollObj.diceCount > 1 ? `${dicePrefix} [${rollObj.rolls.join('+')}] = ${rollObj.raw}` : `kept ${rollObj.raw} from [${rollObj.rolls.join(', ')}]`)
+          : `${dicePrefix} raw ${rollObj.raw}`;
+        const bonusPart = rollObj.bonus ? ` + bonus 1d${rollObj.bonus.sides} (${rollObj.bonus.val})` : '';
+        const modPart = rollObj.mod >= 0 ? `+${rollObj.mod}` : `${rollObj.mod}`;
+        rollLine = `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (${rawPart}, mod ${modPart}${bonusPart})`;
+      }
       const activeChar = state.characterName || 'the player character';
       const hpStatusLine = state.parsedChar.hp !== null && state.parsedChar.maxHp !== null
-        ? `Authoritative Character Sheet HP: ${state.parsedChar.hp} / ${state.parsedChar.maxHp}`
+        ? `Authoritative Player Character HP: ${state.parsedChar.hp} / ${state.parsedChar.maxHp} | Gold: ${state.parsedChar.gold} ${state.parsedChar.currencyUnit}`
         : '';
+      const combatBlock = state.combatState && state.combatState.active
+        ? JSON.stringify(state.combatState)
+        : 'Inactive (no combat currently tracked)';
 
       const systemPrompt = `You are a Dungeon Master for a solo tabletop RPG campaign ("${cfg.campaignName}").
 Follow the DM Instructions strictly. Keep prose vivid, atmospheric, and responsive to dice rolls.
 For "player_beat": embellish the player's action into 1-2 rich paragraphs matching the campaign's tone. When ${activeChar} is speaking to someone, coordinating with an ally, or acting around NPCs, include crisp spoken dialogue in quotes ("...") that fits their voice and personality. For an unrolled attack, show the approach, movement, and wind-up right up to the moment of the strike, stopping before the blow lands.
 For "narrative": write 1-3 concise paragraphs as the Dungeon Master.
 - DIALOGUE & BANTER (WHEN APPLICABLE): Whenever any NPC, companion, enemy, or sentient item is present in the scene, weave in natural back-and-forth spoken dialogue ("...") between them and ${activeChar} to convey clues, tension, lore, warnings, or reactions—rather than relying purely on third-person summary. Do not invent random NPCs in an empty room, and keep solo exploration grounded if ${activeChar} is truly alone.
-- Record EVERY roll (player rolls and NPC/enemy rolls for Initiative, Attacks, Damage, and Saves) inline in bracketed math, e.g. [Attack: d20 (16) + 5 = 21 vs AC 14 - Hit!], [Damage: 1d8 (6) + 3 = 9 | Enemy 1 HP: 11 -> 2], or [Enemy Attack: d20 (12) + 3 = 15 vs AC 15 - Hit! Damage: 1d6 (4) + 1 = 5].
-- When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Explicitly state that an Attack roll is required (granting "advantage" if surprise or positioning earns it), show the enemies reacting to the sudden lunge without anyone being hit yet, and offer 3 distinct ways to execute the attack in "suggested_rolls".
-- When an Attack roll IS attached and hits: show the inline attack roll math, describe the strike hitting the target, and STOP before declaring the enemy dead or defeated until the player rolls Damage! Put the weapon or spell Damage roll (using the stats from the character sheet) as option 1 in "suggested_rolls".
-- When a Damage roll IS attached (or after an enemy's turn): show the inline damage math and updated enemy HP, resolve whether the enemy drops (at 0 HP) or fights back, and if surviving enemies act, roll and show their inline Attack/Damage or Save rolls against ${activeChar}.
-- CRITICAL HP & GOLD SYNC: Always treat ${hpStatusLine || 'the character sheet HP'} as the starting HP. Whenever ${activeChar} takes damage or heals (including Short Rest Hit Dice, potions, or spells), set BOTH "hp_delta" (negative for damage, positive for healing) AND "current_hp" (exact resulting HP integer matching your narrative [HP: X -> Y / Max]). If HP did not change this turn, set "hp_delta": 0 and "current_hp": -1. Set "gold_delta" whenever currency changes, else 0.
-For "suggested_rolls": provide 3 distinct, flavorful action options tailored to the current situation. When an NPC, companion, or talkable enemy is present, make at least one option an interactive dialogue or social move (Persuasion, Deception, Intimidation, Insight, or direct questioning/banter). If an attack just hit and needs a Damage roll, make option 1 the exact Damage roll from the character sheet (dc: 0). Include rolls for Initiative when combat begins, separate Attack rolls when striking, Damage rolls when an attack hits, and saving throws or defensive/bonus-action checks when appropriate. Each item must be { "action": "<Short, evocative 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer modifier>, "dc": <integer DC or AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <die sides such as 20 for d20 or 8 for d8> }.
-Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") if nothing changed for that file.
+- Record EVERY roll (player rolls and NPC/enemy rolls for Initiative, Attacks, Damage, and Saves) inline in bracketed math, e.g. [Attack: d20 (16) + 5 = 21 vs AC 14 — Hit!], [Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5], or [Goblin 1 Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d6 (3) + 2 = 5 | ${activeChar} HP: 22 -> 17].
+- COMBAT TRACKER & INITIATIVE TURN ORDER:
+  * Check ACTIVE COMBAT TRACKER below. Whenever combat starts, populate "combat" with active: true, round: 1, turn_order (ordered by Initiative), current_turn, and every enemy's exact ac, hp, max_hp, and status.
+  * NEVER let a Defeated (0 HP) enemy act or attack!
+  * Follow strict Initiative order! When ${activeChar} finishes an action (and Damage if a hit just landed), resolve EVERY surviving enemy whose turn follows ${activeChar} in turn_order until turn order wraps cleanly back to ${activeChar} (incrementing "round" when wrapping to a new round, and keeping "current_turn" set to "${activeChar}" whenever the player is prompted to act next).
+  * When ALL enemies drop to 0 HP (or flee/combat ends), set combat.active: false and enemies: [].
+- ATTACK vs DAMAGE vs MANEUVERS:
+  * When NO dice roll is attached ("Dice Roll: None") and the player initiates an attack: pause right at the moment of the strike before any hit, damage, or casualty happens. Prompt for an Attack roll (grant "advantage" if earned).
+  * When an Attack roll IS attached and hits: show the inline attack roll math, describe the hit, and STOP before declaring the enemy dead until the player rolls Damage!
+  * Accurate 5e rules: Trip Attack triggers ON A MELEE HIT (adds +1d8 damage + target STR Save), NOT as a standalone Athletics check; Precision Attack adds +1d8 to an attack roll; Action Surge grants an extra Weapon Attack/Action; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
+- CRITICAL PLAYER-ONLY HP, GOLD & RESOURCE SYNC:
+  * "current_hp" and "hp_delta" are STRICTLY for the PLAYER CHARACTER (${activeChar}) — NEVER put an enemy's HP into "current_hp" or "hp_delta"!
+  * Always treat ${hpStatusLine || 'the character sheet HP/Gold'} as starting state. Whenever ${activeChar} takes damage or heals, set BOTH "hp_delta" and "current_hp" accurately. If ${activeChar}'s HP did NOT change this turn, set "hp_delta": 0 and "current_hp": -1.
+  * Whenever ${activeChar} spends or loots currency, set BOTH "gold_delta" AND "current_gold" accurately (else 0 and -1).
+  * Whenever ${activeChar} expends or recharges a tracked class resource (e.g. Superiority Dice, Second Wind, Action Surge, Spell/Pact Slots), list it in "resource_updates" (e.g. [{"name": "Superiority Dice", "delta": -1}]). Otherwise return [].
+For "suggested_rolls": provide 1–3 distinct, flavorful options tailored strictly to the current phase:
+- MANDATORY PHASE LOCK:
+  * If combat just began and you ask for Initiative: ALL 3 options MUST roll Initiative (skill: "Initiative", dc: 0, sides: 20, dice_count: 1, mod: <character's Initiative mod>) via 3 tactical entry styles. Do NOT mix in pre-combat social/study buttons.
+  * If an Attack just hit and needs Damage: ALL options (1–3) MUST roll Damage (dc: 0)—Option 1 base weapon/spell damage (e.g. 1d8+3), Option 2–3 Maneuver or Bonus Action combos (e.g. Trip Attack 2d8+3 if Superiority Dice > 0, or weapon damage + Bonus Action coaching). NEVER offer non-damage filler like Intimidation/Athletics on a Damage turn.
+  * If an enemy/boss forces a Saving Throw (e.g. DEX Save DC 13): ALL 3 options MUST roll that Saving Throw (dc: <save DC>, sides: 20, dice_count: 1).
+- Outside mandatory rolls: provide 3 distinct tactical/social options—actively coaching available class features (Second Wind when below max HP, Action Surge when pressing an attack, Maneuvers, Spell Slots) and including at least one dialogue/social move when an NPC or talkable enemy is present.
+Each item must be { "action": "<Short 1-sentence player action>", "skill": "<Skill, Attack, Damage, Initiative, or Save Name>", "mod": <integer>, "dc": <integer DC/AC or 0>, "mode": "<normal|advantage|disadvantage|super_advantage>", "sides": <20|12|10|8|6|4>, "dice_count": <integer >= 1> }.
+Return ONLY valid JSON matching the requested schema. Leave optional note fields empty ("") if nothing changed.
+
+=== ACTIVE COMBAT TRACKER ===
+${combatBlock}
 
 === DM INSTRUCTIONS (${state.files.rules.path || 'Default'}) ===
 ${state.files.rules.content || 'Prompt skill checks with clear DCs. Track combat HP and consequences fairly.'}
@@ -1758,29 +1979,75 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
                 mod: { type: 'INTEGER' },
                 dc: { type: 'INTEGER' },
                 mode: { type: 'STRING' },
-                sides: { type: 'INTEGER' }
+                sides: { type: 'INTEGER' },
+                dice_count: { type: 'INTEGER' }
               },
-              required: ['action', 'skill', 'mod', 'dc', 'mode', 'sides']
+              required: ['action', 'skill', 'mod', 'dc', 'mode', 'sides', 'dice_count']
             }
+          },
+          combat: {
+            type: 'OBJECT',
+            description: 'Live combat & initiative state. Set active: false and enemies: [] when combat is over or inactive.',
+            properties: {
+              active: { type: 'BOOLEAN' },
+              round: { type: 'INTEGER' },
+              current_turn: { type: 'STRING' },
+              turn_order: { type: 'ARRAY', items: { type: 'STRING' } },
+              enemies: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    name: { type: 'STRING' },
+                    ac: { type: 'INTEGER' },
+                    hp: { type: 'INTEGER' },
+                    max_hp: { type: 'INTEGER' },
+                    status: { type: 'STRING' }
+                  },
+                  required: ['name', 'ac', 'hp', 'max_hp', 'status']
+                }
+              }
+            },
+            required: ['active', 'round', 'current_turn', 'turn_order', 'enemies']
           },
           location: { type: 'STRING' },
           current_hp: {
             type: 'INTEGER',
-            description: 'Exact resulting HP of the active character at the end of this turn (e.g. 11). Return -1 if HP did not change.'
+            description: 'Resulting HP of the PLAYER CHARACTER ONLY at end of turn (NEVER enemy HP). Return -1 if player HP did not change.'
           },
           hp_delta: {
             type: 'INTEGER',
-            description: 'Net change to active character HP this turn: negative for damage taken, positive for healing/Hit Dice recovery, 0 if unchanged.'
+            description: 'Net HP change for PLAYER CHARACTER ONLY this turn: negative for damage taken, positive for healing, 0 if unchanged.'
+          },
+          current_gold: {
+            type: 'INTEGER',
+            description: 'Resulting Gold/Currency of PLAYER CHARACTER ONLY at end of turn. Return -1 if currency did not change.'
           },
           gold_delta: {
             type: 'INTEGER',
-            description: 'Net change to active character gold/currency this turn: negative when spent/lost, positive when gained, 0 if unchanged.'
+            description: 'Net Gold/Currency change for PLAYER CHARACTER ONLY this turn: negative when spent, positive when gained, 0 if unchanged.'
+          },
+          resource_updates: {
+            type: 'ARRAY',
+            description: 'Tracked class resources spent or recharged this turn (e.g. [{"name": "Superiority Dice", "delta": -1}]). Empty [] if none.',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                name: { type: 'STRING' },
+                delta: { type: 'INTEGER' }
+              },
+              required: ['name', 'delta']
+            }
           },
           campaign_note: { type: 'STRING' },
           story_note: { type: 'STRING' },
           character_note: { type: 'STRING' }
         },
-        required: ['player_beat', 'narrative', 'suggested_rolls', 'location', 'current_hp', 'hp_delta', 'gold_delta', 'campaign_note', 'story_note', 'character_note']
+        required: [
+          'player_beat', 'narrative', 'suggested_rolls', 'combat', 'location',
+          'current_hp', 'hp_delta', 'current_gold', 'gold_delta', 'resource_updates',
+          'campaign_note', 'story_note', 'character_note'
+        ]
       };
 
       const currentUserText = `Player Action: ${actionText || 'Continue scene.'}\n${rollLine}${hpStatusLine ? `\n${hpStatusLine}` : ''}`;
@@ -1860,14 +2127,21 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
             parsed._autoSwitchedTo = activeModel;
           }
 
+          if (parsed.combat && typeof parsed.combat === 'object') {
+            state.combatState = parsed.combat.active ? parsed.combat : null;
+            renderCombatTrackerUI();
+          }
+
           state.turnHistory.push({
             userText: currentUserText,
             modelText: JSON.stringify({
               player_beat: parsed.player_beat || '',
               narrative: parsed.narrative || '',
               location: parsed.location || '',
+              combat: parsed.combat || { active: false, round: 0, current_turn: '', turn_order: [], enemies: [] },
               current_hp: typeof parsed.current_hp === 'number' ? parsed.current_hp : -1,
               hp_delta: parsed.hp_delta || 0,
+              current_gold: typeof parsed.current_gold === 'number' ? parsed.current_gold : -1,
               gold_delta: parsed.gold_delta || 0,
               suggested_rolls: Array.isArray(parsed.suggested_rolls) ? parsed.suggested_rolls : [],
             }),
@@ -1890,18 +2164,47 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       throw new Error(lastErrMsg);
     }
 
-    function resolveNextHp(dmResult, baseHp, maxHp) {
+    function resolveNextHp(dmResult, baseHp, maxHp, playerName) {
       if (baseHp === null || maxHp === null) return null;
-      const narrativeMatch = (dmResult.narrative || '').match(/\bHP:\s*-?\d+\s*(?:->|→|to)\s*(-?\d+)/i);
-      if (narrativeMatch) {
-        return Math.max(0, Math.min(maxHp, Number(narrativeMatch[1])));
+      const first = (playerName || 'Player').split(/\s+/)[0];
+      const names = [playerName, first, 'Player'].filter(Boolean).map(escapeRegex);
+      const playerHpRx = new RegExp(`(?:${names.join('|')})\\s+HP:\\s*-?\\d+\\s*(?:->|→|to)\\s*(-?\\d+)`, 'i');
+      const playerMatch = (dmResult.narrative || '').match(playerHpRx);
+      if (playerMatch) {
+        return Math.max(0, Math.min(maxHp, Number(playerMatch[1])));
       }
-      if (typeof dmResult.current_hp === 'number' && dmResult.current_hp >= 0) {
-        return Math.max(0, Math.min(maxHp, dmResult.current_hp));
-      }
+
       const hpDelta = Number(dmResult.hp_delta) || 0;
+      const curHp = typeof dmResult.current_hp === 'number' ? dmResult.current_hp : -1;
+
       if (hpDelta !== 0) {
+        if (curHp >= 0 && curHp !== baseHp) {
+          return Math.max(0, Math.min(maxHp, curHp));
+        }
         return Math.max(0, Math.min(maxHp, baseHp + hpDelta));
+      }
+
+      // Guard against accidental current_hp: 0 when hp_delta is 0 unless player HP explicitly dropped
+      if (curHp > 0 && curHp !== baseHp) {
+        return Math.max(0, Math.min(maxHp, curHp));
+      }
+
+      return null;
+    }
+
+    function resolveNextGold(dmResult, baseGold) {
+      const narrativeMatch = (dmResult.narrative || '').match(/\b(?:Gold|Currency|Coin):\s*-?\d+\s*(?:->|→|to)\s*(-?\d+)/i);
+      if (narrativeMatch) {
+        return Math.max(0, Number(narrativeMatch[1]));
+      }
+      const goldDelta = Number(dmResult.gold_delta) || 0;
+      const curGold = typeof dmResult.current_gold === 'number' ? dmResult.current_gold : -1;
+      if (goldDelta !== 0) {
+        if (curGold >= 0 && curGold !== baseGold) return Math.max(0, curGold);
+        return Math.max(0, baseGold + goldDelta);
+      }
+      if (curGold >= 0 && curGold !== baseGold) {
+        return Math.max(0, curGold);
       }
       return null;
     }
@@ -1945,7 +2248,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           ? parseCharacterMarkdown(state.files.character.content)
           : state.parsedChar;
 
-        const nextHp = resolveNextHp(dmResult, baseParsed.hp, baseParsed.maxHp);
+        const nextHp = resolveNextHp(dmResult, baseParsed.hp, baseParsed.maxHp, baseParsed.name);
         const hpChanged = nextHp !== null && nextHp !== baseParsed.hp;
         if (hpChanged) {
           state.parsedChar.hp = nextHp;
@@ -1963,9 +2266,10 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           }
         }
 
-        if (goldDelta !== 0) {
+        const nextGold = resolveNextGold(dmResult, baseParsed.gold || 0);
+        const goldChanged = nextGold !== null && nextGold !== (baseParsed.gold || 0);
+        if (goldChanged) {
           const unit = baseParsed.currencyUnit || 'gp';
-          const nextGold = Math.max(0, (baseParsed.gold || 0) + goldDelta);
           state.parsedChar.gold = nextGold;
           state.parsedChar.currencyUnit = unit;
           if (state.files.character.content) {
@@ -1981,11 +2285,38 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           }
         }
 
-        if (((charNote && charNote.toLowerCase() !== 'none') || hpChanged || hpDelta !== 0 || goldDelta !== 0) && state.files.character.path) {
+        // Apply tracked class resource updates (Superiority Dice, Second Wind, Action Surge, Spell Slots)
+        const resUpdates = Array.isArray(dmResult.resource_updates) ? dmResult.resource_updates : [];
+        const resNotes = [];
+        resUpdates.forEach((upd) => {
+          const targetName = (upd?.name || '').trim().toLowerCase();
+          const delta = Number(upd?.delta) || 0;
+          if (!targetName || delta === 0) return;
+          const matchRes = (baseParsed.resources || []).find((r) =>
+            r.name.toLowerCase().includes(targetName) || targetName.includes(r.name.toLowerCase())
+          );
+          if (matchRes) {
+            const nextCur = Math.max(0, Math.min(matchRes.max, matchRes.cur + delta));
+            if (nextCur !== matchRes.cur) {
+              matchRes.cur = nextCur;
+              if (state.files.character.content) {
+                const updatedResMd = replaceResourceInMarkdown(state.files.character.content, matchRes.name, nextCur, matchRes.max);
+                if (updatedResMd !== state.files.character.content) {
+                  state.files.character.content = updatedResMd;
+                  changed = true;
+                }
+              }
+              resNotes.push(`${matchRes.name} ${nextCur}/${matchRes.max}`);
+            }
+          }
+        });
+
+        if (((charNote && charNote.toLowerCase() !== 'none') || hpChanged || goldChanged || resNotes.length > 0) && state.files.character.path) {
           const notes = [];
           if (hpChanged) notes.push(`HP -> ${nextHp}/${baseParsed.maxHp}`);
           else if (hpDelta) notes.push(`HP ${hpDelta > 0 ? '+' : ''}${hpDelta}`);
-          if (goldDelta) notes.push(`${baseParsed.currencyUnit || 'gp'} ${goldDelta > 0 ? '+' : ''}${goldDelta}`);
+          if (goldChanged) notes.push(`${baseParsed.currencyUnit || 'gp'} -> ${nextGold}`);
+          if (resNotes.length > 0) notes.push(resNotes.join(', '));
           if (charNote && charNote.toLowerCase() !== 'none') notes.push(charNote);
           state.files.character.content = `${state.files.character.content.trim()}\n- Session Note: ${notes.join(' | ')}\n`;
           changed = true;
@@ -2063,7 +2394,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       });
     });
 
-    // --- BG3-Style Polyhedral 3D Dice Engine (Raw face display + multi-face numbers) ---
+    // --- BG3-Style Polyhedral 3D Dice Engine (Raw face display, multi-dice, bonus die card) ---
     const rollOverlay = document.getElementById('roll-overlay');
     const dieBtn = document.getElementById('die-btn');
     const dieCanvas = document.getElementById('die-canvas');
@@ -2437,6 +2768,9 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       const modValEl = document.getElementById('roll-mod-value');
       if (modValEl) modValEl.textContent = modStr;
 
+      const countEl = document.getElementById('roll-count-value');
+      if (countEl) countEl.textContent = `${state.diceCount}d`;
+
       const bonusValEl = document.getElementById('bonus-card-val');
       if (bonusValEl) bonusValEl.textContent = modStr;
 
@@ -2454,7 +2788,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         dcValue.textContent = String(state.dc);
         dcValue.className = 'font-display text-3xl font-bold text-stone-100 leading-tight mt-0.5';
       } else {
-        dcKicker.textContent = `1d${state.dieSides}`;
+        dcKicker.textContent = `${state.diceCount}d${state.dieSides}`;
         dcValue.textContent = 'FREE ROLL';
         dcValue.className = 'font-display text-xl font-bold text-amber-200/90 leading-tight mt-1';
       }
@@ -2468,9 +2802,10 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       }
     }
 
-    function showOutcomeBanner(raw, mod, total) {
+    function showOutcomeBanner(rawVal, mod, total, bonusObj = null, diceCount = 1) {
       const banner = document.getElementById('roll-outcome-banner');
       const bonusCard = document.getElementById('roll-bonus-card');
+      const bonusDieCard = document.getElementById('bonus-die-card');
       if (!banner) return;
 
       if (bonusCard && mod !== 0) {
@@ -2478,16 +2813,25 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         void bonusCard.offsetWidth;
         bonusCard.classList.add('animate-bonus-pop');
       }
+      if (bonusDieCard && bonusObj) {
+        bonusDieCard.classList.remove('animate-bonus-pop');
+        void bonusDieCard.offsetWidth;
+        bonusDieCard.classList.add('animate-bonus-pop');
+      }
 
-      const modPart = mod === 0 ? '' : (mod > 0 ? ` + ${mod} = ${total}` : ` - ${Math.abs(mod)} = ${total}`);
-      const mathText = mod === 0 ? `Result: ${total}` : `${raw}${modPart}`;
+      const rawLabel = diceCount > 1 ? `${rawVal} (${diceCount}d${state.dieSides})` : `${rawVal}`;
+      const modPart = mod === 0 ? '' : (mod > 0 ? ` + ${mod}` : ` - ${Math.abs(mod)}`);
+      const bonusPart = bonusObj ? ` + ${bonusObj.val} (1d${bonusObj.sides})` : '';
+      const mathText = (mod === 0 && !bonusObj)
+        ? `Result: ${total}`
+        : `${rawLabel}${modPart}${bonusPart} = ${total}`;
 
       let verdict = '';
       let styleClass = 'bg-amber-500/15 border-amber-500/50 text-amber-200';
-      if (state.dieSides === 20 && raw === 20) {
+      if (state.dieSides === 20 && diceCount === 1 && rawVal === 20) {
         verdict = ' · CRITICAL SUCCESS!';
         styleClass = 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/20';
-      } else if (state.dieSides === 20 && raw === 1) {
+      } else if (state.dieSides === 20 && diceCount === 1 && rawVal === 1) {
         verdict = ' · CRITICAL FAILURE';
         styleClass = 'bg-rose-500/20 border-rose-500/60 text-rose-200';
       } else if (state.dc > 0) {
@@ -2505,6 +2849,87 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       banner.classList.remove('hidden');
     }
 
+    function resetBonusDieUI() {
+      state.bonusDieSides = 0;
+      state.bonusRoll = null;
+      const sel = document.getElementById('bonus-die-select');
+      const rollBtn = document.getElementById('btn-roll-bonus-die');
+      const resSpan = document.getElementById('bonus-die-result');
+      const card = document.getElementById('bonus-die-card');
+      if (sel) sel.value = '0';
+      if (rollBtn) rollBtn.classList.add('hidden');
+      if (resSpan) {
+        resSpan.classList.add('hidden');
+        resSpan.textContent = '';
+      }
+      if (card) {
+        card.className = 'flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-stone-600/80 shadow-md';
+      }
+    }
+
+    function applyBonusDieRoll(sides) {
+      if (!sides || sides <= 0 || !state.lastRoll) return;
+      const val = Math.floor(Math.random() * sides) + 1;
+      state.bonusRoll = { sides, val };
+      state.lastRoll.bonus = state.bonusRoll;
+      state.lastRoll.total = state.lastRoll.raw + state.lastRoll.mod + val;
+
+      const rollBtn = document.getElementById('btn-roll-bonus-die');
+      const resSpan = document.getElementById('bonus-die-result');
+      const card = document.getElementById('bonus-die-card');
+      if (rollBtn) {
+        rollBtn.textContent = 'Re-roll';
+        rollBtn.classList.remove('hidden');
+      }
+      if (resSpan) {
+        resSpan.textContent = `= +${val}`;
+        resSpan.classList.remove('hidden');
+      }
+      if (card) {
+        card.className = 'flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-amber-400/70 shadow-md';
+      }
+      showOutcomeBanner(state.lastRoll.raw, state.lastRoll.mod, state.lastRoll.total, state.bonusRoll, state.lastRoll.diceCount || 1);
+    }
+
+    document.getElementById('bonus-die-select').addEventListener('change', (e) => {
+      const sides = Number(e.target.value) || 0;
+      state.bonusDieSides = sides;
+      state.bonusRoll = null;
+      const rollBtn = document.getElementById('btn-roll-bonus-die');
+      const resSpan = document.getElementById('bonus-die-result');
+      const card = document.getElementById('bonus-die-card');
+
+      if (resSpan) {
+        resSpan.classList.add('hidden');
+        resSpan.textContent = '';
+      }
+
+      if (sides === 0) {
+        if (rollBtn) rollBtn.classList.add('hidden');
+        if (card) card.className = 'flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-stone-600/80 shadow-md';
+        if (state.lastRoll) {
+          state.lastRoll.bonus = null;
+          state.lastRoll.total = state.lastRoll.raw + state.lastRoll.mod;
+          showOutcomeBanner(state.lastRoll.raw, state.lastRoll.mod, state.lastRoll.total, null, state.lastRoll.diceCount || 1);
+        }
+        return;
+      }
+
+      if (card) card.className = 'flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-gradient-to-b from-[#231e31] to-[#161320] border border-amber-500/60 shadow-md';
+      if (state.lastRoll) {
+        rollBtn.textContent = `Roll d${sides}`;
+        rollBtn.classList.remove('hidden');
+      } else {
+        rollBtn.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('btn-roll-bonus-die').addEventListener('click', () => {
+      if (state.bonusDieSides > 0 && state.lastRoll) {
+        applyBonusDieRoll(state.bonusDieSides);
+      }
+    });
+
     function setIdleDie(sides) {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
       die3d.rx = 0.34;
@@ -2513,27 +2938,28 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       die3d.lift = 6;
       die3d.tone = 'neutral';
       die3d.rawNumeric = sides;
-      die3d.displayText = `d${sides}`;
+      die3d.displayText = state.diceCount > 1 ? `${state.diceCount}d${sides}` : `d${sides}`;
       if (dieSubEl) {
-        const modeHint = state.dieSides === 20 && state.rollMode !== 'normal'
+        const modeHint = state.dieSides === 20 && state.diceCount === 1 && state.rollMode !== 'normal'
           ? ` (${state.rollMode.replace('_', ' ').toUpperCase()})`
           : '';
-        dieSubEl.textContent = `Tap die to roll 1d${sides}${modeHint}`;
+        dieSubEl.textContent = `Tap die to roll ${state.diceCount}d${sides}${modeHint}`;
       }
       drawPolyhedronDie(sides);
     }
 
-    function inferRollSubtitle(skill, sides) {
+    function inferRollSubtitle(skill, sides, diceCount = 1) {
       const s = (skill || '').toLowerCase();
-      if (/damage|hit die|healing/.test(s)) return `Damage / Recovery (1d${sides})`;
+      if (/damage|hit die|healing/.test(s)) return `Damage / Recovery (${diceCount}d${sides})`;
       if (/attack|strike|slash|shot|spell attack/.test(s)) return 'Attack Roll';
       if (/initiative/.test(s)) return 'Initiative Check';
       if (/save|saving/.test(s)) return 'Saving Throw';
       return 'Skill Check';
     }
 
-    function openRollOverlay({ label = 'd20 Check', subtitle = 'Ability Check', sides = 20, mod = 0, dc = 0, fullLabel = '' }) {
+    function openRollOverlay({ label = 'd20 Check', subtitle = 'Ability Check', sides = 20, diceCount = 1, mod = 0, dc = 0, fullLabel = '' }) {
       state.dieSides = sides;
+      state.diceCount = Math.max(1, Number(diceCount) || 1);
       state.modifier = mod;
       state.dc = Number(dc) || 0;
       state.rollDisplayName = label;
@@ -2543,6 +2969,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       state.rollPool = null;
       useRollBtn.disabled = true;
 
+      resetBonusDieUI();
       document.getElementById('overlay-label').textContent = label;
       document.getElementById('overlay-subtitle').textContent = subtitle;
       document.getElementById('multi-roll-strip').innerHTML = '';
@@ -2567,11 +2994,12 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         const skill = (opt.skill || 'Check').trim();
         const mod = Number(opt.mod) || 0;
         const dc = Number(opt.dc) || 0;
+        const diceCount = Math.max(1, Number(opt.dice_count) || 1);
         const rawMode = (opt.mode || 'normal').toLowerCase().trim();
         const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
 
         const sides = Number(opt.sides) || 20;
-        const dieTag = sides !== 20 ? `1d${sides}` : '';
+        const dieTag = (sides !== 20 || diceCount > 1) ? `${diceCount}d${sides}` : '';
         const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
         const rollSpec = `${dieTag}${modStr}`;
         const dcStr = dc > 0 ? ` · DC ${dc}` : '';
@@ -2596,8 +3024,9 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           setRollMode(normalizedMode);
           openRollOverlay({
             label: skill,
-            subtitle: `${inferRollSubtitle(skill, sides)}${modeBadge}`,
+            subtitle: `${inferRollSubtitle(skill, sides, diceCount)}${modeBadge}`,
             sides,
+            diceCount,
             mod,
             dc,
             fullLabel: `${skill}${dc > 0 ? ` (DC ${dc})` : ''}${modeBadge}`,
@@ -2622,61 +3051,69 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       document.querySelectorAll('.mode-select').forEach((btn) => {
         const active = btn.dataset.rollMode === state.rollMode;
         btn.className = active
-          ? 'mode-select px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-medium'
-          : 'mode-select px-2 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] hover:border-amber-500';
+          ? 'mode-select px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[10px] font-medium'
+          : 'mode-select px-1.5 py-0.5 rounded-md bg-black/35 border border-stone-700/80 text-stone-300 text-[10px] hover:border-amber-500';
       });
+    }
+
+    function invalidateCurrentRollDisplay() {
+      state.lastRoll = null;
+      state.rollPool = null;
+      state.bonusRoll = null;
+      useRollBtn.disabled = true;
+      document.getElementById('multi-roll-strip').innerHTML = '';
+      const rollBtn = document.getElementById('btn-roll-bonus-die');
+      const resSpan = document.getElementById('bonus-die-result');
+      if (rollBtn) rollBtn.classList.add('hidden');
+      if (resSpan) {
+        resSpan.classList.add('hidden');
+        resSpan.textContent = '';
+      }
+      hideOutcomeBanner();
+      updateRollMetaUI();
+      setIdleDie(state.dieSides);
     }
 
     document.querySelectorAll('.mode-select').forEach((btn) => {
       btn.addEventListener('click', () => {
         setRollMode(btn.dataset.rollMode);
-        state.lastRoll = null;
-        state.rollPool = null;
-        useRollBtn.disabled = true;
-        document.getElementById('multi-roll-strip').innerHTML = '';
-        hideOutcomeBanner();
-        updateRollMetaUI();
-        setIdleDie(state.dieSides);
+        if (state.rollMode !== 'normal') state.diceCount = 1;
+        invalidateCurrentRollDisplay();
       });
     });
 
     document.querySelectorAll('.die-select').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.dieSides = Number(btn.dataset.die);
-        state.rollDisplayName = `d${state.dieSides} Roll`;
-        state.skillLabel = `d${state.dieSides} Roll`;
-        state.lastRoll = null;
-        state.rollPool = null;
-        useRollBtn.disabled = true;
-        document.getElementById('multi-roll-strip').innerHTML = '';
+        state.rollDisplayName = `${state.diceCount}d${state.dieSides} Roll`;
+        state.skillLabel = `${state.diceCount}d${state.dieSides} Roll`;
         document.getElementById('overlay-label').textContent = state.rollDisplayName;
-        hideOutcomeBanner();
         highlightDieSelect(state.dieSides);
-        updateRollMetaUI();
-        setIdleDie(state.dieSides);
+        invalidateCurrentRollDisplay();
       });
+    });
+
+    document.getElementById('btn-count-minus').addEventListener('click', () => {
+      if (state.diceCount <= 1) return;
+      state.diceCount -= 1;
+      invalidateCurrentRollDisplay();
+    });
+
+    document.getElementById('btn-count-plus').addEventListener('click', () => {
+      if (state.diceCount >= 8) return;
+      state.diceCount += 1;
+      if (state.diceCount > 1) setRollMode('normal');
+      invalidateCurrentRollDisplay();
     });
 
     document.getElementById('btn-mod-minus').addEventListener('click', () => {
       state.modifier -= 1;
-      state.lastRoll = null;
-      state.rollPool = null;
-      useRollBtn.disabled = true;
-      document.getElementById('multi-roll-strip').innerHTML = '';
-      hideOutcomeBanner();
-      updateRollMetaUI();
-      setIdleDie(state.dieSides);
+      invalidateCurrentRollDisplay();
     });
 
     document.getElementById('btn-mod-plus').addEventListener('click', () => {
       state.modifier += 1;
-      state.lastRoll = null;
-      state.rollPool = null;
-      useRollBtn.disabled = true;
-      document.getElementById('multi-roll-strip').innerHTML = '';
-      hideOutcomeBanner();
-      updateRollMetaUI();
-      setIdleDie(state.dieSides);
+      invalidateCurrentRollDisplay();
     });
 
     function getDiceCountForMode(mode) {
@@ -2723,22 +3160,49 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       }).join('');
     }
 
+    function renderSumRollStrip(rolls) {
+      const strip = document.getElementById('multi-roll-strip');
+      if (!strip) return;
+      strip.innerHTML = rolls.map((val, idx) => {
+        const plus = idx > 0 ? '<span class="text-stone-400 text-xs font-bold">+</span>' : '';
+        return `${plus}<span class="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/60 text-amber-100 text-[11px] font-bold">${val}</span>`;
+      }).join('');
+    }
+
     function performDieRoll() {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
       hideOutcomeBanner();
+      state.bonusRoll = null;
+      const resSpan = document.getElementById('bonus-die-result');
+      if (resSpan) {
+        resSpan.classList.add('hidden');
+        resSpan.textContent = '';
+      }
 
       const mode = state.rollMode || 'normal';
-      const totalCount = state.dieSides === 20 ? getDiceCountForMode(mode) : 1;
+      const isAdvPool = state.dieSides === 20 && state.diceCount === 1 && mode !== 'normal';
 
-      if (totalCount === 1) {
+      if (!isAdvPool) {
         state.rollPool = null;
-        const raw = Math.floor(Math.random() * state.dieSides) + 1;
-        const total = raw + state.modifier;
-        state.lastRoll = { raw, total, sides: state.dieSides, mod: state.modifier, label: state.skillLabel };
+        const count = Math.max(1, state.diceCount || 1);
+        const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * state.dieSides) + 1);
+        const rawSum = rolls.reduce((a, b) => a + b, 0);
+        const total = rawSum + state.modifier;
+
+        state.lastRoll = {
+          raw: rawSum,
+          rolls: count > 1 ? rolls : undefined,
+          diceCount: count,
+          sides: state.dieSides,
+          mod: state.modifier,
+          bonus: null,
+          total,
+          label: state.skillLabel,
+        };
         useRollBtn.disabled = true;
-        renderMultiRollStrip(null);
+        document.getElementById('multi-roll-strip').innerHTML = '';
         die3d.tone = 'neutral';
-        dieSubEl.textContent = `Rolling 1d${state.dieSides}...`;
+        dieSubEl.textContent = `Rolling ${count}d${state.dieSides}...`;
 
         const duration = 740;
         const start = performance.now();
@@ -2754,23 +3218,34 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           die3d.lift = Math.sin(t * Math.PI) * 22 + 6;
           const showingVal = t < 0.86
             ? Math.floor(Math.random() * state.dieSides) + 1
-            : raw;
+            : (count === 1 ? rawSum : rolls[0]);
           die3d.rawNumeric = showingVal;
-          die3d.displayText = String(showingVal);
+          die3d.displayText = t < 0.86 ? String(showingVal) : String(rawSum);
           drawPolyhedronDie(state.dieSides);
 
           if (t < 1) {
             die3d.animId = requestAnimationFrame(step);
           } else {
             die3d.lift = 6;
-            die3d.rawNumeric = raw;
-            die3d.displayText = String(raw);
-            die3d.tone = state.dieSides === 20
-              ? (raw === 20 ? 'crit' : raw === 1 ? 'fumble' : 'neutral')
+            die3d.rawNumeric = count === 1 ? rawSum : rolls[0];
+            die3d.displayText = String(rawSum);
+            die3d.tone = (state.dieSides === 20 && count === 1)
+              ? (rawSum === 20 ? 'crit' : rawSum === 1 ? 'fumble' : 'neutral')
               : 'neutral';
             drawPolyhedronDie(state.dieSides);
-            dieSubEl.textContent = `Natural die roll: ${raw}`;
-            showOutcomeBanner(raw, state.modifier, total);
+
+            if (count > 1) {
+              renderSumRollStrip(rolls);
+              dieSubEl.textContent = `Rolled ${count}d${state.dieSides}: [${rolls.join(' + ')}] = ${rawSum}`;
+            } else {
+              dieSubEl.textContent = `Natural die roll: ${rawSum}`;
+            }
+
+            if (state.bonusDieSides > 0) {
+              applyBonusDieRoll(state.bonusDieSides);
+            } else {
+              showOutcomeBanner(rawSum, state.modifier, total, null, count);
+            }
             useRollBtn.disabled = false;
           }
         }
@@ -2778,6 +3253,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         return;
       }
 
+      const totalCount = getDiceCountForMode(mode);
       if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
         const rolls = Array.from({ length: totalCount }, () => Math.floor(Math.random() * state.dieSides) + 1);
         const keptIdx = pickKeptIndex(rolls, mode);
@@ -2840,14 +3316,20 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
               raw: keptRaw,
               rolls: pool.rolls,
               keptIdx: pool.keptIdx,
+              diceCount: 1,
               mode,
               total: finalTotal,
               sides: state.dieSides,
               mod: state.modifier,
+              bonus: null,
               label: state.skillLabel,
             };
             dieSubEl.textContent = `Kept natural ${keptRaw} from [${pool.rolls.join(', ')}]`;
-            showOutcomeBanner(keptRaw, state.modifier, finalTotal);
+            if (state.bonusDieSides > 0) {
+              applyBonusDieRoll(state.bonusDieSides);
+            } else {
+              showOutcomeBanner(keptRaw, state.modifier, finalTotal, null, 1);
+            }
             useRollBtn.disabled = false;
           }
         }
@@ -2861,7 +3343,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
     }
     document.getElementById('btn-open-roll').addEventListener('click', () => {
       setRollMode('normal');
-      openRollOverlay({ label: 'Free Roll', subtitle: 'Manual Check', sides: 20, mod: 0, dc: 0 });
+      openRollOverlay({ label: 'Free Roll', subtitle: 'Manual Check', sides: 20, diceCount: 1, mod: 0, dc: 0 });
     });
     document.getElementById('btn-close-roll').addEventListener('click', () => {
       if (die3d.animId) cancelAnimationFrame(die3d.animId);
@@ -2878,6 +3360,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         label: skill,
         subtitle: 'Skill Check',
         sides: 20,
+        diceCount: 1,
         mod,
         dc: 0,
         fullLabel: `${skill} Check`,
@@ -2892,12 +3375,15 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       const modStr = state.pendingRoll.mod
         ? ` (${state.pendingRoll.mod >= 0 ? '+' + state.pendingRoll.mod : state.pendingRoll.mod})`
         : '';
+      const bonusStr = state.pendingRoll.bonus
+        ? ` +1d${state.pendingRoll.bonus.sides}(${state.pendingRoll.bonus.val})`
+        : '';
       const poolStr = Array.isArray(state.pendingRoll.rolls) && state.pendingRoll.rolls.length > 1
-        ? ` · pool [${state.pendingRoll.rolls.join(', ')}]`
+        ? ` · [${state.pendingRoll.rolls.join(', ')}]`
         : '';
 
       document.getElementById('pending-roll-text').textContent =
-        `${state.pendingRoll.label}: ${state.pendingRoll.total} [raw ${state.pendingRoll.raw}${modStr}${poolStr}]`;
+        `${state.pendingRoll.label}: ${state.pendingRoll.total} [raw ${state.pendingRoll.raw}${modStr}${bonusStr}${poolStr}]`;
       pill.classList.remove('hidden');
       pill.classList.add('flex');
       rollOverlay.classList.add('hidden');
@@ -2928,9 +3414,11 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       if (!confirm('Clear the local story log and recent turn memory for this campaign? Your GitHub files will not be changed.')) return;
       state.storyEntries = [];
       state.turnHistory = [];
+      state.combatState = null;
       state.logClearedAt = Date.now();
       state.logUpdatedAt = 0;
       saveCampaignMemory();
+      renderCombatTrackerUI();
       renderStoryLogFromState();
     });
 
