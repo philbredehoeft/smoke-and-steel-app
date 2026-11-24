@@ -2965,8 +2965,9 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         const rawMode = (opt.mode || 'normal').toLowerCase().trim();
         const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
         const isAttack = inferIsAttackRoll(skill);
-
         const sides = Number(opt.sides) || 20;
+        const isDamageOrHeal = /damage|healing|hit die/i.test(skill) || sides !== 20 || diceCount > 1;
+
         const dieTag = (sides !== 20 || diceCount > 1) ? `${diceCount}d${sides}` : '';
         const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
         const rollSpec = `${dieTag}${modStr}`;
@@ -2976,11 +2977,16 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
+        btn.className = isDamageOrHeal
+          ? 'w-full text-left px-3.5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/40 transition cursor-pointer flex flex-col gap-0.5'
+          : 'w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 transition cursor-pointer flex flex-col gap-0.5';
+
+        const subTextClass = isDamageOrHeal ? 'text-rose-300 text-[11px] font-semibold tracking-wide' : 'text-amber-300/90 text-[11px] font-semibold tracking-wide';
+
         btn.innerHTML = actionLabel
           ? `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${escapeHtml(actionLabel)}</span>
-             <span class="text-amber-300/90 text-[11px] font-semibold tracking-wide">${escapeHtml(skill)} (${escapeHtml(rollSpec + dcStr)})${modeBadge}</span>`
-          : `<span class="text-amber-200 text-xs font-semibold">Roll ${escapeHtml(skill)} (${escapeHtml(rollSpec + dcStr)})${modeBadge}</span>`;
+             <span class="${subTextClass}">${escapeHtml(skill)} (${escapeHtml(rollSpec + dcStr)})${modeBadge}</span>`
+          : `<span class="${isDamageOrHeal ? 'text-rose-200' : 'text-amber-200'} text-xs font-semibold">Roll ${escapeHtml(skill)} (${escapeHtml(rollSpec + dcStr)})${modeBadge}</span>`;
 
         btn.addEventListener('click', () => {
           const input = document.getElementById('action-input');
@@ -3259,16 +3265,21 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         if (!clearModal.classList.contains('hidden')) { clearModal.classList.add('hidden'); return; }
         if (!assetModal.classList.contains('hidden')) { assetModal.classList.add('hidden'); return; }
         if (!settingsModal.classList.contains('hidden')) { settingsModal.classList.add('hidden'); return; }
+        if (!rollOverlay.classList.contains('hidden')) {
+          if (die3d.animId) cancelAnimationFrame(die3d.animId);
+          rollOverlay.classList.add('hidden');
+          return;
+        }
+        return;
       }
+
       if (rollOverlay.classList.contains('hidden')) return;
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         if (state.lastRoll && e.code === 'Enter' && !useRollBtn.disabled) useRollBtn.click();
         else performDieRoll();
-      } else if (e.key === 'Escape') {
-        if (die3d.animId) cancelAnimationFrame(die3d.animId);
-        rollOverlay.classList.add('hidden');
       }
+    });
     });
 
     function populateSettingsForm(store) {
