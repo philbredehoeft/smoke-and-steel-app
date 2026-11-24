@@ -91,8 +91,8 @@
         <!-- Temporary Active Combat & Initiative Tracker -->
         <div id="combat-tracker-bar" class="hidden px-3.5 py-2.5 bg-rose-950/25 border-b border-rose-500/30 space-y-2 text-xs"></div>
 
-        <div id="story-log" class="flex-1 p-4 space-y-4 overflow-y-auto max-h-[58vh] lg:max-h-[62vh]"></div>
-
+        <div id="story-log" class="flex-1 p-4 space-y-4 overflow-y-auto min-h-0 max-h-[calc(100dvh-13rem)] lg:max-h-[calc(100dvh-9.5rem)]"></div>
+        
         <!-- Bottom Action Input -->
         <form id="action-form" class="p-3 sm:p-4 border-t border-stone-800 bg-surface space-y-2.5">
           <div id="pending-roll-pill" class="hidden items-center justify-between px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200">
@@ -2090,9 +2090,9 @@
 Follow DM Instructions strictly. Keep prose vivid, atmospheric, and grounded.
 
 TWO MODES (Story Mode vs. Turn-Based Combat Mode):
-- STORY MODE (combat.active: false): Freeform roleplay, dialogue, exploration, sneaking, and positioning.
+- STORY MODE (combat.active: false): Freeform roleplay, dialogue, scouting, sneaking, and staging before a threat is visible or engaged. Do NOT call for Initiative while ${activeChar} is still outside an area, scouting, or asking to observe before entering—offer 3 distinct approach/entry options (e.g. scouting with Perception, sneaking with Stealth, or striding in boldly) until an enemy actually spots or engages ${activeChar}.
 - AMBUSH / AWARENESS TRIGGER: If ${activeChar} attacks an UNAWARE target from stealth/surprise, resolve that ambush strike first (or mark enemies "Surprised" in Round 1 so they lose their first turn/reaction), and enter COMBAT MODE once aware.
-- COMBAT MODE (combat.active: true): Enter once Initiative is established and stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
+- COMBAT MODE (combat.active: true): Enter ONLY once an enemy is visible/engaged and Initiative is established; stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
 
 COMBAT & ENEMY AGENCY:
 - NEVER AUTO-ROLL PLAYER DICE: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves), but NEVER roll ${activeChar}'s dice. If the player initiates an unrolled attack ("Dice Roll: None"), pause right before the blow lands and prompt their Attack roll. When their Attack hits, stop for their Damage roll, then resolve remaining enemies in Initiative order.
