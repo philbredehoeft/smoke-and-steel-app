@@ -2066,7 +2066,174 @@
     function sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
+function ensureCombatEconomy() {
+      if (!state.combatState || typeof state.combatState !== 'object') {
+        state.combatState = { active: false, round: 0, enemies: [] };
+      }
+      if (!state.combatState.economy || typeof state.combatState.economy !== 'object') {
+        state.combatState.economy = {
+          phase: state.combatState.active ? 'player_turn' : 'story',
+          lastRollType: null,     // 'initiative' | 'attack' | 'damage' | 'save' | 'skill' | 'action'
+          lastRollHit: null,      // boolean | null
+          lastRollTotal: null,    // number | null
+          actionUsed: false,
+          bonusActionUsed: false,
+          movementUsed: false,
+          disengaged: false,
+          dodging: false
+        };
+      }
+      if (!state.combatState.active) {
+        state.combatState.economy.phase = 'story';
+        state.combatState.economy.actionUsed = false;
+        state.combatState.economy.bonusActionUsed = false;
+        state.combatState.economy.movementUsed = false;
+        state.combatState.economy.disengaged = false;
+        state.combatState.economy.dodging = false;
+      }
+      return state.combatState.economy;
+    }
 
+    function getPrimaryEnemyAC() {
+      const enemies = Array.isArray(state.combatState?.enemies) ? state.combatState.enemies : [];
+      const activeEnemy = enemies.find((e) => (Number(e.hp) || 0) > 0) || enemies[0];
+      const ac = Number(activeEnemy?.ac);
+      return Number.isFinite(ac) && ac > 0 ? ac : 14;
+    }
+
+    function classifySuggestedRoll(item) {
+      const text = `${item?.label || ''} ${item?.skill || ''} ${item?.action || ''}`.toLowerCase();
+      if (/\binitiative\b/.test(text)) return 'initiative';
+      if (/\bdamage\b/.test(text) && !/\battack\s*roll\b/.test(text)) return 'damage';
+      if (/\bsaving\s*throw\b|\bsave\b/.test(text) && !/\battack\b/.test(text)) return 'save';
+      if (/\b(attack|strike|slash|shot|javelin|longsword|bow|bolt|ray|slam|bite|claw)\b/.test(text)) return 'attack';
+      return 'other';
+    }
+
+    function recordPlayerRollOutcome(rollObj) {
+      const econ = ensureCombatEconomy();
+      if (!rollObj) return;
+
+      const labelLower = String(rollObj.label || '').toLowerCase();
+      const total = Number(rollObj.total);
+      const raw = Number(rollObj.raw);
+      econ.lastRollTotal = Number.isFinite(total) ? total : null;
+
+      if (/\binitiative\b/.test(labelLower)) {
+        econ.lastRollType = 'initiative';
+        econ.lastRollHit = null;
+        econ.phase = 'player_turn';
+        econ.actionUsed = false;
+        econ.bonusActionUsed = false;
+        econ.movementUsed = false;
+        econ.disengaged = false;
+        econ.dodging = false;
+        return;
+      }
+
+      if (/\bdamage\b/.test(labelLower) && !/\battack\b/.test(labelLower)) {
+        econ.lastRollType = 'damage';
+        econ.lastRollHit = null;
+        econ.phase = 'player_turn';
+        return;
+      }
+
+      const isAttack = Boolean(state.isAttackRoll) || /\b(attack|strike|slash|shot|javelin|longsword|bow|bolt|ray)\b/.test(labelLower);
+      if (isAttack) {
+        econ.lastRollType = 'attack';
+        econ.actionUsed = true;
+        const targetAc = Number(state.dc) > 0 ? Number(state.dc) : getPrimaryEnemyAC();
+        const isCrit = raw === 20 && Number(rollObj.sides) === 20;
+        const isFumble = raw === 1 && Number(rollObj.sides) === 20;
+        const hit = isCrit || (!isFumble && Number.isFinite(total) && total >= targetAc);
+        econ.lastRollHit = hit;
+        econ.phase = hit ? 'awaiting_damage' : 'player_turn';
+        return;
+      }
+
+      econ.lastRollType = 'other';
+      econ.lastRollHit = null;
+      if (/\bdisengage\b/.test(labelLower)) {
+        econ.disengaged = true;
+        econ.movementUsed = true;
+        econ.actionUsed = true;
+      } else if (/\bdodge\b/.test(labelLower)) {
+        econ.dodging = true;
+        econ.actionUsed = true;
+      } else if (/\bdash\b/.test(labelLower)) {
+        econ.movementUsed = true;
+        econ.actionUsed = true;
+      } else if (/\bsecond\s*wind\b/.test(labelLower)) {
+        econ.bonusActionUsed = true;
+      }
+    }
+
+    function sanitizeSuggestedRolls(rawList) {
+      const econ = ensureCombatEconomy();
+      const list = Array.isArray(rawList) ? rawList : [];
+      const enemyAc = getPrimaryEnemyAC();
+      const activeCharName = String(state.characterName || state.character?.name || '').toLowerCase();
+
+      const cleaned = list
+        .filter((item) => item && typeof item === 'object')
+        .filter((item) => {
+          const combined = `${item.label || ''} ${item.skill || ''} ${item.action || ''}`.toLowerCase();
+          const mentionsEnemyAction = /\b(sentry|goblin|orc|construct|boss|enemy\s+attack|enemy\s+slam)\b/.test(combined)
+            && (!activeCharName || !combined.includes(activeCharName));
+          if (mentionsEnemyAction) return false;
+
+          const kind = classifySuggestedRoll(item);
+
+          if (kind === 'damage' && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) {
+            return false;
+          }
+
+          if (econ.dodging && /\bdodge\b/.test(combined)) return false;
+          if (econ.disengaged && /\bdisengage\b/.test(combined)) return false;
+
+          return true;
+        })
+        .map((item) => {
+          const copy = { ...item };
+          const kind = classifySuggestedRoll(copy);
+          const combined = `${copy.label || ''} ${copy.skill || ''} ${copy.action || ''}`.toLowerCase();
+
+          if (/\btrip\s*attack\b/.test(combined) && kind === 'attack') {
+            copy.label = copy.label || 'Trip Attack (On Hit: +1d8 Dmg & STR Save)';
+            copy.skill = 'Maneuver (+1d8 Dmg · STR Save)';
+            copy.sides = copy.sides || 8;
+            copy.dice_count = copy.dice_count || 1;
+            copy.dc = 0;
+            return copy;
+          }
+
+          if (kind === 'attack') {
+            const ac = Number(copy.dc) > 0 ? Number(copy.dc) : enemyAc;
+            copy.dc = ac;
+            copy._forceAttackAc = true;
+          }
+
+          return copy;
+        });
+
+      if (econ.lastRollType === 'attack' && econ.lastRollHit === true) {
+        const hasDamageOption = cleaned.some((c) => classifySuggestedRoll(c) === 'damage');
+        if (!hasDamageOption) {
+          cleaned.unshift({
+            label: 'Weapon Damage Roll',
+            skill: 'Damage (1d8+3)',
+            sides: 8,
+            dice_count: 1,
+            mod: 3,
+            dc: 0,
+            action: 'Roll weapon damage against the target.'
+          });
+        }
+      }
+
+      return cleaned.slice(0, 3);
+    }
+    
     async function callGeminiDM(cfg, actionText, rollObj) {
       let rollLine = 'Dice Roll: None';
       if (rollObj) {
@@ -3419,6 +3586,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
             drawPolyhedronDie(state.dieSides);
             if (count > 1) { renderSumRollStrip(rolls); dieSubEl.textContent = `Rolled ${count}d${state.dieSides}: [${rolls.join(' + ')}] = ${rawSum}`; }
             else { dieSubEl.textContent = `Natural die roll: ${rawSum}`; }
+            recordPlayerRollOutcome(state.lastRoll);
             if (state.bonusDieSides > 0) applyBonusDieRoll(state.bonusDieSides);
             else showOutcomeBanner(rawSum, state.modifier, total, null, count);
             useRollBtn.disabled = false;
@@ -3427,6 +3595,70 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         die3d.animId = requestAnimationFrame(step);
         return;
       }
+
+      const totalCount = getDiceCountForMode(mode);
+      if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
+        const rolls = Array.from({ length: totalCount }, () => Math.floor(Math.random() * state.dieSides) + 1);
+        state.rollPool = { rolls, keptIdx: pickKeptIndex(rolls, mode), mode, revealedCount: 0 };
+        state.lastRoll = null;
+        useRollBtn.disabled = true;
+        buildMultiDiePool(state.dieSides, state.diceCount, mode);
+      }
+
+      const pool = state.rollPool, currentIdx = pool.revealedCount, currentDieVal = pool.rolls[currentIdx], nextStepNum = currentIdx + 1;
+      renderMultiRollStrip(pool);
+      die3d.tone = 'neutral';
+      dieSubEl.textContent = `Rolling die ${nextStepNum} of ${totalCount}...`;
+
+      const duration = 620, start = performance.now();
+      const startRx = die3d.rx, startRy = die3d.ry, startRz = die3d.rz;
+      const targetRx = startRx + Math.PI * 2.5, targetRy = startRy + Math.PI * 3.5, targetRz = startRz + Math.PI * 1.25;
+
+      function stepPool(now) {
+        const t = Math.min(1, (now - start) / duration), ease = 1 - Math.pow(1 - t, 3);
+        die3d.rx = startRx + (targetRx - startRx) * ease;
+        die3d.ry = startRy + (targetRy - startRy) * ease;
+        die3d.rz = startRz + (targetRz - startRz) * ease;
+        die3d.lift = Math.sin(t * Math.PI) * 22 + 6;
+
+        const showingVal = t < 0.85 ? Math.floor(Math.random() * state.dieSides) + 1 : currentDieVal;
+        if (multiDieState.mode === 'pair_adv' && multiDieState.dice[currentIdx]) {
+          multiDieState.dice[currentIdx].value = showingVal;
+          multiDieState.dice[currentIdx].kept = null;
+        }
+
+        die3d.rawNumeric = showingVal;
+        die3d.displayText = String(showingVal);
+        drawPolyhedronDie(state.dieSides);
+
+        if (t < 1) { die3d.animId = requestAnimationFrame(stepPool); }
+        else {
+          pool.revealedCount = nextStepNum;
+          const allDone = pool.revealedCount >= totalCount, keptRaw = pool.rolls[pool.keptIdx], finalTotal = keptRaw + state.modifier;
+          die3d.lift = 6;
+          const finalFaceRaw = allDone ? keptRaw : currentDieVal;
+          die3d.rawNumeric = finalFaceRaw;
+          die3d.displayText = String(finalFaceRaw);
+          if (allDone && state.dieSides === 20) die3d.tone = keptRaw === 20 ? 'crit' : keptRaw === 1 ? 'fumble' : 'neutral';
+          syncMultiDieFromPool(pool, allDone);
+          drawPolyhedronDie(state.dieSides);
+          renderMultiRollStrip(pool);
+
+          if (!allDone) {
+            dieSubEl.textContent = `Die ${nextStepNum} landed ${currentDieVal} · Tap die for ${nextStepNum + 1} of ${totalCount}`;
+            useRollBtn.disabled = true;
+          } else {
+            state.lastRoll = { raw: keptRaw, rolls: pool.rolls, keptIdx: pool.keptIdx, diceCount: 1, mode, total: finalTotal, sides: state.dieSides, mod: state.modifier, bonus: null, label: state.skillLabel };
+            recordPlayerRollOutcome(state.lastRoll);
+            dieSubEl.textContent = `Kept natural ${keptRaw} from [${pool.rolls.join(', ')}]`;
+            if (state.bonusDieSides > 0) applyBonusDieRoll(state.bonusDieSides);
+            else showOutcomeBanner(keptRaw, state.modifier, finalTotal, null, 1);
+            useRollBtn.disabled = false;
+          }
+        }
+      }
+      die3d.animId = requestAnimationFrame(stepPool);
+    }
 
       const totalCount = getDiceCountForMode(mode);
       if (!state.rollPool || state.rollPool.revealedCount >= totalCount || state.rollPool.mode !== mode) {
