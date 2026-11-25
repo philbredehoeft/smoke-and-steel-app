@@ -2231,6 +2231,57 @@ function ensureCombatEconomy() {
       };
     }
 
+    function applyDeterministicEnemyDamage(combatState, rollObj, dmNarrative = '') {
+      if (!combatState || !combatState.active || !Array.isArray(combatState.enemies) || combatState.enemies.length === 0) {
+        return combatState;
+      }
+
+      const labelLower = String(rollObj?.label || '').toLowerCase();
+      const isDamageRoll = Boolean(rollObj) && (
+        /\bdamage\b/.test(labelLower)
+        || (combatState.economy?.lastRollType === 'damage' && Number(rollObj.sides) !== 20)
+      );
+
+      if (isDamageRoll && Number.isFinite(Number(rollObj.total)) && Number(rollObj.total) > 0) {
+        const dmg = Math.max(0, Math.floor(Number(rollObj.total)));
+        const activeEnemies = combatState.enemies.filter((e) => (Number(e.hp) || 0) > 0);
+        if (activeEnemies.length > 0) {
+          const target = activeEnemies.find((e) =>
+            new RegExp(`\\b${escapeRegex(e.name)}\\b`, 'i').test(dmNarrative || '')
+          ) || activeEnemies[0];
+
+          const alreadyAppliedInText = new RegExp(
+            `${escapeRegex(target.name)}\\s+HP:\\s*${target.hp}\\s*(?:->|→|to)\\s*${Math.max(0, target.hp - dmg)}`,
+            'i'
+          ).test(dmNarrative || '');
+
+          if (!alreadyAppliedInText && target.hp === (Number(target.max_hp) || target.hp)) {
+            target.hp = Math.max(0, target.hp - dmg);
+            if (target.hp <= 0) target.status = 'Defeated';
+          }
+        }
+      }
+
+      const allDefeated = combatState.enemies.every((e) => (Number(e.hp) || 0) <= 0);
+      if (allDefeated) {
+        return {
+          ...combatState,
+          active: false,
+          economy: {
+            ...(combatState.economy || {}),
+            phase: 'story',
+            actionUsed: false,
+            bonusActionUsed: false,
+            movementUsed: false,
+            disengaged: false,
+            dodging: false,
+          },
+        };
+      }
+
+      return combatState;
+    }
+
     function sanitizeSuggestedRolls(rawList) {
       const econ = ensureCombatEconomy();
       const list = Array.isArray(rawList) ? rawList : [];
@@ -4017,8 +4068,15 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           await loadCampaignFromGitHub();
           updateBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
         }
+        
         const dmResult = await callGeminiDM(cfg, text, rollObj);
         state.lastFailedRequest = null;
+
+        if (state.combatState) {
+          state.combatState = applyDeterministicEnemyDamage(state.combatState, rollObj, dmResult.narrative || '');
+          renderCombatTrackerUI();
+          saveCampaignMemory(cfg.profileId);
+        }
 
         if (state.combatState && !state.combatState.active) {
           ensureCombatEconomy();
