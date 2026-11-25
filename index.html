@@ -614,6 +614,8 @@
         .replace(/\[[^\]]*(?:Attack|Damage|Slam|Hit|Miss|HP|Initiative|Save|DC|AC)[^\]]*\]/gi, '')
         .replace(/\bROUND\s+\d+\s*[—–-]\s*Turn\s+\d+\s*\([^)]+\)\s*/gi, '')
         .replace(/\bROUND\s+\d+\s*:?\s*/gi, '')
+        .replace(/\s+([.,!?;:])/g, '$1')
+        .replace(/([.!?])\s*\.(?=\s|$)/g, '$1')
         .replace(/[ \t]{2,}/g, ' ')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
@@ -1221,8 +1223,9 @@
                ${entry.actionNote ? `<span class="text-stone-300 font-normal">${escapeHtml(entry.actionNote)}</span>` : ''}
              </div>`
           : '';
-        const beatHtml = entry.playerBeat
-          ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${formatProseHtml(entry.playerBeat)}</div>`
+        const cleanBeat = String(entry.playerBeat || '').replace(/\s+([.,!?;:])/g, '$1').replace(/([.!?])\s*\.(?=\s|$)/g, '$1');
+        const beatHtml = cleanBeat
+          ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${formatProseHtml(cleanBeat)}</div>`
           : '';
         const narrativeHtml = `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${formatProseHtml(entry.narrative)}</div>`;
         el.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-amber-400 mb-1.5 font-semibold">${escapeHtml(entry.label || 'Dungeon Master')}</p>${rollHeaderHtml}${beatHtml}${narrativeHtml}`;
@@ -2447,7 +2450,8 @@ function ensureCombatEconomy() {
       }
 
       const prevRound = Number(prevCombat?.round) || 0;
-      const round = Math.max(1, Number(rawCombat.round) || (prevRound > 0 ? prevRound : 1));
+      const modelRound = Number(rawCombat.round) || 0;
+      const round = Math.max(1, prevRound > 0 ? Math.max(prevRound, modelRound) : (modelRound || 1));
       const roundChanged = round !== prevRound;
 
       const enemies = Array.isArray(rawCombat.enemies)
@@ -2498,11 +2502,11 @@ function ensureCombatEconomy() {
       };
 
       const prevTurnNum = Number(prevCombat?.turn_number) || 0;
-      const rawTurnNum = Number(rawCombat.turn_number);
-      const turn_number = Number.isFinite(rawTurnNum) && rawTurnNum > 0
-        ? rawTurnNum
-        : Math.max(1, prevTurnNum + (prevCombat?.active ? 1 : 0));
+      const turn_number = prevCombat?.active ? prevTurnNum + 1 : 1;
       const turn_log = Array.isArray(prevCombat?.turn_log) ? [...prevCombat.turn_log] : [];
+      const roundActorsActed = freshRoundEcon
+        ? []
+        : (Array.isArray(prevCombat?.roundActorsActed) ? [...prevCombat.roundActorsActed] : []);
 
       return {
         active: true,
@@ -2511,8 +2515,70 @@ function ensureCombatEconomy() {
         current_turn: rawTurn || activeCharName,
         turn_order: turnOrder,
         turn_log,
+        roundActorsActed,
         enemies,
         economy,
+      };
+    }
+
+    function advanceRoundAfterTurn(combatObj, dmNarrative = '', rollObj = null) {
+      if (!combatObj || !combatObj.active) return combatObj;
+
+      const activeEnemies = (combatObj.enemies || []).filter((e) => (Number(e.hp) || 0) > 0);
+      if (activeEnemies.length === 0) return combatObj;
+
+      const acted = new Set(Array.isArray(combatObj.roundActorsActed) ? combatObj.roundActorsActed : []);
+      const rollLabel = String(rollObj?.label || '').toLowerCase();
+      const isInitiativeRoll = /\binitiative\b/.test(rollLabel);
+
+      if (isInitiativeRoll) {
+        return {
+          ...combatObj,
+          round: Math.max(1, Number(combatObj.round) || 1),
+          roundActorsActed: [],
+        };
+      }
+
+      const isDamageFollowup = /\bdamage\b/.test(rollLabel) && !/\battack\b/.test(rollLabel);
+      if (!isDamageFollowup) {
+        acted.add('player');
+      }
+
+      const enemyActedInProse = activeEnemies.some((en) => {
+        const enFirst = String(en.name || '').trim().split(/\s+/)[0];
+        if (!enFirst) return false;
+        return new RegExp(`\\b${escapeRegex(enFirst)}\\b[^\\n.]{0,90}\\b(?:attack|slash|slam|bite|claw|strike|lunge|fires?|casts?)\\b`, 'i').test(dmNarrative || '');
+      });
+
+      if (enemyActedInProse) {
+        activeEnemies.forEach((en) => acted.add(String(en.name).toLowerCase()));
+      }
+
+      const allEnemiesActed = activeEnemies.every((en) => acted.has(String(en.name).toLowerCase()));
+      const playerActed = acted.has('player');
+
+      if (playerActed && allEnemiesActed) {
+        const nextRound = (Number(combatObj.round) || 1) + 1;
+        return {
+          ...combatObj,
+          round: nextRound,
+          roundActorsActed: [],
+          economy: {
+            ...(combatObj.economy || {}),
+            phase: 'player_turn',
+            actionUsed: false,
+            actionSurgeUsed: false,
+            bonusActionUsed: false,
+            movementUsed: false,
+            disengaged: false,
+            dodging: false,
+          },
+        };
+      }
+
+      return {
+        ...combatObj,
+        roundActorsActed: Array.from(acted),
       };
     }
 
@@ -2818,6 +2884,10 @@ function applyRestAndConditionRules(actionText, dmNarrative = '') {
             const ac = Number(copy.dc) > 0 ? Number(copy.dc) : enemyAc;
             copy.dc = ac;
             copy._forceAttackAc = true;
+            const isRanged = /\b(javelin|bow|crossbow|bolt|arrow|dart|sling|ranged|throw|thrown)\b/i.test(combined);
+            if ((!copy.mode || copy.mode === 'normal') && hasProneEnemyTarget()) {
+              copy.mode = isRanged ? 'disadvantage' : 'advantage';
+            }
           }
 
           return copy;
@@ -2887,9 +2957,10 @@ COMBAT & ENEMY AGENCY:
 - PLAYER ATTACKS & HITS VS. MISSES: When ${activeChar} initiates an unrolled attack, prompt their Attack roll first. Once the player submits an Attack roll:
   * If total < enemy AC -> IT IS A MISS. Describe the miss in prose, do NOT offer damage rolls, expend superiority dice only if the character sheet specifies using Precision Attack before/after seeing the roll, and present ${activeChar}'s next turn/reaction options.
   * If total >= enemy AC -> IT IS A HIT. Immediately prompt ${activeChar}'s Damage roll right now in "suggested_rolls" (do NOT skip ahead to enemy retaliation or next-turn actions before ${activeChar} rolls damage for the hit, and only include maneuver bonus damage like Trip Attack if that maneuver was used on a hit).
-- ACCURATE 5E MANEUVERS & RESOURCES:
+- ACCURATE 5E CONDITIONS, ADVANTAGE & MANEUVERS:
+  * Prone Condition: While Prone, a creature's attacks have DISADVANTAGE, melee attacks within 5 ft against it have ADVANTAGE, ranged attacks against it have DISADVANTAGE, and standing up costs half its movement (or its turn if immobilized). Always apply Disadvantage when a Prone enemy attacks!
   * Precision Attack: adds +1d8 to the ATTACK roll ONLY (never added to damage).
-  * Trip Attack: triggers ON A MELEE HIT, adding +1d8 to DAMAGE and forcing a STR save.
+  * Trip Attack: triggers ON A MELEE HIT, adding +1d8 to DAMAGE and forcing a STR save (knocking target Prone on failure; update enemy "status" to "Prone").
   * Action Surge grants an extra Action; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
 - ACTIVE ENEMIES & TELEGRAPHED INTENT: Basic mobs do NOT get free Ripostes on every missed player swing, but Bosses/Elites may have a defined 1/round Reaction, and ALL active enemies must still fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field.
 - TELEGRAPH AT ROUND END: At the end of a combat round, weave what active enemies are preparing next into "narrative" so the player feels the threat closing in.
@@ -3094,6 +3165,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
           if (parsed.combat && typeof parsed.combat === 'object') {
             state.combatState = normalizeCombatStateMachine(parsed.combat, state.combatState);
+            state.combatState = advanceRoundAfterTurn(state.combatState, parsed.narrative || '', rollObj);
             const extractedBoard = extractCombatantInitiatives(parsed.combat, parsed.narrative || '', rollObj);
             if (extractedBoard.length > 0) {
               state.initiativeBoard = extractedBoard;
@@ -3911,6 +3983,24 @@ function resolveNextGold(dmResult, baseGold) {
       rollOverlay.classList.remove('hidden');
     }
 
+    function extractBonusDieSidesFromText(text) {
+      const m = String(text || '').match(/\+\s*1d(4|6|8|10|12)\b/i);
+      return m ? Number(m[1]) : 0;
+    }
+
+    function isExplicitDamageOption(opt) {
+      const combined = `${opt?.label || ''} ${opt?.skill || ''} ${opt?.action || ''}`.toLowerCase();
+      if (/\battack\s*roll\b|\bto\s*hit\b|\bvs\.?\s*ac\b|\b-\s*ac\s*\d*\b/i.test(combined)) {
+        return false;
+      }
+      return /\bdamage\b|\bdmg\b|\bhealing\b|\bhit\s*die\b/i.test(combined);
+    }
+
+    function hasProneEnemyTarget() {
+      const enemies = Array.isArray(state.combatState?.enemies) ? state.combatState.enemies : [];
+      return enemies.some((e) => (Number(e.hp) || 0) > 0 && /\bprone\b/i.test(String(e.status || '')));
+    }
+
     function renderSuggestedButtons(cardEl, suggestions, autoScroll = true) {
       if (!cardEl || !Array.isArray(suggestions) || suggestions.length === 0) return;
       const btnRow = document.createElement('div');
@@ -3923,18 +4013,34 @@ function resolveNextGold(dmResult, baseGold) {
         const mod = Number(opt.mod) || 0;
         const dc = Number(opt.dc) || 0;
         const diceCount = Math.max(1, Number(opt.dice_count) || 1);
-        const rawMode = (opt.mode || 'normal').toLowerCase().trim();
-        const normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
-        const isAttack = Boolean(opt._forceAttackAc) || inferIsAttackRoll(skill);
         const sides = Number(opt.sides) || 20;
-        const isSavingThrowChoice = /\bsave\b|\bsaving throw\b/i.test(`${actionLabel} ${skill}`);
-        const isManeuverAttackChoice = !isSavingThrowChoice && /precision|maneuver|superiority/i.test(`${actionLabel} ${skill}`) && !/damage/i.test(`${actionLabel} ${skill}`);
-        const isManeuverChoice = !isSavingThrowChoice && /precision|maneuver|superiority|trip attack|riposte|menacing|goading/i.test(
-          `${actionLabel} ${skill}`
-        );
-        const isDamageOrHeal = !isSavingThrowChoice && !isManeuverAttackChoice && (/damage|healing|hit die/i.test(skill) || sides !== 20 || diceCount > 1);
+        const combinedText = `${actionLabel} ${skill}`;
 
-        const dieTag = (sides !== 20 || diceCount > 1) ? `${diceCount}d${sides}` : '';
+        const isSavingThrowChoice = /\bsave\b|\bsaving throw\b/i.test(combinedText);
+        const isDamageOrHeal = !isSavingThrowChoice && (
+          isExplicitDamageOption(opt)
+          || (sides !== 20 && !/\battack\b|\bstrike\b|\bslash\b|\bshot\b/i.test(combinedText))
+        );
+        const isAttack = !isSavingThrowChoice && !isDamageOrHeal && (
+          Boolean(opt._forceAttackAc)
+          || inferIsAttackRoll(skill)
+          || /\battack\b|\bstrike\b|\bslash\b|\bshot\b/i.test(combinedText)
+        );
+        const isManeuverAttackChoice = isAttack && /precision|maneuver|superiority/i.test(combinedText);
+        const isManeuverChoice = !isSavingThrowChoice && /precision|maneuver|superiority|trip attack|riposte|menacing|goading/i.test(combinedText);
+
+        const effectiveSides = isAttack ? 20 : sides;
+        const effectiveDiceCount = isAttack ? 1 : diceCount;
+        const inferredBonusSides = isManeuverAttackChoice ? (extractBonusDieSidesFromText(combinedText) || 8) : 0;
+
+        const rawMode = (opt.mode || 'normal').toLowerCase().trim();
+        let normalizedMode = validModes.has(rawMode) ? rawMode : 'normal';
+        const isRangedAttack = /\b(javelin|bow|crossbow|bolt|arrow|dart|sling|ranged|throw|thrown)\b/i.test(combinedText);
+        if (isAttack && normalizedMode === 'normal' && hasProneEnemyTarget()) {
+          normalizedMode = isRangedAttack ? 'disadvantage' : 'advantage';
+        }
+
+        const dieTag = (effectiveSides !== 20 || effectiveDiceCount > 1) ? `${effectiveDiceCount}d${effectiveSides}` : '';
         const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
         const rollSpec = `${dieTag}${modStr}`;
         const targetLabel = isAttack ? 'AC' : 'DC';
@@ -3972,14 +4078,21 @@ function resolveNextGold(dmResult, baseGold) {
           setRollMode(normalizedMode);
           openRollOverlay({
             label: skill,
-            subtitle: `${inferRollSubtitle(skill, sides, diceCount)}${modeBadge}`,
-            sides,
-            diceCount,
+            subtitle: `${inferRollSubtitle(skill, effectiveSides, effectiveDiceCount)}${modeBadge}`,
+            sides: effectiveSides,
+            diceCount: effectiveDiceCount,
             mod,
             dc,
             isAttack,
             fullLabel: `${skill}${dc > 0 ? ` (${targetLabel} ${dc})` : ''}${modeBadge}`,
           });
+          if (inferredBonusSides > 0) {
+            const bonusSel = document.getElementById('bonus-die-select');
+            if (bonusSel) {
+              bonusSel.value = String(inferredBonusSides);
+              bonusSel.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
         });
         btnRow.appendChild(btn);
       });
