@@ -626,7 +626,10 @@
         parts.push(cleanedNarrative);
       }
       if (bracketMath.length > 0) {
-        parts.push(bracketMath.join(' · '));
+        const formattedMath = bracketMath
+          .map((line) => line.replace(/\s*\u00b7\s*(?=[A-Za-z0-9_' -]+\s+Initiative:)/gi, '\n'))
+          .join('\n');
+        parts.push(formattedMath);
       }
 
       const nextPrompt = `What does ${charFirstName} do next?`;
