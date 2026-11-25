@@ -4074,6 +4074,32 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
         if (state.combatState) {
           state.combatState = applyDeterministicEnemyDamage(state.combatState, rollObj, dmResult.narrative || '');
+
+          if (state.combatState && state.combatState.active && Array.isArray(state.combatState.turn_order) && state.combatState.turn_order.length > 1) {
+            const activeChar = String(state.characterName || 'Player').toLowerCase();
+            const curTurnLower = String(state.combatState.current_turn || '').toLowerCase();
+            const isPlayerTurn = !curTurnLower || curTurnLower.includes(activeChar) || /\b(player|pc)\b/i.test(curTurnLower);
+            const econ = state.combatState.economy || {};
+            const playerActed = econ.actionUsed || econ.bonusActionUsed || econ.movementUsed || (rollObj && !/\binitiative\b/i.test(rollObj.label || ''));
+
+            if (isPlayerTurn && playerActed && econ.phase !== 'awaiting_damage') {
+              const curIdx = state.combatState.turn_order.findIndex((slot) =>
+                String(slot || '').toLowerCase().includes(activeChar) || /\b(player|pc)\b/i.test(String(slot || ''))
+              );
+              if (curIdx !== -1) {
+                const nextSlot = state.combatState.turn_order[(curIdx + 1) % state.combatState.turn_order.length];
+                if (nextSlot && !String(nextSlot).toLowerCase().includes(activeChar)) {
+                  state.combatState.current_turn = String(nextSlot).trim();
+                  state.combatState.economy.phase = 'enemy_turn';
+                }
+              }
+            }
+          }
+
+          if (state.combatState && !state.combatState.active) {
+            state.combatState = null;
+          }
+
           renderCombatTrackerUI();
           saveCampaignMemory(cfg.profileId);
         }
