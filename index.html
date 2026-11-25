@@ -2282,6 +2282,59 @@ function ensureCombatEconomy() {
       return combatState;
     }
 
+    function applyRestAndConditionRules(actionText, dmNarrative = '') {
+      const combined = `${actionText || ''} ${dmNarrative || ''}`;
+      const isLongRest = /\blong\s+rest\b/i.test(combined);
+      const isShortRest = !isLongRest && /\bshort\s+rest\b/i.test(combined);
+
+      if (!isLongRest && !isShortRest) return false;
+
+      let changed = false;
+      const parsed = state.files.character.content
+        ? parseCharacterMarkdown(state.files.character.content)
+        : state.parsedChar;
+
+      if (isLongRest && parsed.maxHp !== null && parsed.hp !== parsed.maxHp) {
+        state.parsedChar.hp = parsed.maxHp;
+        if (state.files.character.content) {
+          state.files.character.content = replaceStatInMarkdown(
+            state.files.character.content,
+            '(?:Current\\s+)?HP|Hit\\s*Points',
+            `${parsed.maxHp} / ${parsed.maxHp}`
+          );
+        }
+        changed = true;
+      }
+
+      const targetResList = state.parsedChar.resources || parsed.resources || [];
+      targetResList.forEach((res) => {
+        const nameLower = String(res.name || '').toLowerCase();
+        const shouldRefill = isLongRest || /\b(superiority|pact|ki|channel\s*divinity|second\s*wind)\b/.test(nameLower);
+        if (shouldRefill && res.cur < res.max) {
+          res.cur = res.max;
+          if (state.files.character.content) {
+            state.files.character.content = replaceResourceInMarkdown(
+              state.files.character.content,
+              res.name,
+              res.max,
+              res.max
+            );
+          }
+          changed = true;
+        }
+      });
+
+      if (state.combatState?.economy) {
+        state.combatState.economy.dodging = false;
+        state.combatState.economy.disengaged = false;
+        state.combatState.economy.actionUsed = false;
+        state.combatState.economy.bonusActionUsed = false;
+        state.combatState.economy.movementUsed = false;
+      }
+
+      return changed;
+    }
+
     function sanitizeSuggestedRolls(rawList) {
       const econ = ensureCombatEconomy();
       const list = Array.isArray(rawList) ? rawList : [];
@@ -2813,8 +2866,11 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       return changed;
     }
 
-    function applyUpdatesToMarkdown(dmResult, cfg) {
+    function applyUpdatesToMarkdown(dmResult, cfg, actionText = '') {
       const dirtyKeys = new Set();
+      if (applyRestAndConditionRules(actionText, dmResult?.narrative || '')) {
+        if (state.files.character.path) dirtyKeys.add('character');
+      }
       ['campaign', 'story', 'character', 'sessionLog'].forEach((key) => {
         if (applySingleFileUpdate(key, dmResult, cfg)) {
           dirtyKeys.add(key);
