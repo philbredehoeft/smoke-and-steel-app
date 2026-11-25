@@ -153,6 +153,47 @@
           </div>
         </div>
 
+        <!-- Concentration Tracker -->
+        <div id="concentration-wrap" class="hidden p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/35 space-y-1.5 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-amber-300">Concentrating</span>
+            <button id="btn-drop-concentration" type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300">Drop</button>
+          </div>
+          <div id="concentration-spell" class="font-semibold text-amber-100 truncate"></div>
+        </div>
+
+        <!-- Death Saving Throws Tracker -->
+        <div id="death-saves-wrap" class="hidden p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/40 space-y-2 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-rose-300">Death Saving Throws</span>
+            <button id="btn-reset-death-saves" type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300">Reset</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-[11px] text-emerald-300">
+                <span>Successes</span>
+                <span id="ds-success-count" class="font-bold">0/3</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <button type="button" data-ds-type="successes" data-ds-delta="-1" class="ds-adj-btn px-1.5 py-0.5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300">-</button>
+                <div id="ds-success-pips" class="flex items-center gap-1 flex-1 justify-center"></div>
+                <button type="button" data-ds-type="successes" data-ds-delta="1" class="ds-adj-btn px-1.5 py-0.5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300">+</button>
+              </div>
+            </div>
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-[11px] text-rose-300">
+                <span>Failures</span>
+                <span id="ds-failure-count" class="font-bold">0/3</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <button type="button" data-ds-type="failures" data-ds-delta="-1" class="ds-adj-btn px-1.5 py-0.5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300">-</button>
+                <div id="ds-failure-pips" class="flex items-center gap-1 flex-1 justify-center"></div>
+                <button type="button" data-ds-type="failures" data-ds-delta="1" class="ds-adj-btn px-1.5 py-0.5 rounded bg-canvas hover:bg-stone-700 border border-stone-700 text-stone-300">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Class Resources & Slots -->
         <div id="resources-wrap" class="hidden space-y-1.5">
           <p class="text-xs font-semibold text-stone-300">Class Resources</p>
@@ -717,6 +758,8 @@
       lastFailedRequest: null,
       wakeLock: null,
       characterName: 'Player',
+      concentrationSpell: '',
+      deathSaves: { successes: 0, failures: 0 },
       storyEntries: [],
       turnHistory: [],
       combatState: null,
@@ -1623,6 +1666,8 @@
           );
         }
         renderCharacterUI(state.parsedChar);
+    renderConcentrationUI();
+    renderDeathSavesUI();
         scheduleCharacterStatCommit();
       } else if (kind === 'gold') {
         const nextGold = Math.max(0, (state.parsedChar.gold || 0) + delta);
@@ -1663,6 +1708,25 @@
       scheduleCharacterStatCommit();
     });
 
+    document.getElementById('btn-drop-concentration').addEventListener('click', () => {
+      dropConcentration(`Dropped concentration on ${state.concentrationSpell}.`);
+    });
+    document.getElementById('btn-reset-death-saves').addEventListener('click', () => {
+      state.deathSaves = { successes: 0, failures: 0 };
+      renderDeathSavesUI();
+      saveCampaignMemory();
+    });
+    document.getElementById('death-saves-wrap').addEventListener('click', (e) => {
+      const btn = e.target.closest('.ds-adj-btn');
+      if (!btn) return;
+      const kind = btn.dataset.dsType;
+      const delta = Number(btn.dataset.dsDelta) || 0;
+      if (kind !== 'successes' && kind !== 'failures') return;
+      state.deathSaves = state.deathSaves || { successes: 0, failures: 0 };
+      state.deathSaves[kind] = Math.max(0, Math.min(3, (Number(state.deathSaves[kind]) || 0) + delta));
+      renderDeathSavesUI();
+      saveCampaignMemory();
+    });
     document.getElementById('btn-hp-minus').addEventListener('click', () => adjustCharacterStat('hp', -1));
     document.getElementById('btn-hp-plus').addEventListener('click', () => adjustCharacterStat('hp', 1));
     document.getElementById('btn-gold-minus').addEventListener('click', () => adjustCharacterStat('gold', -1));
@@ -2335,6 +2399,133 @@ function ensureCombatEconomy() {
       return changed;
     }
 
+    function renderConcentrationUI() {
+      const wrap = document.getElementById('concentration-wrap');
+      const spellEl = document.getElementById('concentration-spell');
+      if (!wrap || !spellEl) return;
+      const spell = String(state.concentrationSpell || '').trim();
+      if (!spell) {
+        wrap.classList.add('hidden');
+        spellEl.textContent = '';
+        return;
+      }
+      spellEl.textContent = spell;
+      wrap.classList.remove('hidden');
+    }
+
+    function renderDeathSavesUI() {
+      const wrap = document.getElementById('death-saves-wrap');
+      const succEl = document.getElementById('ds-success-count');
+      const failEl = document.getElementById('ds-failure-count');
+      const succPips = document.getElementById('ds-success-pips');
+      const failPips = document.getElementById('ds-failure-pips');
+      if (!wrap || !succEl || !failEl || !succPips || !failPips) return;
+
+      const hp = state.parsedChar?.hp;
+      const ds = state.deathSaves || { successes: 0, failures: 0 };
+      const succ = Math.max(0, Math.min(3, Number(ds.successes) || 0));
+      const fail = Math.max(0, Math.min(3, Number(ds.failures) || 0));
+      const show = (hp !== null && Number(hp) <= 0) || succ > 0 || fail > 0;
+
+      if (!show) {
+        wrap.classList.add('hidden');
+        return;
+      }
+
+      succEl.textContent = `${succ}/3`;
+      failEl.textContent = `${fail}/3`;
+      succPips.innerHTML = [0, 1, 2].map((i) =>
+        `<span class="h-2.5 w-2.5 rounded-full border ${i < succ ? 'bg-emerald-400 border-emerald-300' : 'bg-canvas border-stone-600'}"></span>`
+      ).join('');
+      failPips.innerHTML = [0, 1, 2].map((i) =>
+        `<span class="h-2.5 w-2.5 rounded-full border ${i < fail ? 'bg-rose-500 border-rose-400' : 'bg-canvas border-stone-600'}"></span>`
+      ).join('');
+      wrap.classList.remove('hidden');
+    }
+
+    function dropConcentration(reasonText = 'Concentration ended.') {
+      if (!state.concentrationSpell) return false;
+      state.concentrationSpell = '';
+      renderConcentrationUI();
+      saveCampaignMemory();
+      if (reasonText) appendSystemMessage(reasonText, 'warn');
+      return true;
+    }
+
+    function applyConcentrationAndDeathSaveRules(actionText, dmResult, rollObj) {
+      const narrative = String(dmResult?.narrative || '');
+      const playerBeat = String(dmResult?.player_beat || '');
+      const act = String(actionText || '');
+      const combined = `${act} ${playerBeat} ${narrative}`;
+
+      // 1. Concentration start / drop / damage check
+      if (/ (?:drop|end|release|cancel)\s+concentration /i.test(act) || / concentration\s+(?:is\s+)?(?:broken|lost|ended|dropped) /i.test(narrative)) {
+        if (state.concentrationSpell) {
+          state.concentrationSpell = '';
+        }
+      } else {
+        const castMatch = combined.match(/ (?:concentrat(?:e|ing|ion)\s+(?:on|upon)|casts?\s+)([A-Z][A-Za-z0-9'’ -]{2,32})/i);
+        const spellName = castMatch ? castMatch[1].replace(/\s+(?:spell|at\s+\d+(?:st|nd|rd|th)\s+level).*$/i, '').trim() : '';
+        if (spellName && / concentrat/i.test(combined) && !/ (?:drop|end|break|lose|lost|broken)\s+concentration /i.test(combined)) {
+          state.concentrationSpell = spellName;
+        }
+      }
+
+      const hpDelta = Number(dmResult?.hp_delta) || 0;
+      const tookDamage = hpDelta < 0 || (state.parsedChar?.hp !== null && state.parsedChar?.maxHp !== null && state.parsedChar.hp < (state.parsedChar._prevHp ?? state.parsedChar.hp));
+      if (state.concentrationSpell && tookDamage) {
+        const dmgAmt = Math.abs(hpDelta) || 1;
+        const conDc = Math.max(10, Math.floor(dmgAmt / 2));
+        appendSystemMessage(`${state.characterName || 'Player'} took damage while concentrating on ${state.concentrationSpell} — make a Constitution saving throw (DC ${conDc}) or lose concentration.`, 'warn');
+      }
+      if (state.parsedChar) {
+        state.parsedChar._prevHp = state.parsedChar.hp;
+      }
+
+      // 2. Death Saving Throws when at 0 HP
+      if (!state.deathSaves) state.deathSaves = { successes: 0, failures: 0 };
+      const curHp = state.parsedChar?.hp;
+      if (curHp !== null && Number(curHp) > 0) {
+        state.deathSaves = { successes: 0, failures: 0 };
+      } else if (curHp !== null && Number(curHp) <= 0) {
+        if (hpDelta < 0) {
+          const isCritHit = Boolean(rollObj?.isCrit) || / critical\s+hit /i.test(narrative);
+          state.deathSaves.failures = Math.min(3, state.deathSaves.failures + (isCritHit ? 2 : 1));
+        }
+        const labelLower = String(rollObj?.label || '').toLowerCase();
+        if (/ death\s*(?:save|saving\s*throw) /i.test(labelLower) && rollObj) {
+          const isNat20 = Number(rollObj.sides) === 20 && (Number(rollObj.diceCount) || 1) === 1 && Number(rollObj.raw) === 20;
+          const isNat1 = Number(rollObj.sides) === 20 && (Number(rollObj.diceCount) || 1) === 1 && Number(rollObj.raw) === 1;
+          if (isNat20) {
+            state.deathSaves = { successes: 0, failures: 0 };
+            state.parsedChar.hp = 1;
+            if (state.files.character.content && state.parsedChar.maxHp !== null) {
+              state.files.character.content = replaceStatInMarkdown(
+                state.files.character.content,
+                '(?:Current\s+)?HP|Hit\s*Points',
+                `1 / ${state.parsedChar.maxHp}`
+              );
+            }
+            appendSystemMessage(`Natural 20 on Death Save! ${state.characterName || 'Player'} regains 1 HP and rises!`, 'success');
+          } else if (isNat1) {
+            state.deathSaves.failures = Math.min(3, state.deathSaves.failures + 2);
+          } else if (Number(rollObj.total) >= 10) {
+            state.deathSaves.successes = Math.min(3, state.deathSaves.successes + 1);
+          } else {
+            state.deathSaves.failures = Math.min(3, state.deathSaves.failures + 1);
+          }
+        }
+        if (state.deathSaves.successes >= 3) {
+          appendSystemMessage(`${state.characterName || 'Player'} is stabilized (3 Death Save successes)!`, 'success');
+        } else if (state.deathSaves.failures >= 3) {
+          appendSystemMessage(`${state.characterName || 'Player'} has suffered 3 Death Save failures.`, 'error');
+        }
+      }
+
+      renderConcentrationUI();
+      renderDeathSavesUI();
+    }
+
     function sanitizeSuggestedRolls(rawList) {
       const econ = ensureCombatEconomy();
       const list = Array.isArray(rawList) ? rawList : [];
@@ -2866,7 +3057,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       return changed;
     }
 
-    function applyUpdatesToMarkdown(dmResult, cfg, actionText = '') {
+    function applyUpdatesToMarkdown(dmResult, cfg, actionText = '', rollObj = null) {
       const dirtyKeys = new Set();
       if (applyRestAndConditionRules(actionText, dmResult?.narrative || '')) {
         if (state.files.character.path) dirtyKeys.add('character');
@@ -2883,6 +3074,8 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         renderCharacterUI(state.parsedChar);
       }
       renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
+      applyConcentrationAndDeathSaveRules(actionText, dmResult, rollObj);
+      saveCampaignMemory(cfg?.profileId);
 
       return dirtyKeys;
     }
@@ -4177,7 +4370,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           appendSystemMessage(`Auto-switched DM model from ${dmResult._autoSwitchedFrom} to ${dmResult._autoSwitchedTo} due to busy/quota limits.`, 'info');
         }
 
-        const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg, text);
+        const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg, text, rollObj);
         if (cfg.ghToken && dirtyKeys.size > 0) {
           updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
           await persistMarkdownToGitHub(cfg, dirtyKeys, dmResult);
