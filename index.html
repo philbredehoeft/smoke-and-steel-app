@@ -2134,6 +2134,7 @@ function ensureCombatEconomy() {
       if (/\bdamage\b/.test(labelLower) && !/\battack\b/.test(labelLower)) {
         econ.lastRollType = 'damage';
         econ.lastRollHit = null;
+        econ.lastRollCrit = false;
         econ.phase = 'player_turn';
         return;
       }
@@ -2235,6 +2236,9 @@ function ensureCombatEconomy() {
       const list = Array.isArray(rawList) ? rawList : [];
       const enemyAc = getPrimaryEnemyAC();
       const activeCharName = String(state.characterName || state.character?.name || '').toLowerCase();
+      const inActiveCombat = Boolean(state.combatState?.active);
+      const blockMainAction = inActiveCombat && Boolean(econ.actionUsed) && econ.phase !== 'awaiting_damage';
+
       const cleaned = list
         .filter((item) => item && typeof item === 'object')
         .filter((item) => {
@@ -2248,6 +2252,19 @@ function ensureCombatEconomy() {
           if (kind === 'damage' && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) {
             return false;
           }
+
+          if (econ.dodging && /\bdodge\b/.test(combined)) return false;
+          if (econ.disengaged && /\bdisengage\b/.test(combined)) return false;
+          if (econ.bonusActionUsed && /\b(bonus\s*action|second\s*wind|cunning\s*action|misty\s*step)\b/.test(combined)) return false;
+
+          if (blockMainAction) {
+            const isSavingOrReactionOrBonus = /\b(save|saving\s*throw|reaction|bonus|perception|insight|stealth|check)\b/.test(combined);
+            const looksLikeMainAction = kind === 'attack' || /\b(dodge|dash|disengage|cast\s+spell)\b/.test(combined);
+            if (looksLikeMainAction && !isSavingOrReactionOrBonus) return false;
+          }
+
+          return true;
+        })
 
           if (econ.dodging && /\bdodge\b/.test(combined)) return false;
           if (econ.disengaged && /\bdisengage\b/.test(combined)) return false;
