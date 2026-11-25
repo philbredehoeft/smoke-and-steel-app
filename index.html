@@ -2186,6 +2186,7 @@ function ensureCombatEconomy() {
       if (/\binitiative\b/.test(labelLower)) {
         econ.lastRollType = 'initiative';
         econ.lastRollHit = null;
+        econ.lastRollCrit = false;
         econ.phase = 'player_turn';
         econ.actionUsed = false;
         econ.bonusActionUsed = false;
@@ -2203,16 +2204,35 @@ function ensureCombatEconomy() {
         return;
       }
 
-      const isAttack = Boolean(state.isAttackRoll) || /\b(attack|strike|slash|shot|javelin|longsword|bow|bolt|ray)\b/.test(labelLower);
+      if (/\bhealing\b|\bsecond\s*wind\b|\bhit\s*die\b/.test(labelLower)) {
+        econ.lastRollType = 'healing';
+        econ.lastRollHit = null;
+        econ.lastRollCrit = false;
+        if (/\bsecond\s*wind\b/.test(labelLower)) {
+          econ.bonusActionUsed = true;
+        }
+        return;
+      }
+
+      const isAttack = Boolean(state.isAttackRoll) || (/\b(attack|strike|slash|shot|javelin|longsword|bow|bolt|ray)\b/.test(labelLower) && !/\bdamage\b/.test(labelLower));
       if (isAttack) {
         const evalRes = evaluateAttackOutcome(rollObj);
         econ.lastRollType = 'attack';
-        econ.actionUsed = true;
         econ.lastRollHit = Boolean(evalRes.hit);
         econ.lastRollCrit = Boolean(evalRes.isCrit);
-        econ.phase = evalRes.hit ? 'awaiting_damage' : 'player_turn';
+        if (evalRes.hit) {
+          econ.phase = 'awaiting_damage';
+        } else {
+          econ.phase = 'player_turn';
+        }
+        if (/\baction\s*surge\b/.test(labelLower)) {
+          econ.actionSurgeUsed = true;
+          econ.actionUsed = !evalRes.hit;
+        } else {
+          econ.actionUsed = true;
+        }
         return;
-      }      
+      }
 
       econ.lastRollType = 'other';
       econ.lastRollHit = null;
@@ -2245,7 +2265,8 @@ function ensureCombatEconomy() {
             .filter((e) => e && typeof e === 'object' && String(e.name || '').trim())
             .map((e) => {
               const maxHp = Math.max(1, Number(e.max_hp) || Number(e.hp) || 1);
-              const hp = Math.max(0, Math.min(maxHp, Number(e.hp) ?? maxHp));
+              const rawHp = Number(e.hp);
+              const hp = Number.isFinite(rawHp) ? Math.max(0, Math.min(maxHp, rawHp)) : maxHp;
               return {
                 name: String(e.name).trim(),
                 ac: Math.max(1, Number(e.ac) || 10),
@@ -2279,6 +2300,7 @@ function ensureCombatEconomy() {
         lastRollCrit: Boolean(prevEcon.lastRollCrit),
         lastRollTotal: typeof prevEcon.lastRollTotal === 'number' ? prevEcon.lastRollTotal : null,
         actionUsed: freshRoundEcon ? false : Boolean(prevEcon.actionUsed),
+        actionSurgeUsed: freshRoundEcon ? false : Boolean(prevEcon.actionSurgeUsed),
         bonusActionUsed: freshRoundEcon ? false : Boolean(prevEcon.bonusActionUsed),
         movementUsed: freshRoundEcon ? false : Boolean(prevEcon.movementUsed),
         disengaged: freshRoundEcon ? false : Boolean(prevEcon.disengaged),
@@ -2311,17 +2333,28 @@ function ensureCombatEconomy() {
         const activeEnemies = combatState.enemies.filter((e) => (Number(e.hp) || 0) > 0);
         if (activeEnemies.length > 0) {
           const target = activeEnemies.find((e) =>
-            new RegExp(`\\b${escapeRegex(e.name)}\\b`, 'i').test(dmNarrative || '')
+            new RegExp(`\b${escapeRegex(e.name)}\b`, 'i').test(dmNarrative || '')
           ) || activeEnemies[0];
 
           const alreadyAppliedInText = new RegExp(
-            `${escapeRegex(target.name)}\\s+HP:\\s*${target.hp}\\s*(?:->|→|to)\\s*${Math.max(0, target.hp - dmg)}`,
+            `${escapeRegex(target.name)}\s+HP:\s*-?\d+\s*(?:->|→|to)\s*-?\d+`,
             'i'
           ).test(dmNarrative || '');
 
-          if (!alreadyAppliedInText && target.hp === (Number(target.max_hp) || target.hp)) {
-            target.hp = Math.max(0, target.hp - dmg);
-            if (target.hp <= 0) target.status = 'Defeated';
+          if (!alreadyAppliedInText) {
+            target.hp = Math.max(0, (Number(target.hp) || 0) - dmg);
+            if (target.hp <= 0) {
+              target.hp = 0;
+              target.status = 'Defeated';
+              target.intent = '';
+            }
+          } else {
+            target.hp = Math.max(0, Number(target.hp) || 0);
+            if (target.hp <= 0) {
+              target.hp = 0;
+              target.status = 'Defeated';
+              target.intent = '';
+            }
           }
         }
       }
@@ -2331,10 +2364,12 @@ function ensureCombatEconomy() {
         return {
           ...combatState,
           active: false,
+          enemies: combatState.enemies.map((e) => ({ ...e, hp: 0, status: 'Defeated', intent: '' })),
           economy: {
             ...(combatState.economy || {}),
             phase: 'story',
             actionUsed: false,
+            actionSurgeUsed: false,
             bonusActionUsed: false,
             movementUsed: false,
             disengaged: false,
@@ -2346,7 +2381,7 @@ function ensureCombatEconomy() {
       return combatState;
     }
 
-    function applyRestAndConditionRules(actionText, dmNarrative = '') {
+function applyRestAndConditionRules(actionText, dmNarrative = '') {
       const combined = `${actionText || ''} ${dmNarrative || ''}`;
       const isLongRest = /\blong\s+rest\b/i.test(combined);
       const isShortRest = !isLongRest && /\bshort\s+rest\b/i.test(combined);
@@ -2544,7 +2579,13 @@ function ensureCombatEconomy() {
 
           const kind = classifySuggestedRoll(item);
 
+          // Only show damage options right after a confirmed hit
           if (kind === 'damage' && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) {
+            return false;
+          }
+
+          // Do not show "(on hit)" maneuver riders unless an attack just hit
+          if (/\(\s*on\s*hit\s*\)/i.test(`${item.label || ''} ${item.action || ''}`) && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) {
             return false;
           }
 
@@ -2553,24 +2594,23 @@ function ensureCombatEconomy() {
           if (econ.bonusActionUsed && /\b(bonus\s*action|second\s*wind|cunning\s*action|misty\s*step)\b/.test(combined)) return false;
 
           if (blockMainAction) {
-            const isSavingOrReactionOrBonus = /\b(save|saving\s*throw|reaction|bonus|perception|insight|stealth|check)\b/.test(combined);
+            const isSavingOrReactionOrBonus = /\b(save|saving\s*throw|reaction|bonus|perception|insight|stealth|check|action\s*surge)\b/.test(combined);
             const looksLikeMainAction = kind === 'attack' || /\b(dodge|dash|disengage|cast\s+spell)\b/.test(combined);
             if (looksLikeMainAction && !isSavingOrReactionOrBonus) return false;
           }
 
           return true;
         })
-      
         .map((item) => {
           const copy = { ...item };
           const kind = classifySuggestedRoll(copy);
           const combined = `${copy.label || ''} ${copy.skill || ''} ${copy.action || ''}`.toLowerCase();
 
-          if (/\btrip\s*attack\b/.test(combined) && kind === 'attack') {
-            copy.label = copy.label || 'Trip Attack (On Hit: +1d8 Dmg & STR Save)';
-            copy.skill = 'Maneuver (+1d8 Dmg · STR Save)';
+          if (/\btrip\s*attack\b/.test(combined) && kind === 'damage') {
+            copy.label = copy.label || 'Damage + Trip Attack (+1d8 Dmg)';
+            copy.skill = copy.skill || 'Damage + Maneuver (+1d8)';
             copy.sides = copy.sides || 8;
-            copy.dice_count = copy.dice_count || 1;
+            copy.dice_count = copy.dice_count || 2;
             copy.dc = 0;
             return copy;
           }
@@ -2601,8 +2641,8 @@ function ensureCombatEconomy() {
 
       return cleaned.slice(0, 3);
     }
-    
-    async function callGeminiDM(cfg, actionText, rollObj) {
+
+async function callGeminiDM(cfg, actionText, rollObj) {
       let rollLine = 'Dice Roll: None';
       if (rollObj) {
         const dicePrefix = rollObj.diceCount > 1 ? `${rollObj.diceCount}d${rollObj.sides}` : `d${rollObj.sides}`;
@@ -2892,8 +2932,10 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
       if (baseHp === null || maxHp === null) return null;
       const first = (playerName || 'Player').split(/\s+/)[0];
       const names = [playerName, first, 'Player'].filter(Boolean).map(escapeRegex);
-      const playerHpRx = new RegExp(`(?:${names.join('|')})\\s+HP:\\s*-?\\d+\\s*(?:->|→|to)\\s*(-?\\d+)`, 'i');
-      const playerMatch = (dmResult.narrative || '').match(playerHpRx);
+      const combinedText = `${dmResult.player_beat || ''} ${dmResult.narrative || ''}`;
+
+      const playerHpRx = new RegExp(`(?:${names.join('|')})\s+HP:\s*-?\d+\s*(?:->|→|to)\s*(-?\d+)`, 'i');
+      const playerMatch = combinedText.match(playerHpRx);
       if (playerMatch) {
         return Math.max(0, Math.min(maxHp, Number(playerMatch[1])));
       }
@@ -2908,14 +2950,22 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         return Math.max(0, Math.min(maxHp, baseHp + hpDelta));
       }
 
-      if (curHp > 0 && curHp !== baseHp) {
+      if (curHp >= 0 && curHp !== baseHp) {
         return Math.max(0, Math.min(maxHp, curHp));
+      }
+
+      const lastRoll = state.pendingRoll || state.lastRoll;
+      if (lastRoll && /\bhealing\b|\bsecond\s*wind\b|\bhit\s*die\b/i.test(String(lastRoll.label || ''))) {
+        const healAmt = Math.max(0, Number(lastRoll.total) || 0);
+        if (healAmt > 0 && baseHp < maxHp) {
+          return Math.max(0, Math.min(maxHp, baseHp + healAmt));
+        }
       }
 
       return null;
     }
 
-    function resolveNextGold(dmResult, baseGold) {
+function resolveNextGold(dmResult, baseGold) {
       const narrativeMatch = (dmResult.narrative || '').match(/\b(?:Gold|Currency|Coin):\s*-?\d+\s*(?:->|→|to)\s*(-?\d+)/i);
       if (narrativeMatch) {
         return Math.max(0, Number(narrativeMatch[1]));
@@ -4056,23 +4106,29 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
     useRollBtn.addEventListener('click', () => {
       if (!state.lastRoll) return;
-      state.pendingRoll = state.lastRoll;
+      const cleanRoll = {
+        ...state.lastRoll,
+        total: Number(state.lastRoll.total),
+        raw: Number(state.lastRoll.raw),
+        mod: Number(state.lastRoll.mod) || 0,
+      };
+      state.pendingRoll = cleanRoll;
       const pill = document.getElementById('pending-roll-pill');
-      const modStr = state.pendingRoll.mod ? ` (${state.pendingRoll.mod >= 0 ? '+' + state.pendingRoll.mod : state.pendingRoll.mod})` : '';
-      const bonusStr = state.pendingRoll.bonus ? ` +1d${state.pendingRoll.bonus.sides}(${state.pendingRoll.bonus.val})` : '';
-      const poolStr = Array.isArray(state.pendingRoll.rolls) && state.pendingRoll.rolls.length > 1 ? ` · [${state.pendingRoll.rolls.join(', ')}]` : '';
+      const modStr = cleanRoll.mod ? ` (${cleanRoll.mod >= 0 ? '+' + cleanRoll.mod : cleanRoll.mod})` : '';
+      const bonusStr = cleanRoll.bonus ? ` +1d${cleanRoll.bonus.sides}(${cleanRoll.bonus.val})` : '';
+      const poolStr = Array.isArray(cleanRoll.rolls) && cleanRoll.rolls.length > 1 ? ` · [${cleanRoll.rolls.join(', ')}]` : '';
 
-      document.getElementById('pending-roll-text').textContent = `${state.pendingRoll.label}: ${state.pendingRoll.total} [raw ${state.pendingRoll.raw}${modStr}${bonusStr}${poolStr}]`;
+      document.getElementById('pending-roll-text').textContent = `${cleanRoll.label}: ${cleanRoll.total} [raw ${cleanRoll.raw}${modStr}${bonusStr}${poolStr}]`;
       pill.classList.remove('hidden'); pill.classList.add('flex');
       rollOverlay.classList.add('hidden');
 
       const input = document.getElementById('action-input');
-      if (!input.value.trim()) input.value = `Attempt ${state.pendingRoll.label}`;
+      if (!input.value.trim()) input.value = `Attempt ${cleanRoll.label}`;
       const form = document.getElementById('action-form');
       if (form) { if (typeof form.requestSubmit === 'function') form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
     });
 
-    document.getElementById('btn-clear-roll').addEventListener('click', () => {
+document.getElementById('btn-clear-roll').addEventListener('click', () => {
       state.pendingRoll = null;
       const pill = document.getElementById('pending-roll-pill');
       pill.classList.add('hidden'); pill.classList.remove('flex');
@@ -4318,6 +4374,11 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
         if (state.combatState) {
           state.combatState = applyDeterministicEnemyDamage(state.combatState, rollObj, dmResult.narrative || '');
+          if (state.combatState && rollObj && /\bdamage\b/i.test(String(rollObj.label || '')) && state.combatState.economy) {
+            state.combatState.economy.phase = 'player_turn';
+            state.combatState.economy.lastRollHit = null;
+            state.combatState.economy.lastRollCrit = false;
+          }
 
           if (state.combatState && state.combatState.active && Array.isArray(state.combatState.turn_order) && state.combatState.turn_order.length > 1) {
             const activeChar = String(state.characterName || 'Player').toLowerCase();
@@ -4415,3 +4476,4 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
     }
   </script>
 </body>
+</html>
