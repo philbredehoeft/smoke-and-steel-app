@@ -88,11 +88,20 @@
           </div>
         </div>
 
+        <!-- Dedicated Visible Initiative Window (Highest to Lowest) -->
+        <div id="initiative-window" class="hidden px-3.5 py-2.5 bg-amber-950/20 border-b border-amber-500/30 text-xs">
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <span class="text-[10px] uppercase tracking-widest font-bold text-amber-300">Initiative Order (High → Low)</span>
+            <span id="initiative-round-label" class="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">Round 1</span>
+          </div>
+          <ol id="initiative-list" class="space-y-1"></ol>
+        </div>
+
         <!-- Temporary Active Combat & Initiative Tracker -->
         <div id="combat-tracker-bar" class="hidden px-3.5 py-2.5 bg-rose-950/25 border-b border-rose-500/30 space-y-2 text-xs"></div>
 
         <div id="story-log" class="flex-1 p-4 space-y-4 overflow-y-auto min-h-0 max-h-[calc(100dvh-13rem)] lg:max-h-[calc(100dvh-9.5rem)]"></div>
-        
+
         <!-- Bottom Action Input -->
         <form id="action-form" class="p-3 sm:p-4 border-t border-stone-800 bg-surface space-y-2.5">
           <div id="pending-roll-pill" class="hidden items-center justify-between px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200">
@@ -566,12 +575,66 @@
         .map((p) => p.trim())
         .filter(Boolean)
         .map((p) => {
+          if (/^ROUND\s+\d+$/i.test(p)) {
+            return `<div class="mt-4 mb-2 pt-2 border-t border-amber-500/30"><span class="inline-block font-display text-xs sm:text-sm uppercase tracking-[0.2em] text-amber-300 font-bold">${escapeHtml(p.toUpperCase())}</span></div>`;
+          }
+          if (/^(?:Attack|Damage|Initiative)\s*(?:Roll)?:/i.test(p) || /(?:\b(?:Attack|Damage)\b:[^\n]+(?:\s*\|\s*(?:Attack|Damage)\b:[^\n]+)*)/i.test(p)) {
+            const safeLine = escapeHtml(p)
+              .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+              .replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+            return `<p class="mt-2.5 pt-2 border-t border-stone-800/90 font-sans text-xs sm:text-[13px] text-amber-200/95 bg-black/25 px-3 py-2 rounded-lg tracking-wide">${safeLine}</p>`;
+          }
           const safe = escapeHtml(p)
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
           return `<p>${safe}</p>`;
         })
         .join('');
+    }
+
+    function extractBracketMathLines(text) {
+      const lines = [];
+      const rx = /\[([^\]]*(?:Attack|Damage|Slam|Hit|Miss|HP|Initiative|Save|DC|AC)[^\]]*)\]/gi;
+      let m;
+      while ((m = rx.exec(String(text || ''))) !== null) {
+        const clean = m[1].trim();
+        if (clean && !lines.includes(clean)) lines.push(clean);
+      }
+      return lines;
+    }
+
+    function buildStructuredDmProse(dmResult) {
+      const charFirstName = String(state.characterName || 'Kael').trim().split(/\s+/)[0] || 'Kael';
+      const rawNarrative = String(dmResult.narrative || '').trim();
+      const roundMatch = rawNarrative.match(/\bROUND\s+(\d+)\b/i);
+      const roundNum = roundMatch ? Number(roundMatch[1]) : (Number(state.combatState?.round) || 1);
+
+      const bracketMath = extractBracketMathLines(rawNarrative);
+      const cleanedNarrative = rawNarrative
+        .replace(/\[[^\]]*(?:Attack|Damage|Slam|Hit|Miss|HP|Initiative|Save|DC|AC)[^\]]*\]/gi, '')
+        .replace(/\bROUND\s+\d+\s*[—–-]\s*Turn\s+\d+\s*\([^)]+\)\s*/gi, '')
+        .replace(/\bROUND\s+\d+\s*:?\s*/gi, '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+      const parts = [];
+      if (state.combatState?.active || roundMatch || bracketMath.length > 0) {
+        parts.push(`ROUND ${roundNum}`);
+      }
+      if (cleanedNarrative) {
+        parts.push(cleanedNarrative);
+      }
+      if (bracketMath.length > 0) {
+        parts.push(bracketMath.join(' · '));
+      }
+
+      const nextPrompt = `What does ${charFirstName} do next?`;
+      if (!new RegExp(`what does ${escapeRegex(charFirstName)} do next\\??`, 'i').test(cleanedNarrative)) {
+        parts.push(nextPrompt);
+      }
+
+      return parts.join('\n\n').trim();
     }
 
     function trimMarkdownNotes(md, maxRecent = 10) {
@@ -763,6 +826,7 @@
       storyEntries: [],
       turnHistory: [],
       combatState: null,
+      initiativeBoard: [],
       logUpdatedAt: 0,
       logClearedAt: 0,
       charSyncTimer: null,
@@ -827,6 +891,101 @@
       await releaseWakeLock();
     }
 
+    // --- Dedicated Initiative Window (Highest to Lowest) ---
+
+    function extractCombatantInitiatives(combatObj, dmText = '', playerRoll = null) {
+      const entries = [];
+      const seen = new Set();
+      const playerName = String(state.characterName || 'Kael Vance').trim();
+      const playerFirst = playerName.split(/\s+/)[0];
+
+      const addEntry = (name, initVal, isPlayer = false) => {
+        const cleanName = String(name || '').trim();
+        const num = Number(initVal);
+        if (!cleanName || !Number.isFinite(num)) return;
+        const key = cleanName.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        entries.push({ name: cleanName, initiative: num, isPlayer });
+      };
+
+      if (playerRoll && /\binitiative\b/i.test(String(playerRoll.label || ''))) {
+        addEntry(playerName, Number(playerRoll.total), true);
+      }
+
+      if (Array.isArray(combatObj?.turn_order)) {
+        combatObj.turn_order.forEach((slot) => {
+          const m = String(slot || '').match(/^(.+?)\s*\(\s*([+-]?\d+)\s*\)$/);
+          if (m) {
+            const isP = m[1].toLowerCase().includes(playerFirst.toLowerCase()) || m[1].toLowerCase().includes(playerName.toLowerCase());
+            addEntry(isP ? playerName : m[1], Number(m[2]), isP);
+          }
+        });
+      }
+
+      const initPairRx = /\[([^\]]+?)\s+Initiative:\s*[^\]]*?=\s*([+-]?\d+)\]/gi;
+      let pm;
+      while ((pm = initPairRx.exec(String(dmText || ''))) !== null) {
+        const rawActor = pm[1].trim();
+        const isP = rawActor.toLowerCase().includes(playerFirst.toLowerCase()) || rawActor.toLowerCase().includes(playerName.toLowerCase());
+        addEntry(isP ? playerName : rawActor, Number(pm[2]), isP);
+      }
+
+      if (Array.isArray(combatObj?.enemies)) {
+        combatObj.enemies.forEach((en) => {
+          if (en && en.name && !seen.has(String(en.name).toLowerCase())) {
+            const fallbackEnemyInit = playerRoll && /\binitiative\b/i.test(String(playerRoll.label || ''))
+              ? Math.max(1, Number(playerRoll.total) + 2)
+              : 10;
+            addEntry(en.name, fallbackEnemyInit, false);
+          }
+        });
+      }
+
+      return entries.sort((a, b) => b.initiative - a.initiative);
+    }
+
+    function renderInitiativeWindowUI() {
+      const win = document.getElementById('initiative-window');
+      const listEl = document.getElementById('initiative-list');
+      const roundEl = document.getElementById('initiative-round-label');
+      if (!win || !listEl || !roundEl) return;
+
+      const board = Array.isArray(state.initiativeBoard) ? state.initiativeBoard : [];
+      const activeCombat = Boolean(state.combatState?.active);
+
+      if (!activeCombat && board.length === 0) {
+        win.classList.add('hidden');
+        listEl.innerHTML = '';
+        return;
+      }
+
+      const roundNum = Number(state.combatState?.round) || 1;
+      roundEl.textContent = `Round ${roundNum}`;
+
+      const currentTurn = String(state.combatState?.current_turn || '').toLowerCase();
+      listEl.innerHTML = board.map((item, idx) => {
+        const isCurrent = currentTurn && (
+          item.name.toLowerCase().includes(currentTurn)
+          || currentTurn.includes(item.name.toLowerCase())
+        );
+        const badgeClass = item.isPlayer
+          ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+          : 'bg-rose-500/15 border-rose-500/40 text-rose-200';
+        const activeRing = isCurrent ? 'ring-1 ring-amber-300/80 bg-amber-500/15' : 'bg-black/25';
+
+        return `<li class="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg border border-stone-800/90 ${activeRing}">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-[10px] font-bold text-stone-400 w-4">${idx + 1}.</span>
+            <span class="font-medium text-stone-100 truncate">${escapeHtml(item.name)}</span>
+          </div>
+          <span class="px-2 py-0.5 rounded border text-[11px] font-bold shrink-0 ${badgeClass}">Init ${item.initiative}</span>
+        </li>`;
+      }).join('');
+
+      win.classList.remove('hidden');
+    }
+
     // --- Live Combat & Initiative Tracker Bar ---
 
     function renderCombatTrackerUI() {
@@ -837,6 +996,7 @@
       if (!cs || !cs.active) {
         bar.classList.add('hidden');
         bar.innerHTML = '';
+        renderInitiativeWindowUI();
         return;
       }
 
@@ -890,6 +1050,7 @@
         ${turnLogHtml}
       `;
       bar.classList.remove('hidden');
+      renderInitiativeWindowUI();
     }
 
     // --- Per-Campaign Story Log, Rolling Turn Memory & Repo Session Log ---
@@ -916,10 +1077,12 @@
         state.logUpdatedAt = Number(meta.updatedAt) || 0;
         state.logClearedAt = Number(meta.clearedAt) || 0;
         state.combatState = meta.combatState || null;
+        state.initiativeBoard = Array.isArray(meta.initiativeBoard) ? meta.initiativeBoard : [];
       } catch (_) {
         state.logUpdatedAt = 0;
         state.logClearedAt = 0;
         state.combatState = null;
+        state.initiativeBoard = [];
       }
       state.lastFailedRequest = null;
       renderCombatTrackerUI();
@@ -935,6 +1098,7 @@
           updatedAt: state.logUpdatedAt,
           clearedAt: state.logClearedAt,
           combatState: state.combatState,
+          initiativeBoard: state.initiativeBoard,
         }));
       } catch (_) {}
     }
@@ -975,6 +1139,7 @@
         updatedAt: state.logUpdatedAt || Date.now(),
         location,
         combatState: state.combatState,
+        initiativeBoard: state.initiativeBoard,
         entries: recentEntries,
         turnHistory: recentTurns,
       }).replace(/-->/g, '--\\u003e');
@@ -1003,6 +1168,7 @@
           state.storyEntries = remoteEntries;
           state.turnHistory = remoteHistory;
           state.combatState = remote.combatState || null;
+          state.initiativeBoard = Array.isArray(remote.initiativeBoard) ? remote.initiativeBoard : [];
           state.logUpdatedAt = remoteUpdatedAt || Date.now();
           if (remote.location) {
             document.getElementById('scene-location').textContent = remote.location;
@@ -1046,11 +1212,17 @@
       const el = document.createElement('article');
       if (entry.type === 'dm') {
         el.className = 'p-4 rounded-xl bg-surfaceAlt/80 border border-stone-800/90';
+        const rollHeaderHtml = entry.rollSummary
+          ? `<div class="mb-2.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex flex-wrap items-center justify-between gap-2">
+               <span class="font-semibold">${escapeHtml(entry.rollSummary)}</span>
+               ${entry.actionNote ? `<span class="text-stone-300 font-normal">${escapeHtml(entry.actionNote)}</span>` : ''}
+             </div>`
+          : '';
         const beatHtml = entry.playerBeat
           ? `<div class="font-serif text-[16px] leading-relaxed text-stone-200 space-y-2.5 mb-3 pb-3 border-b border-stone-800/80">${formatProseHtml(entry.playerBeat)}</div>`
           : '';
         const narrativeHtml = `<div class="font-serif text-[17px] leading-relaxed text-stone-200 space-y-3">${formatProseHtml(entry.narrative)}</div>`;
-        el.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-amber-400 mb-1.5 font-semibold">${escapeHtml(entry.label || 'Dungeon Master')}</p>${beatHtml}${narrativeHtml}`;
+        el.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-amber-400 mb-1.5 font-semibold">${escapeHtml(entry.label || 'Dungeon Master')}</p>${rollHeaderHtml}${beatHtml}${narrativeHtml}`;
         if (attachSuggested && Array.isArray(entry.suggestedRolls) && entry.suggestedRolls.length > 0) {
           renderSuggestedButtons(el, entry.suggestedRolls, false);
         }
@@ -1100,6 +1272,7 @@
       }
 
       state.storyEntries.forEach((entry, idx) => {
+        if (entry.type === 'player' && entry.rollBadge) return;
         log.appendChild(buildEntryElement(entry, idx === lastDmIdx));
       });
       log.scrollTop = log.scrollHeight;
@@ -1117,6 +1290,10 @@
         state.logUpdatedAt = Date.now();
       }
       saveCampaignMemory();
+
+      if (entry.type === 'player' && entry.rollBadge) {
+        return;
+      }
 
       const log = document.getElementById('story-log');
       const cardEl = buildEntryElement(entry, true);
@@ -1956,6 +2133,7 @@
       state.repoAssets = [];
       state.assetCache = {};
       state.combatState = null;
+      state.initiativeBoard = [];
       state.lastFailedRequest = null;
       document.getElementById('scene-location').textContent = 'Opening Scene';
       renderCombatTrackerUI();
@@ -2097,6 +2275,7 @@
       state.storyEntries = [];
       state.turnHistory = [];
       state.combatState = null;
+      state.initiativeBoard = [];
       state.lastFailedRequest = null;
       state.logClearedAt = Date.now();
       state.logUpdatedAt = 0;
@@ -2912,6 +3091,10 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
           if (parsed.combat && typeof parsed.combat === 'object') {
             state.combatState = normalizeCombatStateMachine(parsed.combat, state.combatState);
+            const extractedBoard = extractCombatantInitiatives(parsed.combat, parsed.narrative || '', rollObj);
+            if (extractedBoard.length > 0) {
+              state.initiativeBoard = extractedBoard;
+            }
             renderCombatTrackerUI();
           }
 
@@ -4130,6 +4313,16 @@ function resolveNextGold(dmResult, baseGold) {
         mod: Number(state.lastRoll.mod) || 0,
       };
       state.pendingRoll = cleanRoll;
+      if (/\binitiative\b/i.test(String(cleanRoll.label || ''))) {
+        const playerName = String(state.characterName || 'Kael Vance').trim();
+        const existingEnemies = Array.isArray(state.combatState?.enemies) ? state.combatState.enemies : [];
+        const board = [{ name: playerName, initiative: cleanRoll.total, isPlayer: true }];
+        existingEnemies.forEach((en, i) => {
+          if (en && en.name) board.push({ name: en.name, initiative: Math.max(1, cleanRoll.total + 2 - i), isPlayer: false });
+        });
+        state.initiativeBoard = board.sort((a, b) => b.initiative - a.initiative);
+        renderInitiativeWindowUI();
+      }
       const pill = document.getElementById('pending-roll-pill');
       const modStr = cleanRoll.mod ? ` (${cleanRoll.mod >= 0 ? '+' + cleanRoll.mod : cleanRoll.mod})` : '';
       const bonusStr = cleanRoll.bonus ? ` +1d${cleanRoll.bonus.sides}(${cleanRoll.bonus.val})` : '';
@@ -4157,7 +4350,7 @@ document.getElementById('btn-clear-roll').addEventListener('click', () => {
     document.getElementById('btn-cancel-clear').addEventListener('click', () => clearModal.classList.add('hidden'));
     document.getElementById('btn-clear-chat-only').addEventListener('click', () => {
       clearModal.classList.add('hidden');
-      state.storyEntries = []; state.turnHistory = []; state.combatState = null; state.lastFailedRequest = null;
+      state.storyEntries = []; state.turnHistory = []; state.combatState = null; state.initiativeBoard = []; state.lastFailedRequest = null;
       state.logClearedAt = Date.now(); state.logUpdatedAt = 0;
       saveCampaignMemory();
       renderCombatTrackerUI();
@@ -4180,297 +4373,300 @@ document.getElementById('btn-clear-roll').addEventListener('click', () => {
       if (e.key === 'Escape') {
         if (!clearModal.classList.contains('hidden')) { clearModal.classList.add('hidden'); return; }
         if (!assetModal.classList.contains('hidden')) { assetModal.classList.add('hidden'); return; }
-        if (!settingsModal.classList.contains('hidden')) { settingsModal.classList.add('hidden'); return; }
-        if (!rollOverlay.classList.contains('hidden')) {
-          if (die3d.animId) cancelAnimationFrame(die3d.animId);
-          rollOverlay.classList.add('hidden');
-          return;
-        }
-        return;
-      }
-
-      if (rollOverlay.classList.contains('hidden')) return;
-      if (e.code === 'Space' || e.code === 'Enter') {
-        e.preventDefault();
-        if (state.lastRoll && e.code === 'Enter' && !useRollBtn.disabled) useRollBtn.click();
-        else performDieRoll();
+        if (!rollOverlay.classList.contains('hidden')) { if (die3d.animId) cancelAnimationFrame(die3d.animId); rollOverlay.classList.add('hidden'); return; }
+        if (!settingsModal.classList.contains('hidden')) { settingsModal.classList.add('hidden'); }
       }
     });
 
-    function populateSettingsForm(store) {
-      profileSelect.innerHTML = store.profiles.map((p) => {
-        const selected = p.id === store.activeProfileId ? 'selected' : '';
-        return `<option value="${escapeHtml(p.id)}" ${selected}>${escapeHtml(p.name || 'Unnamed Campaign')}</option>`;
-      }).join('');
-
-      const prof = getActiveProfile(store);
-      document.getElementById('cfg-profile-name').value = prof.name || '';
-      document.getElementById('cfg-gemini-key').value = store.geminiKey || '';
-      document.getElementById('cfg-gemini-model').value = store.geminiModel || 'gemini-3.8-flash';
-      document.getElementById('cfg-thinking-level').value = store.thinkingLevel || 'auto';
-      document.getElementById('cfg-gh-owner').value = prof.ghOwner || '';
-      document.getElementById('cfg-gh-repo').value = prof.ghRepo || '';
-      document.getElementById('cfg-gh-branch').value = prof.ghBranch || 'main';
-      document.getElementById('cfg-gh-token').value = prof.ghToken || '';
-      document.getElementById('cfg-rules-path').value = prof.rulesPath ?? '';
-      document.getElementById('cfg-campaign-path').value = prof.campaignPath ?? '';
-      document.getElementById('cfg-story-path').value = prof.storyPath ?? '';
-      document.getElementById('cfg-char-path').value = prof.charPath ?? '';
-      document.getElementById('cfg-session-path').value = prof.sessionLogPath ?? 'SESSION_LOG.md';
-      document.getElementById('cfg-assets-dir').value = prof.assetsDir ?? '';
-      document.getElementById('btn-delete-profile').disabled = store.profiles.length <= 1;
-      document.getElementById('btn-delete-profile').classList.toggle('opacity-40', store.profiles.length <= 1);
-    }
-
-    function commitFormToDraft() {
+    function syncDraftFromInputs() {
       if (!draftStore) return;
+      const activeProf = draftStore.profiles.find((p) => p.id === draftStore.activeProfileId) || draftStore.profiles[0];
       draftStore.geminiKey = document.getElementById('cfg-gemini-key').value.trim();
       draftStore.geminiModel = document.getElementById('cfg-gemini-model').value.trim() || 'gemini-3.8-flash';
       draftStore.thinkingLevel = document.getElementById('cfg-thinking-level').value || 'auto';
-      const prof = getActiveProfile(draftStore);
-      prof.name = document.getElementById('cfg-profile-name').value.trim() || 'Unnamed Campaign';
-      prof.ghOwner = document.getElementById('cfg-gh-owner').value.trim();
-      prof.ghRepo = document.getElementById('cfg-gh-repo').value.trim();
-      prof.ghBranch = document.getElementById('cfg-gh-branch').value.trim() || 'main';
-      prof.ghToken = document.getElementById('cfg-gh-token').value.trim();
-      prof.rulesPath = document.getElementById('cfg-rules-path').value.trim();
-      prof.campaignPath = document.getElementById('cfg-campaign-path').value.trim();
-      prof.storyPath = document.getElementById('cfg-story-path').value.trim();
-      prof.charPath = document.getElementById('cfg-char-path').value.trim();
-      prof.sessionLogPath = document.getElementById('cfg-session-path').value.trim();
-      prof.assetsDir = document.getElementById('cfg-assets-dir').value.trim();
+      if (activeProf) {
+        activeProf.name = document.getElementById('cfg-profile-name').value.trim() || 'Campaign';
+        activeProf.ghOwner = document.getElementById('cfg-gh-owner').value.trim();
+        activeProf.ghRepo = document.getElementById('cfg-gh-repo').value.trim();
+        activeProf.ghBranch = document.getElementById('cfg-gh-branch').value.trim() || 'main';
+        activeProf.ghToken = document.getElementById('cfg-gh-token').value.trim();
+        activeProf.rulesPath = document.getElementById('cfg-rules-path').value.trim();
+        activeProf.campaignPath = document.getElementById('cfg-campaign-path').value.trim();
+        activeProf.storyPath = document.getElementById('cfg-story-path').value.trim();
+        activeProf.charPath = document.getElementById('cfg-char-path').value.trim();
+        activeProf.sessionLogPath = document.getElementById('cfg-session-path').value.trim();
+        activeProf.assetsDir = document.getElementById('cfg-assets-dir').value.trim();
+      }
     }
 
-    function openSettingsModal() {
-      draftStore = loadStore();
+    function renderDraftToInputs() {
+      if (!draftStore) return;
+      const activeProf = draftStore.profiles.find((p) => p.id === draftStore.activeProfileId) || draftStore.profiles[0];
+      draftStore.activeProfileId = activeProf.id;
+
+      profileSelect.innerHTML = draftStore.profiles.map((p) => {
+        const label = p.ghRepo ? `${p.name} (${p.ghRepo})` : p.name;
+        return `<option value="${escapeHtml(p.id)}" ${p.id === activeProf.id ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+      }).join('');
+
+      document.getElementById('cfg-profile-name').value = activeProf.name || '';
+      document.getElementById('cfg-gemini-key').value = draftStore.geminiKey || '';
+      document.getElementById('cfg-gemini-model').value = draftStore.geminiModel || 'gemini-3.8-flash';
+      document.getElementById('cfg-thinking-level').value = draftStore.thinkingLevel || 'auto';
+      document.getElementById('cfg-gh-owner').value = activeProf.ghOwner || '';
+      document.getElementById('cfg-gh-repo').value = activeProf.ghRepo || '';
+      document.getElementById('cfg-gh-branch').value = activeProf.ghBranch || 'main';
+      document.getElementById('cfg-gh-token').value = activeProf.ghToken || '';
+      document.getElementById('cfg-rules-path').value = activeProf.rulesPath ?? '';
+      document.getElementById('cfg-campaign-path').value = activeProf.campaignPath ?? '';
+      document.getElementById('cfg-story-path').value = activeProf.storyPath ?? '';
+      document.getElementById('cfg-char-path').value = activeProf.charPath ?? '';
+      document.getElementById('cfg-session-path').value = activeProf.sessionLogPath ?? '';
+      document.getElementById('cfg-assets-dir').value = activeProf.assetsDir ?? '';
+      document.getElementById('btn-delete-profile').disabled = draftStore.profiles.length <= 1;
+    }
+
+    document.getElementById('btn-open-settings').addEventListener('click', () => {
+      const current = loadStore();
+      draftStore = {
+        activeProfileId: current.activeProfileId,
+        geminiKey: current.geminiKey,
+        geminiModel: current.geminiModel,
+        thinkingLevel: current.thinkingLevel || 'auto',
+        profiles: current.profiles.map((p) => ({ ...p })),
+      };
       document.getElementById('scan-status').classList.add('hidden');
-      populateSettingsForm(draftStore);
+      renderDraftToInputs();
       settingsModal.classList.remove('hidden');
-    }
+    });
 
-    profileSelect.addEventListener('change', () => {
-      commitFormToDraft();
-      draftStore.activeProfileId = profileSelect.value;
-      populateSettingsForm(draftStore);
+    document.getElementById('btn-close-settings').addEventListener('click', () => { settingsModal.classList.add('hidden'); });
+
+    profileSelect.addEventListener('change', (e) => {
+      syncDraftFromInputs();
+      draftStore.activeProfileId = e.target.value;
+      renderDraftToInputs();
     });
 
     document.getElementById('btn-new-profile').addEventListener('click', () => {
-      commitFormToDraft();
-      const prevProf = getActiveProfile(draftStore);
-      const nextNum = draftStore.profiles.length + 1;
-      const fresh = makeDefaultProfile({ name: `Campaign ${nextNum}`, ghOwner: prevProf.ghOwner, ghToken: prevProf.ghToken });
-      draftStore.profiles.push(fresh);
-      draftStore.activeProfileId = fresh.id;
-      populateSettingsForm(draftStore);
+      syncDraftFromInputs();
+      const base = getActiveProfile(draftStore);
+      const created = makeDefaultProfile({
+        name: `Campaign ${draftStore.profiles.length + 1}`,
+        ghOwner: base.ghOwner,
+        ghToken: base.ghToken,
+        ghBranch: base.ghBranch || 'main',
+      });
+      draftStore.profiles.push(created);
+      draftStore.activeProfileId = created.id;
+      renderDraftToInputs();
     });
 
     document.getElementById('btn-save-checkpoint').addEventListener('click', () => {
-      commitFormToDraft();
-      const prof = getActiveProfile(draftStore);
-      const statusEl = document.getElementById('scan-status');
-      statusEl.classList.remove('hidden');
-      if (!state.files.campaign.content && !state.files.character.content) {
-        statusEl.className = 'text-[11px] text-amber-300';
-        statusEl.textContent = 'Load the repo first so its starting files are in memory before setting Start Checkpoint.';
+      syncDraftFromInputs();
+      const activeProf = getActiveProfile(draftStore);
+      const hasLoaded = Boolean(state.files.campaign.content || state.files.story.content || state.files.character.content);
+      if (!hasLoaded) {
+        alert('Load the repository first so there is an active campaign state to save as Start Checkpoint.');
         return;
       }
-      saveBaselineSnapshot(prof.id, state.files);
+      saveBaselineSnapshot(activeProf.id, state.files);
+      const statusEl = document.getElementById('scan-status');
+      statusEl.textContent = `Saved current state as Start Checkpoint for "${activeProf.name}".`;
       statusEl.className = 'text-[11px] text-emerald-300';
-      statusEl.textContent = `Saved current state of "${prof.name}" as its Restart Checkpoint!`;
+      statusEl.classList.remove('hidden');
     });
 
     document.getElementById('btn-delete-profile').addEventListener('click', () => {
       if (!draftStore || draftStore.profiles.length <= 1) return;
-      const removedId = draftStore.activeProfileId;
-      draftStore.profiles = draftStore.profiles.filter((p) => p.id !== removedId);
+      syncDraftFromInputs();
+      draftStore.profiles = draftStore.profiles.filter((p) => p.id !== draftStore.activeProfileId);
       draftStore.activeProfileId = draftStore.profiles[0].id;
-      localStorage.removeItem(LOG_STORAGE_PREFIX + removedId);
-      localStorage.removeItem(HISTORY_STORAGE_PREFIX + removedId);
-      localStorage.removeItem(META_STORAGE_PREFIX + removedId);
-      localStorage.removeItem(BASELINE_STORAGE_PREFIX + removedId);
-      populateSettingsForm(draftStore);
+      renderDraftToInputs();
     });
 
     document.getElementById('btn-scan-repo').addEventListener('click', async () => {
-      commitFormToDraft();
+      syncDraftFromInputs();
       const prof = getActiveProfile(draftStore);
       const statusEl = document.getElementById('scan-status');
       statusEl.classList.remove('hidden');
+
       if (!prof.ghOwner || !prof.ghRepo || !prof.ghToken) {
+        statusEl.textContent = 'Enter GitHub Owner, Repo, and Token first.';
         statusEl.className = 'text-[11px] text-rose-300';
-        statusEl.textContent = 'Enter GitHub Owner, Repo, and Token first to scan.';
         return;
       }
-      statusEl.className = 'text-[11px] text-amber-300';
+
       statusEl.textContent = 'Scanning repository files...';
+      statusEl.className = 'text-[11px] text-amber-300';
+
       try {
         const tree = await ghListRepoTree(prof.ghOwner, prof.ghRepo, prof.ghBranch, prof.ghToken);
-        const mdFiles = tree.filter((item) => item.type === 'blob' && /\.md$/i.test(item.path)).map((i) => i.path);
-        const datalist = document.getElementById('repo-md-list');
-        datalist.innerHTML = mdFiles.map((p) => `<option value="${escapeHtml(p)}"></option>`).join('');
+        const mdFiles = tree.filter((item) => item.type === 'blob' && /\.md$/i.test(item.path)).map((item) => item.path);
 
-        const findMatch = (rx) => mdFiles.find((p) => rx.test(p));
-        if (!prof.rulesPath || !mdFiles.includes(prof.rulesPath)) { const m = findMatch(/(?:dm_instruction|rules|system)/i); if (m) prof.rulesPath = m; }
-        if (!prof.campaignPath || !mdFiles.includes(prof.campaignPath)) { const m = findMatch(/(?:campaign_state|state|world)/i); if (m) prof.campaignPath = m; }
-        if (!prof.storyPath || !mdFiles.includes(prof.storyPath)) { const m = findMatch(/(?:story_engine|story|arc|quest)/i); if (m) prof.storyPath = m; }
-        if (!prof.charPath || !mdFiles.includes(prof.charPath)) { const m = findMatch(/(?:character|sheet|pc|hero)/i); if (m) prof.charPath = m; }
-        if (!prof.sessionLogPath) { const m = findMatch(/(?:session_log|session|transcript)/i); prof.sessionLogPath = m || 'SESSION_LOG.md'; }
-        const assetDirMatch = tree.find((item) => item.type === 'tree' && /^(?:assets|images|maps|media)$/i.test(item.path.split('/').pop()));
-        if (assetDirMatch && !prof.assetsDir) prof.assetsDir = assetDirMatch.path;
+        document.getElementById('repo-md-list').innerHTML = mdFiles.map((p) => `<option value="${escapeHtml(p)}"></option>`).join('');
 
-        populateSettingsForm(draftStore);
+        const pickMatch = (patterns) => {
+          for (const rx of patterns) {
+            const found = mdFiles.find((p) => rx.test(p));
+            if (found) return found;
+          }
+          return '';
+        };
+
+        if (!prof.rulesPath) prof.rulesPath = pickMatch([/dm_instructions\.md$/i, /rules?\.md$/i, /instructions?\.md$/i]);
+        if (!prof.campaignPath) prof.campaignPath = pickMatch([/campaign_state\.md$/i, /campaign\.md$/i, /state\.md$/i]);
+        if (!prof.storyPath) prof.storyPath = pickMatch([/story_engine\.md$/i, /story\.md$/i, /arc\.md$/i]);
+        if (!prof.charPath) prof.charPath = pickMatch([/^characters?\/[^/]+\.md$/i, /character.*\.md$/i, /hero\.md$/i]);
+        if (!prof.sessionLogPath) prof.sessionLogPath = pickMatch([/session_log\.md$/i]) || 'SESSION_LOG.md';
+
+        const folderCandidate = tree.find((item) => item.type === 'tree' && /^(assets?|images?|art|maps?|tokens?)$/i.test(item.path));
+        if (!prof.assetsDir && folderCandidate) prof.assetsDir = folderCandidate.path;
+
+        renderDraftToInputs();
+        statusEl.textContent = `Found ${mdFiles.length} Markdown files. Auto-matched paths where empty.`;
         statusEl.className = 'text-[11px] text-emerald-300';
-        statusEl.textContent = `Found ${mdFiles.length} Markdown files. Tap any path input above to choose.`;
       } catch (err) {
-        statusEl.className = 'text-[11px] text-rose-300';
         statusEl.textContent = err.message;
+        statusEl.className = 'text-[11px] text-rose-300';
       }
     });
 
-    document.getElementById('btn-open-settings').addEventListener('click', openSettingsModal);
-    document.getElementById('btn-close-settings').addEventListener('click', () => settingsModal.classList.add('hidden'));
-
-    document.getElementById('btn-save-settings').addEventListener('click', async () => {
-      commitFormToDraft();
-      saveStore(draftStore);
-      resetLoadedFilesState();
-      updateBadge();
+    async function pullRepoWithOverlay() {
       const cfg = getConfig();
-      loadCampaignMemory(cfg.profileId);
-      settingsModal.classList.add('hidden');
-
-      if (cfg.ghToken && cfg.ghOwner && cfg.ghRepo) {
-        await beginBusyState('Loading Campaign...', `Reading files for ${cfg.campaignName}`);
-        try {
-          await loadCampaignFromGitHub();
-          appendSystemMessage(`Loaded campaign ${cfg.campaignName} from GitHub.`, 'success');
-        } catch (err) {
-          appendSystemMessage(err.message, 'error');
-        } finally {
-          await endBusyState();
-        }
+      if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo) {
+        appendSystemMessage('Set GitHub Owner, Repo, and Token in Settings first.', 'warn');
+        return;
       }
-    });
-
-    document.getElementById('btn-pull-repo').addEventListener('click', async () => {
-      const cfg = getConfig();
-      if (!cfg.ghToken || !cfg.ghOwner || !cfg.ghRepo) { openSettingsModal(); return; }
-      await beginBusyState('Loading Campaign...', `Refreshing ${cfg.campaignName} from GitHub`);
+      await beginBusyState('Loading Campaign Repo...', `Syncing ${cfg.ghOwner}/${cfg.ghRepo}`);
       try {
         await loadCampaignFromGitHub();
-        appendSystemMessage(`Refreshed ${cfg.campaignName} files from GitHub.`, 'success');
+        if (!loadBaselineSnapshot(cfg.profileId) && (state.files.campaign.content || state.files.story.content || state.files.character.content)) {
+          saveBaselineSnapshot(cfg.profileId, state.files);
+        }
+        appendSystemMessage(`Synced campaign files from ${cfg.ghOwner}/${cfg.ghRepo}.`, 'success');
       } catch (err) {
         appendSystemMessage(err.message, 'error');
       } finally {
         await endBusyState();
       }
-    });
+    }
 
-    async function executeTurnRequest({ text, rollObj }, isRetry = false) {
-      const sendBtn = document.getElementById('btn-send-turn');
-      if (!isRetry) {
-        const rollBadge = rollObj ? `${rollObj.label}: ${rollObj.total}` : '';
-        pushStoryEntry({ type: 'player', label: state.characterName || 'Player', rollBadge, text: text || 'Act on the roll.' }, false);
+    document.getElementById('btn-save-settings').addEventListener('click', async () => {
+      const prevCfg = getConfig();
+      syncDraftFromInputs();
+      saveStore(draftStore);
+      settingsModal.classList.add('hidden');
+      updateBadge();
+
+      const nextCfg = getConfig();
+      const switchedCampaign = prevCfg.profileId !== nextCfg.profileId || prevCfg.ghRepo !== nextCfg.ghRepo || prevCfg.charPath !== nextCfg.charPath;
+
+      if (switchedCampaign) {
+        resetLoadedFilesState();
+        loadCampaignMemory(nextCfg.profileId);
       }
 
+      if (nextCfg.ghToken && nextCfg.ghOwner && nextCfg.ghRepo) {
+        await pullRepoWithOverlay();
+      } else {
+        appendSystemMessage('Settings saved locally.', 'success');
+      }
+    });
+
+    document.getElementById('btn-pull-repo').addEventListener('click', pullRepoWithOverlay);
+
+    async function executeTurnSubmission({ actionText, rollObj, isRetry = false }) {
       const cfg = getConfig();
-      if (!cfg.geminiKey) { appendSystemMessage('Add your Google AI Studio API Key in Settings to get live DM responses.', 'warn'); return; }
+      const hasRoll = Boolean(rollObj);
+      if (!actionText && !hasRoll) return;
 
+      if (!isRetry) {
+        const displayLabel = state.characterName && state.characterName !== 'Active Character'
+          ? state.characterName
+          : 'Player';
+        const rollBadge = hasRoll
+          ? (() => {
+              const modStr = rollObj.mod ? ` (${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})` : '';
+              const bonusStr = rollObj.bonus ? ` +1d${rollObj.bonus.sides}(${rollObj.bonus.val})` : '';
+              const poolStr = Array.isArray(rollObj.rolls) && rollObj.rolls.length > 1 ? ` · [${rollObj.rolls.join(', ')}]` : '';
+              return `${rollObj.label}: ${rollObj.total} [raw ${rollObj.raw}${modStr}${bonusStr}${poolStr}]`;
+            })()
+          : '';
+
+        pushStoryEntry({
+          type: 'player',
+          label: displayLabel,
+          text: actionText || 'Act on the roll.',
+          rollBadge,
+        });
+
+        state.pendingRoll = null;
+        const pill = document.getElementById('pending-roll-pill');
+        pill.classList.add('hidden');
+        pill.classList.remove('flex');
+      }
+
+      if (!cfg.geminiKey) {
+        appendSystemMessage('No Gemini API key set yet. Open Settings to add your Google AI Studio key, or use Roll Die in Local Mode.', 'warn');
+        return;
+      }
+
+      const sendBtn = document.getElementById('btn-send-turn');
       sendBtn.disabled = true;
-      sendBtn.textContent = '...';
-      await beginBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
+      await beginBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel}`);
+
       try {
-        if (cfg.ghToken && cfg.ghOwner && cfg.ghRepo && !state.files.campaign.content && !state.files.character.content) {
-          updateBusyState('Loading Campaign...', 'Pulling state files from GitHub');
+        const hasRepo = Boolean(cfg.ghToken && cfg.ghOwner && cfg.ghRepo);
+        if (hasRepo && !state.files.rules.content && !state.files.campaign.content && !state.files.character.content) {
+          updateBusyState('Syncing Campaign Files...', `Reading ${cfg.ghOwner}/${cfg.ghRepo}`);
           await loadCampaignFromGitHub();
-          updateBusyState('Consulting the Dungeon Master...', `Using ${cfg.geminiModel} · Screen kept awake`);
         }
-        
-        const dmResult = await callGeminiDM(cfg, text, rollObj);
-        state.lastFailedRequest = null;
 
-        if (state.combatState) {
-          const prevTurnBefore = Number(state.combatState.turn_number) || 1;
-          const prevRoundBefore = Number(state.combatState.round) || 1;
+        updateBusyState('Consulting the Dungeon Master...', `Generating turn with ${cfg.geminiModel}`);
+        const dmResult = await callGeminiDM(cfg, actionText, rollObj);
+
+        if (dmResult._autoSwitchedFrom && dmResult._autoSwitchedTo) {
+          appendSystemMessage(`Switched DM model from ${dmResult._autoSwitchedFrom} to ${dmResult._autoSwitchedTo}.`, 'info');
+        }
+
+        if (state.combatState && state.combatState.active) {
           state.combatState = applyDeterministicEnemyDamage(state.combatState, rollObj, dmResult.narrative || '');
-          if (state.combatState && rollObj && /\bdamage\b/i.test(String(rollObj.label || '')) && state.combatState.economy) {
-            state.combatState.economy.phase = 'player_turn';
-            state.combatState.economy.lastRollHit = null;
-            state.combatState.economy.lastRollCrit = false;
-          }
-
-          if (state.combatState && state.combatState.active) {
-            const econ = state.combatState.economy || {};
-            const actorLabel = rollObj ? `${rollObj.label} (${rollObj.total})` : (text || 'Action');
-            const roundTag = `R${state.combatState.round}/T${state.combatState.turn_number || prevTurnBefore}`;
-            if (actorLabel && !/\binitiative\b/i.test(String(rollObj?.label || ''))) {
-              state.combatState.turn_log = Array.isArray(state.combatState.turn_log) ? state.combatState.turn_log : [];
-              state.combatState.turn_log.push(`${roundTag}: ${state.characterName || 'Player'} — ${actorLabel}`);
-              state.combatState.turn_log = state.combatState.turn_log.slice(-6);
-            }
-
-            if (Array.isArray(state.combatState.turn_order) && state.combatState.turn_order.length > 1) {
-              const activeChar = String(state.characterName || 'Player').toLowerCase();
-              const curTurnLower = String(state.combatState.current_turn || '').toLowerCase();
-              const isPlayerTurn = !curTurnLower || curTurnLower.includes(activeChar) || /\b(player|pc)\b/i.test(curTurnLower);
-              const playerActed = econ.actionUsed || econ.bonusActionUsed || econ.movementUsed || (rollObj && !/\binitiative\b/i.test(rollObj.label || ''));
-
-              if (isPlayerTurn && playerActed && econ.phase !== 'awaiting_damage') {
-                const curIdx = state.combatState.turn_order.findIndex((slot) =>
-                  String(slot || '').toLowerCase().includes(activeChar) || /\b(player|pc)\b/i.test(String(slot || ''))
-                );
-                if (curIdx !== -1) {
-                  const nextIdx = (curIdx + 1) % state.combatState.turn_order.length;
-                  const nextSlot = state.combatState.turn_order[nextIdx];
-                  if (nextSlot && !String(nextSlot).toLowerCase().includes(activeChar)) {
-                    state.combatState.current_turn = String(nextSlot).trim();
-                    state.combatState.economy.phase = 'enemy_turn';
-                    state.combatState.turn_number = (Number(state.combatState.turn_number) || prevTurnBefore) + 1;
-                    if (nextIdx === 0 && prevRoundBefore === Number(state.combatState.round)) {
-                      state.combatState.round = prevRoundBefore + 1;
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          if (state.combatState && !state.combatState.active) {
-            state.combatState = null;
-          }
-
           renderCombatTrackerUI();
-          saveCampaignMemory(cfg.profileId);
         }
 
-        if (state.combatState && !state.combatState.active) {
-          ensureCombatEconomy();
+        const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg, actionText, rollObj);
+
+        if (hasRepo && dirtyKeys.size > 0) {
+          updateBusyState('Saving to GitHub...', 'Persisting updated Markdown files');
+          await persistMarkdownToGitHub(cfg, dirtyKeys, dmResult);
         }
+
         const safeSuggestions = sanitizeSuggestedRolls(dmResult.suggested_rolls);
-
+        const turnRollSummary = hasRoll
+          ? (() => {
+              const modStr = rollObj.mod ? ` (${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})` : '';
+              const bonusStr = rollObj.bonus ? ` +1d${rollObj.bonus.sides}(${rollObj.bonus.val})` : '';
+              const poolStr = Array.isArray(rollObj.rolls) && rollObj.rolls.length > 1 ? ` · [${rollObj.rolls.join(', ')}]` : '';
+              return `${rollObj.label}: ${rollObj.total} [raw ${rollObj.raw}${modStr}${bonusStr}${poolStr}]`;
+            })()
+          : '';
+        const structuredNarrative = buildStructuredDmProse(dmResult);
+        state.lastFailedRequest = null;
         pushStoryEntry({
           type: 'dm',
           label: 'Dungeon Master',
-          playerBeat: (dmResult.player_beat || '').trim(),
-          narrative: (dmResult.narrative || '').trim(),
+          rollSummary: turnRollSummary,
+          actionNote: hasRoll && actionText ? actionText : '',
+          playerBeat: dmResult.player_beat || '',
+          narrative: structuredNarrative,
           suggestedRolls: safeSuggestions,
         }, true);
-
-        if (dmResult._autoSwitchedTo) {
-          appendSystemMessage(`Auto-switched DM model from ${dmResult._autoSwitchedFrom} to ${dmResult._autoSwitchedTo} due to busy/quota limits.`, 'info');
-        }
-
-        const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg, text, rollObj);
-        if (cfg.ghToken && dirtyKeys.size > 0) {
-          updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
-          await persistMarkdownToGitHub(cfg, dirtyKeys, dmResult);
-        }
       } catch (err) {
-        state.lastFailedRequest = { text, rollObj };
+        state.lastFailedRequest = { actionText, rollObj };
         appendSystemMessage(err.message, 'error', true);
       } finally {
         sendBtn.disabled = false;
-        sendBtn.textContent = 'Send';
         await endBusyState();
       }
     }
@@ -4478,36 +4674,39 @@ document.getElementById('btn-clear-roll').addEventListener('click', () => {
     document.getElementById('story-log').addEventListener('click', (e) => {
       const btn = e.target.closest('.retry-turn-btn');
       if (!btn || !state.lastFailedRequest) return;
-      btn.disabled = true;
-      btn.textContent = 'Retrying...';
-      executeTurnRequest(state.lastFailedRequest, true);
+      const saved = { ...state.lastFailedRequest };
+      executeTurnSubmission({ actionText: saved.actionText, rollObj: saved.rollObj, isRetry: true });
     });
 
     document.getElementById('action-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const input = document.getElementById('action-input');
-      const text = input.value.trim();
-      const rollToSend = state.pendingRoll;
-      if (!text && !rollToSend) return;
-
+      const actionText = input.value.trim();
+      const rollObj = state.pendingRoll;
+      if (!actionText && !rollObj) return;
       input.value = '';
-      state.pendingRoll = null;
-      const pill = document.getElementById('pending-roll-pill');
-      pill.classList.add('hidden');
-      pill.classList.remove('flex');
-
-      await executeTurnRequest({ text, rollObj: rollToSend }, false);
+      await executeTurnSubmission({ actionText, rollObj, isRetry: false });
     });
 
-    // Initialize neutral defaults, restore saved log/memory, and load active campaign if configured
-    renderCharacterUI(state.parsedChar);
-    renderAssetsUI();
+    // Startup Initialization
     updateBadge();
-    const initialCfg = getConfig();
-    loadCampaignMemory(initialCfg.profileId);
-    if (initialCfg.ghToken && initialCfg.ghOwner && initialCfg.ghRepo) {
-      loadCampaignFromGitHub().catch(() => {});
-    }
+    loadCampaignMemory(getConfig().profileId);
+    renderConcentrationUI();
+    renderDeathSavesUI();
+    setIdleDie(20);
+    (async () => {
+      const cfg = getConfig();
+      if (cfg.ghToken && cfg.ghOwner && cfg.ghRepo) {
+        try {
+          await loadCampaignFromGitHub();
+          if (!loadBaselineSnapshot(cfg.profileId) && (state.files.campaign.content || state.files.story.content || state.files.character.content)) {
+            saveBaselineSnapshot(cfg.profileId, state.files);
+          }
+        } catch (err) {
+          appendSystemMessage(`Auto-sync skipped: ${err.message}`, 'warn');
+        }
+      }
+    })();
   </script>
 </body>
 </html>
