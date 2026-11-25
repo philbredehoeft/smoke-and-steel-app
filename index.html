@@ -2166,12 +2166,75 @@ function ensureCombatEconomy() {
       }
     }
 
+    function normalizeCombatStateMachine(rawCombat, prevCombat) {
+      if (!rawCombat || typeof rawCombat !== 'object' || !rawCombat.active) {
+        return null;
+      }
+
+      const prevRound = Number(prevCombat?.round) || 0;
+      const round = Math.max(1, Number(rawCombat.round) || (prevRound > 0 ? prevRound : 1));
+      const roundChanged = round !== prevRound;
+
+      const enemies = Array.isArray(rawCombat.enemies)
+        ? rawCombat.enemies
+            .filter((e) => e && typeof e === 'object' && String(e.name || '').trim())
+            .map((e) => {
+              const maxHp = Math.max(1, Number(e.max_hp) || Number(e.hp) || 1);
+              const hp = Math.max(0, Math.min(maxHp, Number(e.hp) ?? maxHp));
+              return {
+                name: String(e.name).trim(),
+                ac: Math.max(1, Number(e.ac) || 10),
+                hp,
+                max_hp: maxHp,
+                status: hp <= 0 ? 'Defeated' : String(e.status || 'Active').trim(),
+                intent: hp <= 0 ? '' : String(e.intent || '').trim(),
+              };
+            })
+        : [];
+
+      const turnOrder = Array.isArray(rawCombat.turn_order)
+        ? rawCombat.turn_order.map((s) => String(s || '').trim()).filter(Boolean)
+        : [];
+
+      const activeCharName = String(state.characterName || 'Player').trim();
+      const rawTurn = String(rawCombat.current_turn || '').trim();
+      const isPlayerTurn = !rawTurn
+        || rawTurn.toLowerCase().includes(activeCharName.toLowerCase())
+        || /\b(player|pc)\b/i.test(rawTurn);
+
+      const prevEcon = prevCombat?.economy || {};
+      const freshRoundEcon = roundChanged || !prevCombat?.active;
+
+      const economy = {
+        phase: isPlayerTurn
+          ? (prevEcon.phase === 'awaiting_damage' && !roundChanged ? 'awaiting_damage' : 'player_turn')
+          : 'enemy_turn',
+        lastRollType: prevEcon.lastRollType || null,
+        lastRollHit: typeof prevEcon.lastRollHit === 'boolean' ? prevEcon.lastRollHit : null,
+        lastRollCrit: Boolean(prevEcon.lastRollCrit),
+        lastRollTotal: typeof prevEcon.lastRollTotal === 'number' ? prevEcon.lastRollTotal : null,
+        actionUsed: freshRoundEcon ? false : Boolean(prevEcon.actionUsed),
+        bonusActionUsed: freshRoundEcon ? false : Boolean(prevEcon.bonusActionUsed),
+        movementUsed: freshRoundEcon ? false : Boolean(prevEcon.movementUsed),
+        disengaged: freshRoundEcon ? false : Boolean(prevEcon.disengaged),
+        dodging: freshRoundEcon ? false : Boolean(prevEcon.dodging),
+      };
+
+      return {
+        active: true,
+        round,
+        current_turn: rawTurn || activeCharName,
+        turn_order: turnOrder,
+        enemies,
+        economy,
+      };
+    }
+
     function sanitizeSuggestedRolls(rawList) {
       const econ = ensureCombatEconomy();
       const list = Array.isArray(rawList) ? rawList : [];
       const enemyAc = getPrimaryEnemyAC();
       const activeCharName = String(state.characterName || state.character?.name || '').toLowerCase();
-
       const cleaned = list
         .filter((item) => item && typeof item === 'object')
         .filter((item) => {
@@ -2484,7 +2547,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           }
 
           if (parsed.combat && typeof parsed.combat === 'object') {
-            state.combatState = parsed.combat.active ? parsed.combat : null;
+            state.combatState = normalizeCombatStateMachine(parsed.combat, state.combatState);
             renderCombatTrackerUI();
           }
 
