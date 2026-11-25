@@ -2140,16 +2140,14 @@ function ensureCombatEconomy() {
 
       const isAttack = Boolean(state.isAttackRoll) || /\b(attack|strike|slash|shot|javelin|longsword|bow|bolt|ray)\b/.test(labelLower);
       if (isAttack) {
+        const evalRes = evaluateAttackOutcome(rollObj);
         econ.lastRollType = 'attack';
         econ.actionUsed = true;
-        const targetAc = Number(state.dc) > 0 ? Number(state.dc) : getPrimaryEnemyAC();
-        const isCrit = raw === 20 && Number(rollObj.sides) === 20;
-        const isFumble = raw === 1 && Number(rollObj.sides) === 20;
-        const hit = isCrit || (!isFumble && Number.isFinite(total) && total >= targetAc);
-        econ.lastRollHit = hit;
-        econ.phase = hit ? 'awaiting_damage' : 'player_turn';
+        econ.lastRollHit = Boolean(evalRes.hit);
+        econ.lastRollCrit = Boolean(evalRes.isCrit);
+        econ.phase = evalRes.hit ? 'awaiting_damage' : 'player_turn';
         return;
-      }
+      }      
 
       econ.lastRollType = 'other';
       econ.lastRollHit = null;
@@ -3654,30 +3652,9 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
       return { isAttack: true, hit, isCrit, isFumble, targetAc };
     }    
-    
+   
     if (dieBtn) dieBtn.addEventListener('click', performDieRoll);
 
-    function evaluateAttackOutcome(rollObj) {
-      if (!rollObj) return { isAttack: false, hit: null, isCrit: false, isFumble: false, targetAc: 0 };
-      const labelLower = String(rollObj.label || '').toLowerCase();
-      const isAttack = Boolean(state.isAttackRoll) || (
-        /\b(attack|strike|slash|shot|javelin|longsword|bow|bolt|ray)\b/.test(labelLower)
-        && !/\bdamage\b/.test(labelLower)
-      );
-      if (!isAttack) {
-        return { isAttack: false, hit: null, isCrit: false, isFumble: false, targetAc: 0 };
-      }
-
-      const isSingleD20 = Number(rollObj.sides) === 20 && (Number(rollObj.diceCount) || 1) === 1;
-      const raw = Number(rollObj.raw);
-      const total = Number(rollObj.total);
-      const isCrit = isSingleD20 && raw === 20;
-      const isFumble = isSingleD20 && raw === 1;
-      const targetAc = Number(state.dc) > 0 ? Number(state.dc) : getPrimaryEnemyAC();
-      const hit = isCrit || (!isFumble && Number.isFinite(total) && total >= targetAc);
-
-      return { isAttack: true, hit, isCrit, isFumble, targetAc };
-    }
     document.getElementById('btn-open-roll').addEventListener('click', () => { setRollMode('normal'); openRollOverlay({ label: 'Free Roll', subtitle: 'Manual Check', sides: 20, diceCount: 1, mod: 0, dc: 0 }); });
     document.getElementById('btn-close-roll').addEventListener('click', () => { if (die3d.animId) cancelAnimationFrame(die3d.animId); rollOverlay.classList.add('hidden'); });
 
