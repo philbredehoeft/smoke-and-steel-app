@@ -2560,12 +2560,7 @@ function ensureCombatEconomy() {
 
           return true;
         })
-
-          if (econ.dodging && /\bdodge\b/.test(combined)) return false;
-          if (econ.disengaged && /\bdisengage\b/.test(combined)) return false;
-
-          return true;
-        })
+      
         .map((item) => {
           const copy = { ...item };
           const kind = classifySuggestedRoll(copy);
