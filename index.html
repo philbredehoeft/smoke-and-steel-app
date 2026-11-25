@@ -2241,8 +2241,21 @@ function ensureCombatEconomy() {
           : `${dicePrefix} raw ${rollObj.raw}`;
         const bonusPart = rollObj.bonus ? ` + bonus 1d${rollObj.bonus.sides} (${rollObj.bonus.val})` : '';
         const modPart = rollObj.mod >= 0 ? `+${rollObj.mod}` : `${rollObj.mod}`;
-        rollLine = `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (${rawPart}, mod ${modPart}${bonusPart})`;
-      }
+        const atkCheck = evaluateAttackOutcome(rollObj);
+        let verifiedTag = '';
+        if (atkCheck.isAttack) {
+          if (atkCheck.isCrit) {
+            verifiedTag = ` [VERIFIED: CRITICAL HIT vs AC ${atkCheck.targetAc} — 2x DAMAGE DICE]`;
+          } else if (atkCheck.isFumble) {
+            verifiedTag = ` [VERIFIED: CRITICAL MISS / FUMBLE on natural 1 vs AC ${atkCheck.targetAc}]`;
+          } else if (atkCheck.hit) {
+            verifiedTag = ` [VERIFIED: HIT vs AC ${atkCheck.targetAc}]`;
+          } else {
+            verifiedTag = ` [VERIFIED: MISS vs AC ${atkCheck.targetAc}]`;
+          }
+        }
+        rollLine = `Dice Roll: ${rollObj.label} -> Total ${rollObj.total} (${rawPart}, mod ${modPart}${bonusPart})${verifiedTag}`;
+              }
       const activeChar = state.characterName || 'the player character';
       const hpStatusLine = state.parsedChar.hp !== null && state.parsedChar.maxHp !== null
         ? `Authoritative Player Character HP: ${state.parsedChar.hp} / ${state.parsedChar.maxHp} | Gold: ${state.parsedChar.gold} ${state.parsedChar.currencyUnit}`
