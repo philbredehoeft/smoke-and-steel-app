@@ -4177,7 +4177,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           appendSystemMessage(`Auto-switched DM model from ${dmResult._autoSwitchedFrom} to ${dmResult._autoSwitchedTo} due to busy/quota limits.`, 'info');
         }
 
-        const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg);
+        const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg, text);
         if (cfg.ghToken && dirtyKeys.size > 0) {
           updateBusyState('Syncing to GitHub...', 'Committing updated Markdown state');
           await persistMarkdownToGitHub(cfg, dirtyKeys, dmResult);
