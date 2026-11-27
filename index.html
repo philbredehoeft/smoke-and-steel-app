@@ -628,6 +628,15 @@
       return lines;
     }
 
+    function stripDuplicateRollLines(text) {
+      return String(text || '')
+        // Strip standalone or trailing Skill/Check roll summary lines like:
+        // Athletics: d20 (2) + 5 = 7 vs DC 12 — Failure!  or  Auto Perception: 15 [d20(12)+3] vs DC 12 — Success
+        .replace(/(?:^|[\n\r]+)[ \t]*(?:\*\*)?(?:Auto\s+)?[A-Za-z][A-Za-z0-9 &/'()-]{1,40}:\s*(?:\d+\s*\[)?d\d+\s*\(\d+\)(?:\s*\+\s*[^\]=\n]+)?\s*(?:\]\s*)?(?:=\s*-?\d+\s*)?vs\.?\s*(?:DC|AC)\s*\d+\s*(?:[—–-]{1,2}\s*(?:Success|Failure|Failed|Hit|Miss|Critical[^!\n.]*)[!.]?)?(?:\*\*)?[ \t]*(?=$|[\n\r])/gim, '')
+        // Also strip trailing inline "Skill: d20 (X) + Y = Z vs DC N — Success/Failure!" stuck at the end of a paragraph
+        .replace(/[ \t]+(?:\*\*)?(?:Auto\s+)?[A-Za-z][A-Za-z0-9 &/'()-]{1,40}:\s*(?:\d+\s*\[)?d\d+\s*\(\d+\)(?:\s*\+\s*[^\]=\n]+)?\s*(?:\]\s*)?(?:=\s*-?\d+\s*)?vs\.?\s*(?:DC|AC)\s*\d+\s*(?:[—–-]{1,2}\s*(?:Success|Failure|Failed|Hit|Miss|Critical[^!\n.]*)[!.]?)?(?:\*\*)?\s*$/gim, '');
+    }
+
     function buildStructuredDmProse(dmResult) {
       const charFirstName = String(state.characterName || 'Kael').trim().split(/\s+/)[0] || 'Kael';
       const rawNarrative = String(dmResult.narrative || '').trim();
@@ -635,7 +644,7 @@
       const roundNum = activeCombat ? Math.max(1, Number(state.combatState?.round) || 1) : 0;
 
       const bracketMath = extractBracketMathLines(rawNarrative);
-      const cleanedNarrative = rawNarrative
+      const cleanedNarrative = stripDuplicateRollLines(rawNarrative)
         .replace(/\[[^\]]*(?:Attack|Damage|Slam|Hit|Miss|HP|Initiative|Save|DC|AC)[^\]]*\]/gi, '')
         .replace(/\*\*\s*ROUND\s+\d+[^*\n]*\*\*/gi, '')
         .replace(/\bROUND\s+\d+\s*[—–-]\s*Turn\s+\d+\s*\([^)]+\)\s*/gi, '')
@@ -3114,7 +3123,7 @@ COMBAT & ENEMY AGENCY:
   * Extra Actions & Healing: Features granting an extra Action (e.g. Action Surge, Haste) allow an additional action on that turn; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
 - ACTIVE ENEMIES & TELEGRAPHED INTENT: Basic mobs do NOT get free Ripostes on every missed player swing, but Bosses/Elites may have a defined 1/round Reaction, and ALL active enemies must still fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field.
 - TELEGRAPH AT ROUND END: At the end of a combat round, weave what active enemies are preparing next into "narrative" so the player feels the threat closing in.
-- RECORD ALL ROLLS INLINE: e.g. [Sentry Slam: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d8 (5) + 3 = 8 | Kael HP: 22 -> 14], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5].
+- RECORD ALL ROLLS INLINE (NO TRAILING ROLL SUMMARY LINE): Record enemy/combat rolls inline in brackets—e.g. [Sentry Slam: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d8 (5) + 3 = 8 | Kael HP: 22 -> 14], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5]. NEVER append a standalone "Skill: d20 (X) + Y = Z vs DC N — Success/Failure!" summary line at the end of "narrative" or "player_beat" (the UI header badge already displays the roll result).
 - DIALOGUE & BANTER: Whenever NPCs, allies, enemies, or sentient gear are present, weave natural spoken dialogue ("...") to convey clues, taunts, and warnings.
 - "current_hp", "hp_delta", "current_gold", and "gold_delta" apply STRICTLY to ${activeChar} (NEVER enemy HP!).
 - Treat ${hpStatusLine || 'the character sheet'} as the starting state for this turn.
@@ -4950,10 +4959,22 @@ document.getElementById('btn-clear-roll').addEventListener('click', () => {
         const safeSuggestions = sanitizeSuggestedRolls(dmResult.suggested_rolls);
         const turnRollSummary = hasRoll
           ? (() => {
-              const modStr = rollObj.mod ? ` (${rollObj.mod >= 0 ? '+' + rollObj.mod : rollObj.mod})` : '';
-              const bonusStr = rollObj.bonus ? ` +1d${rollObj.bonus.sides}(${rollObj.bonus.val})` : '';
-              const poolStr = Array.isArray(rollObj.rolls) && rollObj.rolls.length > 1 ? ` · [${rollObj.rolls.join(', ')}]` : '';
-              return `${rollObj.label}: ${rollObj.total} [raw ${rollObj.raw}${modStr}${bonusStr}${poolStr}]`;
+              const sides = Number(rollObj.sides) || 20;
+              const modVal = Number(rollObj.mod) || 0;
+              const bonusVal = rollObj.bonus ? Number(rollObj.bonus.val) || 0 : 0;
+              const baseDie = Number(rollObj.raw) || 0;
+              const modStr = modVal !== 0 ? ` ${modVal >= 0 ? '+' : '-'} ${Math.abs(modVal)}` : '';
+              const bonusStr = rollObj.bonus ? ` + 1d${rollObj.bonus.sides} (${bonusVal})` : '';
+              const poolStr = Array.isArray(rollObj.rolls) && rollObj.rolls.length > 1 ? ` · pool [${rollObj.rolls.join(', ')}]` : '';
+              const dcVal = Number(rollObj.dc) || 0;
+              let outcomePart = '';
+              if (dcVal > 0) {
+                const isCrit = sides === 20 && baseDie === 20;
+                const isFumble = sides === 20 && baseDie === 1;
+                const passed = isCrit || (!isFumble && Number(rollObj.total) >= dcVal);
+                outcomePart = ` vs DC ${dcVal} — ${passed ? 'Success!' : 'Failure!'}`;
+              }
+              return `${rollObj.label}: d${sides} (${baseDie})${modStr}${bonusStr} = ${rollObj.total}${outcomePart}${poolStr}`;
             })()
           : '';
         // === START: SELECTIVE STORY MODE AUTO-ROLL HANDLER ===
