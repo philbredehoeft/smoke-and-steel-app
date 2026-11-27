@@ -4947,11 +4947,6 @@ document.getElementById('btn-clear-roll').addEventListener('click', () => {
 
         const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg, actionText, rollObj);
 
-        if (hasRepo && dirtyKeys.size > 0) {
-          updateBusyState('Saving to GitHub...', 'Persisting updated Markdown files');
-          await persistMarkdownToGitHub(cfg, dirtyKeys, dmResult);
-        }
-
         const safeSuggestions = sanitizeSuggestedRolls(dmResult.suggested_rolls);
         const turnRollSummary = hasRoll
           ? (() => {
@@ -4988,10 +4983,19 @@ document.getElementById('btn-clear-roll').addEventListener('click', () => {
           narrative: structuredNarrative,
           suggestedRolls: safeSuggestions,
         }, true);
+
+        // Close the busy overlay immediately so you can read & act while GitHub saves in the background
+        sendBtn.disabled = false;
+        await endBusyState();
+
+        if (hasRepo && dirtyKeys.size > 0) {
+          persistMarkdownToGitHub(cfg, dirtyKeys, dmResult).catch((ghErr) => {
+            appendSystemMessage(`Background GitHub save failed: ${ghErr.message}`, 'warn');
+          });
+        }
       } catch (err) {
         state.lastFailedRequest = { actionText, rollObj };
         appendSystemMessage(err.message, 'error', true);
-      } finally {
         sendBtn.disabled = false;
         await endBusyState();
       }
