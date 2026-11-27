@@ -46,7 +46,8 @@
   </style>
 </head>
 <body class="bg-canvas text-stone-100 font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
-  <div id="app" class="min-h-screen flex flex-col max-w-6xl mx-auto">
+  <!-- === START: VIEWPORT-CONTAINED DESKTOP LAYOUT === -->
+  <div id="app" class="min-h-dvh lg:h-dvh lg:overflow-hidden flex flex-col max-w-6xl w-full mx-auto">
     <!-- Top Header -->
     <header class="sticky top-0 z-20 flex items-center justify-between gap-2 px-3 sm:px-4 py-3 bg-surface/95 backdrop-blur border-b border-stone-800">
       <div class="flex items-center gap-2 min-w-0">
@@ -70,9 +71,9 @@
     </header>
 
     <!-- Main 3-Page Body -->
-    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 pb-24 lg:pb-6">
+    <main class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 p-3 sm:p-4 pb-20 lg:pb-4 lg:overflow-hidden">
       <!-- PAGE 1: STORY -->
-      <section id="view-story" class="page-view lg:flex lg:col-span-6 flex flex-col bg-surface rounded-2xl border border-stone-800 overflow-hidden">
+      <section id="view-story" class="page-view lg:flex lg:col-span-6 min-h-0 flex flex-col bg-surface rounded-2xl border border-stone-800 overflow-hidden">
         <div class="px-4 py-3 border-b border-stone-800/80 flex items-center justify-between gap-2">
           <div class="min-w-0">
             <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Current Scene</p>
@@ -88,22 +89,26 @@
           </div>
         </div>
 
-        <!-- Dedicated Visible Initiative Window (Highest to Lowest) -->
-        <div id="initiative-window" class="hidden px-3.5 py-2.5 bg-amber-950/20 border-b border-amber-500/30 text-xs">
-          <div class="flex items-center justify-between gap-2 mb-1.5">
-            <span class="text-[10px] uppercase tracking-widest font-bold text-amber-300">Initiative Order (High → Low)</span>
-            <span id="initiative-round-label" class="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">Round 1</span>
+        <!-- === START: UNIFIED COLLAPSIBLE INITIATIVE WINDOW === -->
+        <div id="initiative-window" class="hidden bg-amber-950/25 border-b border-amber-500/35 text-xs">
+          <button id="btn-toggle-initiative" type="button" aria-expanded="true" class="w-full px-3.5 py-2 flex items-center justify-between gap-2 text-left hover:bg-amber-500/10 transition">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-[10px] uppercase tracking-widest font-bold text-amber-300">&#9876; Initiative Order (High → Low)</span>
+              <span id="initiative-round-label" class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-200 font-semibold">Round 1</span>
+            </div>
+            <span id="initiative-chevron" class="text-[10px] text-amber-300 font-semibold shrink-0">Hide ▲</span>
+          </button>
+          <div id="initiative-body" class="px-3.5 pb-2.5 space-y-2">
+            <ol id="initiative-list" class="space-y-1"></ol>
+            <div id="initiative-enemy-intents" class="flex flex-wrap items-center gap-1.5 text-[11px]"></div>
           </div>
-          <ol id="initiative-list" class="space-y-1"></ol>
         </div>
+        <!-- === END: UNIFIED COLLAPSIBLE INITIATIVE WINDOW === -->
 
-        <!-- Temporary Active Combat & Initiative Tracker -->
-        <div id="combat-tracker-bar" class="hidden px-3.5 py-2.5 bg-rose-950/25 border-b border-rose-500/30 space-y-2 text-xs"></div>
-
-        <div id="story-log" class="flex-1 p-4 space-y-4 overflow-y-auto min-h-0 max-h-[calc(100dvh-13rem)] lg:max-h-[calc(100dvh-9.5rem)]"></div>
+        <div id="story-log" class="flex-1 min-h-0 p-4 space-y-4 overflow-y-auto"></div>
 
         <!-- Bottom Action Input -->
-        <form id="action-form" class="p-3 sm:p-4 border-t border-stone-800 bg-surface space-y-2.5">
+        <form id="action-form" class="shrink-0 p-3 sm:p-3.5 border-t border-stone-800 bg-surface space-y-2">
           <div id="pending-roll-pill" class="hidden items-center justify-between px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200">
             <span id="pending-roll-text"></span>
             <button id="btn-clear-roll" type="button" class="text-amber-300 hover:text-white ml-2">Clear</button>
@@ -127,7 +132,7 @@
       </section>
 
       <!-- PAGE 2: CHARACTER(S) -->
-      <section id="view-character" class="page-view hidden lg:flex lg:col-span-3 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-4">
+      <section id="view-character" class="page-view hidden lg:flex lg:col-span-3 min-h-0 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-3 overflow-y-auto">
         <div class="border-b border-stone-800 pb-3 space-y-2">
           <div>
             <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Character Sheet</p>
@@ -223,7 +228,8 @@
       </section>
 
       <!-- PAGE 3: ADVENTURES & ASSETS -->
-      <section id="view-adventures" class="page-view hidden lg:flex lg:col-span-3 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-4">
+      <section id="view-adventures" class="page-view hidden lg:flex lg:col-span-3 min-h-0 flex-col bg-surface rounded-2xl border border-stone-800 p-4 space-y-3 overflow-y-auto">
+  <!-- === END: VIEWPORT-CONTAINED DESKTOP LAYOUT === -->
         <div class="border-b border-stone-800 pb-3">
           <p class="text-[11px] uppercase tracking-widest text-amber-400/90 font-semibold">Campaign Tracker</p>
           <h2 id="campaign-tracker-title" class="font-display text-lg text-stone-100 mt-0.5">Clocks & Milestones</h2>
@@ -606,14 +612,16 @@
     function buildStructuredDmProse(dmResult) {
       const charFirstName = String(state.characterName || 'Kael').trim().split(/\s+/)[0] || 'Kael';
       const rawNarrative = String(dmResult.narrative || '').trim();
-      const roundMatch = rawNarrative.match(/\bROUND\s+(\d+)\b/i);
-      const roundNum = roundMatch ? Number(roundMatch[1]) : (Number(state.combatState?.round) || 1);
+      const activeCombat = Boolean(state.combatState?.active);
+      const roundNum = activeCombat ? Math.max(1, Number(state.combatState?.round) || 1) : 0;
 
       const bracketMath = extractBracketMathLines(rawNarrative);
       const cleanedNarrative = rawNarrative
         .replace(/\[[^\]]*(?:Attack|Damage|Slam|Hit|Miss|HP|Initiative|Save|DC|AC)[^\]]*\]/gi, '')
+        .replace(/\*\*\s*ROUND\s+\d+[^*\n]*\*\*/gi, '')
         .replace(/\bROUND\s+\d+\s*[—–-]\s*Turn\s+\d+\s*\([^)]+\)\s*/gi, '')
         .replace(/\bROUND\s+\d+\s*:?\s*/gi, '')
+        .replace(/^\*{3,}\s*$/gm, '')
         .replace(/\s+([.,!?;:])/g, '$1')
         .replace(/([.!?])\s*\.(?=\s|$)/g, '$1')
         .replace(/[ \t]{2,}/g, ' ')
@@ -621,7 +629,7 @@
         .trim();
 
       const parts = [];
-      if (state.combatState?.active || roundMatch || bracketMath.length > 0) {
+      if (activeCombat && roundNum > 0) {
         parts.push(`ROUND ${roundNum}`);
       }
       if (cleanedNarrative) {
@@ -832,6 +840,7 @@
       turnHistory: [],
       combatState: null,
       initiativeBoard: [],
+      initiativeCollapsed: false,
       logUpdatedAt: 0,
       logClearedAt: 0,
       charSyncTimer: null,
@@ -896,13 +905,24 @@
       await releaseWakeLock();
     }
 
-    // --- Dedicated Initiative Window (Highest to Lowest) ---
-
+    // === START: UNIFIED INITIATIVE WINDOW & COMBAT TRACKER ===
     function extractCombatantInitiatives(combatObj, dmText = '', playerRoll = null) {
+      const prevMap = new Map();
+      (Array.isArray(state.initiativeBoard) ? state.initiativeBoard : []).forEach((item) => {
+        if (item && item.name) prevMap.set(item.name.toLowerCase(), item.initiative);
+      });
+
       const entries = [];
       const seen = new Set();
       const playerName = String(state.characterName || 'Kael Vance').trim();
-      const playerFirst = playerName.split(/\s+/)[0];
+      const playerFirst = playerName.split(/\s+/)[0].toLowerCase();
+
+      const isSameCombatant = (a, b) => {
+        const la = String(a || '').toLowerCase().trim();
+        const lb = String(b || '').toLowerCase().trim();
+        if (!la || !lb) return false;
+        return la === lb || la.includes(lb) || lb.includes(la);
+      };
 
       const addEntry = (name, initVal, isPlayer = false) => {
         const cleanName = String(name || '').trim();
@@ -914,35 +934,52 @@
         entries.push({ name: cleanName, initiative: num, isPlayer });
       };
 
+      let playerInit = null;
       if (playerRoll && /\binitiative\b/i.test(String(playerRoll.label || ''))) {
-        addEntry(playerName, Number(playerRoll.total), true);
+        playerInit = Number(playerRoll.total);
+      } else if (prevMap.has(playerName.toLowerCase())) {
+        playerInit = prevMap.get(playerName.toLowerCase());
       }
 
       if (Array.isArray(combatObj?.turn_order)) {
         combatObj.turn_order.forEach((slot) => {
-          const m = String(slot || '').match(/^(.+?)\s*\(\s*([+-]?\d+)\s*\)$/);
-          if (m) {
-            const isP = m[1].toLowerCase().includes(playerFirst.toLowerCase()) || m[1].toLowerCase().includes(playerName.toLowerCase());
-            addEntry(isP ? playerName : m[1], Number(m[2]), isP);
-          }
+          const raw = String(slot || '').trim();
+          const m = raw.match(/^(.+?)\s*(?:\(\s*(?:Init(?:iative)?\s*:?\s*)?([+-]?\d+)\s*\)|:\s*([+-]?\d+))$/i);
+          const actorName = (m ? m[1] : raw).trim();
+          const parsedInit = m ? Number(m[2] ?? m[3]) : NaN;
+          const isP = isSameCombatant(actorName, playerName) || isSameCombatant(actorName, playerFirst);
+          const resolvedInit = Number.isFinite(parsedInit)
+            ? parsedInit
+            : (isP && Number.isFinite(playerInit) ? playerInit : (prevMap.get(actorName.toLowerCase()) ?? 10));
+          if (isP && !Number.isFinite(playerInit)) playerInit = resolvedInit;
+          addEntry(isP ? playerName : actorName, resolvedInit, isP);
         });
       }
 
-      const initPairRx = /\[([^\]]+?)\s+Initiative:\s*[^\]]*?=\s*([+-]?\d+)\]/gi;
+      const initPairRx = /\[([^\]]+?)\s+Initiative:\s*[^\]]*?\=\s*([+-]?\d+)\]/gi;
       let pm;
       while ((pm = initPairRx.exec(String(dmText || ''))) !== null) {
         const rawActor = pm[1].trim();
-        const isP = rawActor.toLowerCase().includes(playerFirst.toLowerCase()) || rawActor.toLowerCase().includes(playerName.toLowerCase());
-        addEntry(isP ? playerName : rawActor, Number(pm[2]), isP);
+        const val = Number(pm[2]);
+        const isP = isSameCombatant(rawActor, playerName) || isSameCombatant(rawActor, playerFirst);
+        if (isP) playerInit = val;
+        addEntry(isP ? playerName : rawActor, val, isP);
+      }
+
+      if (combatObj?.active && !entries.some((e) => e.isPlayer)) {
+        addEntry(playerName, Number.isFinite(playerInit) ? playerInit : 12, true);
       }
 
       if (Array.isArray(combatObj?.enemies)) {
-        combatObj.enemies.forEach((en) => {
-          if (en && en.name && !seen.has(String(en.name).toLowerCase())) {
-            const fallbackEnemyInit = playerRoll && /\binitiative\b/i.test(String(playerRoll.label || ''))
-              ? Math.max(1, Number(playerRoll.total) + 2)
-              : 10;
-            addEntry(en.name, fallbackEnemyInit, false);
+        combatObj.enemies.forEach((en, idx) => {
+          if (!en || !en.name) return;
+          const already = entries.some((e) => !e.isPlayer && isSameCombatant(e.name, en.name));
+          if (!already) {
+            const prevInit = prevMap.get(String(en.name).toLowerCase());
+            const fallbackInit = Number.isFinite(prevInit)
+              ? prevInit
+              : Math.max(1, (Number.isFinite(playerInit) ? playerInit : 12) + 3 - idx);
+            addEntry(en.name, fallbackInit, false);
           }
         });
       }
@@ -950,113 +987,132 @@
       return entries.sort((a, b) => b.initiative - a.initiative);
     }
 
+    function syncInitiativeCollapseUI() {
+      const body = document.getElementById('initiative-body');
+      const chev = document.getElementById('initiative-chevron');
+      const btn = document.getElementById('btn-toggle-initiative');
+      if (!body || !chev || !btn) return;
+      const collapsed = Boolean(state.initiativeCollapsed);
+      body.classList.toggle('hidden', collapsed);
+      chev.textContent = collapsed ? 'Show ▼' : 'Hide ▲';
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+
+    document.getElementById('btn-toggle-initiative')?.addEventListener('click', () => {
+      state.initiativeCollapsed = !state.initiativeCollapsed;
+      syncInitiativeCollapseUI();
+    });
+
     function renderInitiativeWindowUI() {
       const win = document.getElementById('initiative-window');
       const listEl = document.getElementById('initiative-list');
       const roundEl = document.getElementById('initiative-round-label');
+      const intentsEl = document.getElementById('initiative-enemy-intents');
       if (!win || !listEl || !roundEl) return;
 
-      const board = Array.isArray(state.initiativeBoard) ? state.initiativeBoard : [];
       const activeCombat = Boolean(state.combatState?.active);
-
-      if (!activeCombat && board.length === 0) {
+      if (!activeCombat) {
+        state.initiativeBoard = [];
+        state.initiativeCollapsed = false;
         win.classList.add('hidden');
         listEl.innerHTML = '';
+        if (intentsEl) intentsEl.innerHTML = '';
         return;
       }
 
-      const roundNum = Number(state.combatState?.round) || 1;
-      roundEl.textContent = `Round ${roundNum}`;
+      if (!Array.isArray(state.initiativeBoard) || state.initiativeBoard.length === 0) {
+        state.initiativeBoard = extractCombatantInitiatives(state.combatState);
+      }
 
-      const currentTurn = String(state.combatState?.current_turn || '').toLowerCase();
+      const board = state.initiativeBoard;
+      if (board.length === 0) {
+        win.classList.add('hidden');
+        listEl.innerHTML = '';
+        if (intentsEl) intentsEl.innerHTML = '';
+        return;
+      }
+
+      const roundNum = Math.max(1, Number(state.combatState?.round) || 1);
+      const currentTurnRaw = String(state.combatState?.current_turn || '').trim();
+      roundEl.textContent = currentTurnRaw ? `Round ${roundNum} · ${currentTurnRaw}` : `Round ${roundNum}`;
+
+      const actedSet = new Set((Array.isArray(state.combatState?.roundActorsActed) ? state.combatState.roundActorsActed : []).map((x) => String(x).toLowerCase()));
+      const currentTurn = currentTurnRaw.toLowerCase();
+      const enemies = Array.isArray(state.combatState?.enemies) ? state.combatState.enemies : [];
+
       listEl.innerHTML = board.map((item, idx) => {
         const isCurrent = currentTurn && (
           item.name.toLowerCase().includes(currentTurn)
           || currentTurn.includes(item.name.toLowerCase())
         );
+
+        let statusHtml = '';
+        let isDefeated = false;
+        let hasActed = false;
+        if (item.isPlayer) {
+          hasActed = actedSet.has('player');
+          const hp = state.parsedChar?.hp;
+          const maxHp = state.parsedChar?.maxHp;
+          const ac = state.parsedChar?.ac;
+          const hpStr = (hp !== null && maxHp !== null) ? `HP ${hp}/${maxHp}` : '';
+          const acStr = ac !== null ? `AC ${ac}` : '';
+          const actedTag = hasActed ? ' · Acted' : '';
+          const meta = [acStr, hpStr].filter(Boolean).join(' · ') + actedTag;
+          if (meta) statusHtml = `<span class="text-[11px] text-emerald-300 font-semibold">${escapeHtml(meta)}</span>`;
+        } else {
+          hasActed = actedSet.has(item.name.toLowerCase()) || actedSet.has(item.name.split(/\s+/)[0].toLowerCase());
+          const matchedEnemy = enemies.find((e) =>
+            e && e.name && (e.name.toLowerCase() === item.name.toLowerCase()
+              || e.name.toLowerCase().includes(item.name.toLowerCase())
+              || item.name.toLowerCase().includes(e.name.toLowerCase()))
+          );
+          if (matchedEnemy) {
+            const hp = Number(matchedEnemy.hp) || 0;
+            const maxHp = Math.max(hp, Number(matchedEnemy.max_hp) || 0);
+            const st = String(matchedEnemy.status || '').trim();
+            isDefeated = hp <= 0 || /defeated|dead|slain/i.test(st);
+            const stTag = st && !/^active|healthy|alive|defeated$/i.test(st) ? ` (${st})` : '';
+            const actedTag = !isDefeated && hasActed ? ' · Acted' : '';
+            statusHtml = isDefeated
+              ? `<span class="text-[11px] text-stone-500 font-medium">Defeated</span>`
+              : `<span class="text-[11px] text-rose-200">AC ${Number(matchedEnemy.ac) || '?'} · <strong class="text-emerald-300">${hp}/${maxHp}</strong>${escapeHtml(stTag)}${escapeHtml(actedTag)}</span>`;
+          }
+        }
+
         const badgeClass = item.isPlayer
           ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
           : 'bg-rose-500/15 border-rose-500/40 text-rose-200';
-        const activeRing = isCurrent ? 'ring-1 ring-amber-300/80 bg-amber-500/15' : 'bg-black/25';
+        const activeRing = isCurrent && !isDefeated ? 'ring-1 ring-amber-300/80 bg-amber-500/15' : 'bg-black/25';
+        const nameClass = isDefeated ? 'line-through text-stone-500' : (hasActed ? 'text-stone-300' : 'text-stone-100');
 
         return `<li class="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg border border-stone-800/90 ${activeRing}">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-[10px] font-bold text-stone-400 w-4">${idx + 1}.</span>
-            <span class="font-medium text-stone-100 truncate">${escapeHtml(item.name)}</span>
+            <span class="font-medium truncate ${nameClass}">${isCurrent && !isDefeated ? '► ' : (hasActed ? '✓ ' : '')}${escapeHtml(item.name)}</span>
           </div>
-          <span class="px-2 py-0.5 rounded border text-[11px] font-bold shrink-0 ${badgeClass}">Init ${item.initiative}</span>
+          <div class="flex items-center gap-2 shrink-0">
+            ${statusHtml}
+            <span class="px-2 py-0.5 rounded border text-[11px] font-bold ${badgeClass}">Init ${item.initiative}</span>
+          </div>
         </li>`;
       }).join('');
 
+      if (intentsEl) {
+        const activeIntents = enemies
+          .filter((en) => (Number(en.hp) || 0) > 0 && String(en.intent || '').trim())
+          .map((en) => `<span class="px-2 py-0.5 rounded bg-black/35 border border-stone-800 text-stone-300"><strong class="text-rose-200">${escapeHtml(en.name)}:</strong> ${escapeHtml(en.intent.trim())}</span>`);
+        intentsEl.innerHTML = activeIntents.join('');
+        intentsEl.classList.toggle('hidden', activeIntents.length === 0);
+      }
+
+      syncInitiativeCollapseUI();
       win.classList.remove('hidden');
     }
 
-    // --- Live Combat & Initiative Tracker Bar ---
-
     function renderCombatTrackerUI() {
-      const bar = document.getElementById('combat-tracker-bar');
-      const cs = state.combatState;
-      if (!bar) return;
-
-      if (!cs || !cs.active) {
-        bar.classList.add('hidden');
-        bar.innerHTML = '';
-        renderInitiativeWindowUI();
-        return;
-      }
-
-      const roundNum = Number(cs.round) || 1;
-      const turnNum = Number(cs.turn_number) || 1;
-      const currentTurn = (cs.current_turn || '').trim();
-      const turnLog = Array.isArray(cs.turn_log) ? cs.turn_log.slice(-4) : [];
-      const orderHtml = Array.isArray(cs.turn_order) && cs.turn_order.length > 0
-        ? cs.turn_order.map((slot) => {
-            const cleanSlot = String(slot || '').trim();
-            const isActiveTurn = currentTurn && cleanSlot.toLowerCase().includes(currentTurn.toLowerCase());
-            return isActiveTurn
-              ? `<span class="px-2 py-0.5 rounded bg-amber-500/25 border border-amber-400/70 text-amber-200 font-semibold">► ${escapeHtml(cleanSlot)}</span>`
-              : `<span class="px-2 py-0.5 rounded bg-surfaceAlt border border-stone-700/80 text-stone-300">${escapeHtml(cleanSlot)}</span>`;
-          }).join('')
-        : (currentTurn ? `<span class="text-amber-200 font-semibold">► ${escapeHtml(currentTurn)}</span>` : '');
-      const turnLogHtml = turnLog.length > 0
-        ? `<div class="text-[11px] text-stone-300/90 flex flex-wrap gap-1.5 pt-0.5">${turnLog.map((entry) =>
-            `<span class="px-2 py-0.5 rounded bg-black/35 border border-stone-800 text-stone-300">${escapeHtml(entry)}</span>`
-          ).join('')}</div>`
-        : '';
-
-      const enemiesHtml = Array.isArray(cs.enemies) && cs.enemies.length > 0
-        ? cs.enemies.map((en) => {
-            const hp = Number(en.hp) || 0;
-            const maxHp = Math.max(hp, Number(en.max_hp) || 0);
-            const status = (en.status || 'Active').trim();
-            const intent = (en.intent || '').trim();
-            const isDead = hp <= 0 || /defeated|dead|slain/i.test(status);
-            if (isDead) {
-              return `<span class="px-2 py-1 rounded-lg bg-stone-900/80 border border-stone-800 text-stone-500 line-through">${escapeHtml(en.name)} · Defeated</span>`;
-            }
-            const statusTag = status && !/^active|healthy|alive$/i.test(status)
-              ? ` <span class="text-amber-300">(${escapeHtml(status)})</span>`
-              : '';
-            const intentTag = intent
-              ? ` <span class="text-stone-300/90 italic">— ${escapeHtml(intent)}</span>`
-              : '';
-            return `<span class="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/40 text-stone-100">
-              <strong class="text-rose-200">${escapeHtml(en.name)}</strong> · AC ${Number(en.ac) || '?'} · <span class="text-emerald-300 font-semibold">${hp}/${maxHp}</span>${statusTag}${intentTag}
-            </span>`;
-          }).join('')
-        : '';
-
-      bar.innerHTML = `
-        <div class="flex flex-wrap items-center justify-between gap-1.5">
-          <span class="text-[11px] uppercase tracking-wider font-bold text-rose-300">&#9876; Round ${roundNum} · Turn ${turnNum}${currentTurn ? ` (${escapeHtml(currentTurn)})` : ''}</span>
-          <div class="flex flex-wrap items-center gap-1 text-[11px]">${orderHtml}</div>
-        </div>
-        ${enemiesHtml ? `<div class="flex flex-wrap items-center gap-1.5 text-[11px]">${enemiesHtml}</div>` : ''}
-        ${turnLogHtml}
-      `;
-      bar.classList.remove('hidden');
       renderInitiativeWindowUI();
     }
+    // === END: UNIFIED INITIATIVE WINDOW & COMBAT TRACKER ===
 
     // --- Per-Campaign Story Log, Rolling Turn Memory & Repo Session Log ---
 
@@ -1220,7 +1276,6 @@
         const rollHeaderHtml = entry.rollSummary
           ? `<div class="mb-2.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex flex-wrap items-center justify-between gap-2">
                <span class="font-semibold">${escapeHtml(entry.rollSummary)}</span>
-               ${entry.actionNote ? `<span class="text-stone-300 font-normal">${escapeHtml(entry.actionNote)}</span>` : ''}
              </div>`
           : '';
         const cleanBeat = String(entry.playerBeat || '').replace(/\s+([.,!?;:])/g, '$1').replace(/([.!?])\s*\.(?=\s|$)/g, '$1');
@@ -2446,12 +2501,13 @@ function ensureCombatEconomy() {
 
     function normalizeCombatStateMachine(rawCombat, prevCombat) {
       if (!rawCombat || typeof rawCombat !== 'object' || !rawCombat.active) {
+        state.initiativeBoard = [];
         return null;
       }
 
-      const prevRound = Number(prevCombat?.round) || 0;
-      const modelRound = Number(rawCombat.round) || 0;
-      const round = Math.max(1, prevRound > 0 ? Math.max(prevRound, modelRound) : (modelRound || 1));
+      const wasActive = Boolean(prevCombat?.active);
+      const prevRound = wasActive ? (Number(prevCombat?.round) || 1) : 0;
+      const round = wasActive ? Math.max(1, prevRound) : 1;
       const roundChanged = round !== prevRound;
 
       const enemies = Array.isArray(rawCombat.enemies)
@@ -2532,10 +2588,32 @@ function ensureCombatEconomy() {
       const isInitiativeRoll = /\binitiative\b/.test(rollLabel);
 
       if (isInitiativeRoll) {
+        const board = Array.isArray(state.initiativeBoard) && state.initiativeBoard.length > 0
+          ? state.initiativeBoard
+          : extractCombatantInitiatives(combatObj, dmNarrative, rollObj);
+        const playerEntry = board.find((b) => b.isPlayer);
+        const playerInit = Number(playerEntry?.initiative ?? rollObj?.total ?? 10);
+
+        // Any enemy with initiative > playerInit acts first on Round 1
+        activeEnemies.forEach((en) => {
+          const enBoardItem = board.find((b) => !b.isPlayer && (
+            b.name.toLowerCase() === en.name.toLowerCase()
+            || b.name.toLowerCase().includes(en.name.toLowerCase())
+            || en.name.toLowerCase().includes(b.name.toLowerCase())
+          ));
+          const enInit = Number(enBoardItem?.initiative ?? 12);
+          if (enInit > playerInit) {
+            acted.add(en.name.toLowerCase());
+            acted.add(en.name.split(/\s+/)[0].toLowerCase());
+          }
+        });
+
+        const firstActer = board[0]?.name || combatObj.current_turn || state.characterName || 'Kael Vance';
         return {
           ...combatObj,
           round: Math.max(1, Number(combatObj.round) || 1),
-          roundActorsActed: [],
+          current_turn: firstActer,
+          roundActorsActed: Array.from(acted),
         };
       }
 
@@ -2544,24 +2622,32 @@ function ensureCombatEconomy() {
         acted.add('player');
       }
 
-      const enemyActedInProse = activeEnemies.some((en) => {
-        const enFirst = String(en.name || '').trim().split(/\s+/)[0];
-        if (!enFirst) return false;
-        return new RegExp(`\\b${escapeRegex(enFirst)}\\b[^\\n.]{0,90}\\b(?:attack|slash|slam|bite|claw|strike|lunge|fires?|casts?)\\b`, 'i').test(dmNarrative || '');
+      activeEnemies.forEach((en) => {
+        const enFull = String(en.name || '').trim().toLowerCase();
+        const enFirst = enFull.split(/\s+/)[0];
+        const mentioned = (enFull && new RegExp(`\b${escapeRegex(enFull)}\b`, 'i').test(dmNarrative || ''))
+          || (enFirst && new RegExp(`\b${escapeRegex(enFirst)}\b[^\n.]{0,110}\b(?:attack|slash|slam|bite|claw|strike|lunge|fires?|casts?|hurls?|flanks?|darts?)\b`, 'i').test(dmNarrative || ''));
+        if (mentioned) {
+          acted.add(enFull);
+          if (enFirst) acted.add(enFirst);
+        }
       });
 
-      if (enemyActedInProse) {
-        activeEnemies.forEach((en) => acted.add(String(en.name).toLowerCase()));
-      }
-
-      const allEnemiesActed = activeEnemies.every((en) => acted.has(String(en.name).toLowerCase()));
+      const allEnemiesActed = activeEnemies.every((en) => {
+        const enFull = String(en.name || '').trim().toLowerCase();
+        const enFirst = enFull.split(/\s+/)[0];
+        return acted.has(enFull) || (enFirst && acted.has(enFirst));
+      });
       const playerActed = acted.has('player');
 
       if (playerActed && allEnemiesActed) {
         const nextRound = (Number(combatObj.round) || 1) + 1;
+        const board = Array.isArray(state.initiativeBoard) ? state.initiativeBoard : [];
+        const nextFirst = board[0]?.name || state.characterName || 'Kael Vance';
         return {
           ...combatObj,
           round: nextRound,
+          current_turn: nextFirst,
           roundActorsActed: [],
           economy: {
             ...(combatObj.economy || {}),
@@ -2670,10 +2756,15 @@ function applyRestAndConditionRules(actionText, dmNarrative = '') {
         changed = true;
       }
 
+      // === START: CLASS-AGNOSTIC REST & RESOURCE RECHARGE ===
+      const charMdLower = String(state.files.character.content || '').toLowerCase();
       const targetResList = state.parsedChar.resources || parsed.resources || [];
       targetResList.forEach((res) => {
         const nameLower = String(res.name || '').toLowerCase();
-        const shouldRefill = isLongRest || /\b(superiority|pact|ki|channel\s*divinity|second\s*wind)\b/.test(nameLower);
+        const escapedName = escapeRegex(nameLower);
+        const markedShortRestInMd = new RegExp(`${escapedName}[^\n]{0,45}\bshort\s*rest\b`, 'i').test(charMdLower);
+        const isStandardShortRestPool = /\b(superiority|pact|ki|focus|channel\s*divinity|second\s*wind|arcane\s*recovery|bardic\s*inspiration|wild\s*shape|war\s*priest|bladesong)\b/.test(nameLower);
+        const shouldRefill = isLongRest || markedShortRestInMd || isStandardShortRestPool;
         if (shouldRefill && res.cur < res.max) {
           res.cur = res.max;
           if (state.files.character.content) {
@@ -2687,6 +2778,7 @@ function applyRestAndConditionRules(actionText, dmNarrative = '') {
           changed = true;
         }
       });
+      // === END: CLASS-AGNOSTIC REST & RESOURCE RECHARGE ===
 
       if (state.combatState?.economy) {
         state.combatState.economy.dodging = false;
@@ -2871,14 +2963,30 @@ function applyRestAndConditionRules(actionText, dmNarrative = '') {
           const kind = classifySuggestedRoll(copy);
           const combined = `${copy.label || ''} ${copy.skill || ''} ${copy.action || ''}`.toLowerCase();
 
+          const isHealOpt = /\b(healing|potion|second\s*wind|hit\s*die|recover)\b/i.test(combined);
+          if (isHealOpt || kind === 'damage') {
+            copy.dc = 0;
+          }
+
           if (/\btrip\s*attack\b/.test(combined) && kind === 'damage') {
             copy.label = copy.label || 'Damage + Trip Attack (+1d8 Dmg)';
-            copy.skill = copy.skill || 'Damage + Maneuver (+1d8)';
-            copy.sides = copy.sides || 8;
-            copy.dice_count = copy.dice_count || 2;
+            copy.skill = copy.skill || 'Damage + Maneuver (2d8+3)';
+            copy.sides = Number(copy.sides) > 0 ? Number(copy.sides) : 8;
+            copy.dice_count = Math.max(2, Number(copy.dice_count) || 2);
+            copy.mod = Number.isFinite(Number(copy.mod)) && Number(copy.mod) !== 0 ? Number(copy.mod) : 3;
             copy.dc = 0;
             return copy;
           }
+
+          // === START: CONDITIONAL ROLL FLAG SANITIZATION ===
+          const explicitlyNoRoll = copy.requires_roll === false && !inActiveCombat;
+          if (explicitlyNoRoll) {
+            copy.requires_roll = false;
+            copy.dc = 0;
+            return copy;
+          }
+          copy.requires_roll = true;
+          // === END: CONDITIONAL ROLL FLAG SANITIZATION ===
 
           if (kind === 'attack') {
             const ac = Number(copy.dc) > 0 ? Number(copy.dc) : enemyAc;
@@ -2893,20 +3001,30 @@ function applyRestAndConditionRules(actionText, dmNarrative = '') {
           return copy;
         });
 
+      // === START: CLASS-AGNOSTIC DAMAGE FALLBACK ===
       if (econ.lastRollType === 'attack' && econ.lastRollHit === true) {
         const hasDamageOption = cleaned.some((c) => classifySuggestedRoll(c) === 'damage');
         if (!hasDamageOption) {
+          const charMd = String(state.files.character.content || '');
+          const dmgSpecMatch = charMd.match(/\b(\d+)d(4|6|8|10|12)\s*([+-]\s*\d+)?\b/i);
+          const baseCount = dmgSpecMatch ? Math.max(1, Number(dmgSpecMatch[1])) : 1;
+          const baseSides = dmgSpecMatch ? Number(dmgSpecMatch[2]) : 8;
+          const baseMod = dmgSpecMatch && dmgSpecMatch[3] ? Number(dmgSpecMatch[3].replace(/\s+/g, '')) : 0;
+          const modLabel = baseMod === 0 ? '' : (baseMod > 0 ? `+${baseMod}` : `${baseMod}`);
+
           cleaned.unshift({
-            label: 'Weapon Damage Roll',
-            skill: 'Damage (1d8+3)',
-            sides: 8,
-            dice_count: 1,
-            mod: 3,
+            label: 'Damage Roll',
+            requires_roll: true,
+            skill: `Damage (${baseCount}d${baseSides}${modLabel})`,
+            sides: baseSides,
+            dice_count: baseCount,
+            mod: baseMod,
             dc: 0,
-            action: 'Roll weapon damage against the target.'
+            action: 'Roll damage against the target.'
           });
         }
       }
+      // === END: CLASS-AGNOSTIC DAMAGE FALLBACK ===
 
       return cleaned.slice(0, 3);
     }
@@ -2939,8 +3057,16 @@ async function callGeminiDM(cfg, actionText, rollObj) {
       const hpStatusLine = state.parsedChar.hp !== null && state.parsedChar.maxHp !== null
         ? `Authoritative Player Character HP: ${state.parsedChar.hp} / ${state.parsedChar.maxHp} | Gold: ${state.parsedChar.gold} ${state.parsedChar.currencyUnit}`
         : '';
+      const initOrderSummary = Array.isArray(state.initiativeBoard) && state.initiativeBoard.length > 0
+        ? state.initiativeBoard.map((c, i) => `${i + 1}. ${c.name} (Init ${c.initiative})`).join(' -> ')
+        : 'Not yet rolled';
       const combatBlock = state.combatState && state.combatState.active
-        ? JSON.stringify(state.combatState)
+        ? `AUTHORITATIVE COMBAT STATE (DO NOT RESET ROUND OR OVERRIDE HP):
+Round: ${state.combatState.round}
+Current Turn: ${state.combatState.current_turn || activeChar}
+Initiative Order (High -> Low): ${initOrderSummary}
+Enemies: ${JSON.stringify(state.combatState.enemies || [])}
+Economy: ${JSON.stringify(state.combatState.economy || {})}`
         : 'STORY MODE (no active combat)';
 
       const systemPrompt = `You are a Dungeon Master for a solo tabletop RPG campaign ("${cfg.campaignName}").
@@ -2953,15 +3079,20 @@ TWO MODES (Story Mode vs. Turn-Based Combat Mode):
 
 COMBAT & ENEMY AGENCY:
 - NEVER AUTO-ROLL PLAYER DICE OR INVENT ROLL TOTALS: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves) and resolve NPC/enemy turns completely in prose. Never roll ${activeChar}'s d20/damage/saves, and NEVER override or re-roll the player's submitted roll total—always treat the exact total shown in the player's roll message as ground truth (e.g., if the player rolled 9 against AC 14, it is a MISS, even if a d8 was rolled for Precision Attack).
-- ENEMY INITIATIVE TURN: Whenever an enemy has higher Initiative than ${activeChar} (or acts before ${activeChar} in the round), resolve that enemy's full turn right now in "narrative"—movement, attack roll, hit/miss, and damage/effect against ${activeChar}—and apply any HP loss to ${activeChar} via "hp_delta" and "current_hp". Do NOT stop after moving into melee range without attacking unless the enemy is specifically using a non-attack action/telegraph.
+- ENEMY INITIATIVE TURN & CLEAR PER-ENEMY TURN MARKERS: Whenever one or more enemies have higher Initiative than ${activeChar} (or act before ${activeChar} in the round), resolve EVERY higher-initiative enemy's full turn right now in "narrative" in initiative order. Clearly mark each enemy taking its turn with a bold turn header and inline roll math—for example:
+  **Ash-Goblin A's Turn** — [Ash-Goblin A Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d4 (3) + 2 = 5 | Kael HP: 27 -> 22]
+  **Ash-Goblin B's Turn** — [Ash-Goblin B Attack: ...]
+  **Ash-Goblin C's Turn** — [Ash-Goblin C Attack: ...]
+  Never leave multiple goblins half-resolved as flavor if they have higher Initiative; give each acting enemy its own clear turn beat and roll line before handing the turn to ${activeChar}.
+- FREEFORM ACTION EXECUTION (NO STALLING): When ${activeChar} states a clear combat or movement action in free text (such as "let do a Precision attack right into that weakness"), commit directly to that action—describe ${activeChar} executing the move and immediately prompt the corresponding roll (e.g. Precision Attack roll) rather than merely repeating preparation and stalling.
 - PLAYER ATTACKS & HITS VS. MISSES: When ${activeChar} initiates an unrolled attack, prompt their Attack roll first. Once the player submits an Attack roll:
   * If total < enemy AC -> IT IS A MISS. Describe the miss in prose, do NOT offer damage rolls, expend superiority dice only if the character sheet specifies using Precision Attack before/after seeing the roll, and present ${activeChar}'s next turn/reaction options.
   * If total >= enemy AC -> IT IS A HIT. Immediately prompt ${activeChar}'s Damage roll right now in "suggested_rolls" (do NOT skip ahead to enemy retaliation or next-turn actions before ${activeChar} rolls damage for the hit, and only include maneuver bonus damage like Trip Attack if that maneuver was used on a hit).
 - ACCURATE 5E CONDITIONS, ADVANTAGE & MANEUVERS:
   * Prone Condition: While Prone, a creature's attacks have DISADVANTAGE, melee attacks within 5 ft against it have ADVANTAGE, ranged attacks against it have DISADVANTAGE, and standing up costs half its movement (or its turn if immobilized). Always apply Disadvantage when a Prone enemy attacks!
-  * Precision Attack: adds +1d8 to the ATTACK roll ONLY (never added to damage).
-  * Trip Attack: triggers ON A MELEE HIT, adding +1d8 to DAMAGE and forcing a STR save (knocking target Prone on failure; update enemy "status" to "Prone").
-  * Action Surge grants an extra Action; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
+  * CHARACTER SHEET CLASS GIMMICKS & HOMEBREW RULES: Read the active Character sheet carefully for all class-specific features, spellcasting/metamagic/pact slots, maneuvers, stances, companions, or homebrew mechanics. Enforce their exact trigger timing (before roll vs. on hit vs. Bonus Action vs. Reaction), resource cost ("resource_updates"), and save DCs.
+  * Bonus Attack Dice vs. Bonus Damage Dice: Features that add a bonus die to an ATTACK roll (e.g. Precision Attack, Bardic Inspiration, Guided Strike) apply ONLY to the attack roll—never add them to damage. Features that trigger ON A HIT (e.g. Divine Smite, Sneak Attack, Trip Attack, Hex/Hunter's Mark) apply ONLY after a confirmed hit.
+  * Extra Actions & Healing: Features granting an extra Action (e.g. Action Surge, Haste) allow an additional action on that turn; Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
 - ACTIVE ENEMIES & TELEGRAPHED INTENT: Basic mobs do NOT get free Ripostes on every missed player swing, but Bosses/Elites may have a defined 1/round Reaction, and ALL active enemies must still fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field.
 - TELEGRAPH AT ROUND END: At the end of a combat round, weave what active enemies are preparing next into "narrative" so the player feels the threat closing in.
 - RECORD ALL ROLLS INLINE: e.g. [Sentry Slam: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d8 (5) + 3 = 8 | Kael HP: 22 -> 14], [Kael Damage: 1d8 (6) + 3 = 9 | Sentry HP: 14 -> 5].
@@ -2981,8 +3112,14 @@ WRITING & SUGGESTED ROLLS:
   * Initiative called -> ALL 3 options MUST roll Initiative for ${activeChar} (dc: 0, sides: 20, dice_count: 1). No pre-combat filler.
   * Attack just HIT (player roll >= enemy AC) -> ALL options (1–3) MUST roll ${activeChar}'s Damage (dc: 0)—Option 1 base weapon/spell damage; Options 2–3 hit-triggered maneuver or Bonus Action damage (e.g. Trip Attack 2d8+3) if resources remain. NEVER add Precision Attack's d8 to damage.
   * Attack just MISSED (player roll < enemy AC) -> Do NOT offer Damage rolls. Offer ${activeChar}'s next valid actions/reactions or end-of-turn choices instead.
-  * Saving Throw forced on ${activeChar} -> ALL 3 options MUST roll ${activeChar}'s Saving Throw (dc: <save DC>).- Regular Combat / Story choices: frame 3 distinct tactical risk/reward trade-offs for ${activeChar} (e.g. Reckless/Advantage vs. Shield Wall/Defensive vs. Terrain/Class Skill or Social dialogue when talkable NPCs exist). For ${activeChar}'s Attack rolls, set "dc" to enemy AC.
-- When offering a Battle Master maneuver option (like Precision Attack), write the action clearly (e.g. "Use Maneuver Precision: Attack and add 1d8 to the roll") and set "skill" to include "+1d8" so the roll summary reads cleanly.
+  * Saving Throw forced on ${activeChar} -> ALL 3 options MUST roll ${activeChar}'s Saving Throw (dc: <save DC>).
+- CONDITIONAL ROLLS IN STORY MODE (requires_roll):
+  * In Story Mode (combat.active: false), NOT every choice needs a dice roll! Set "requires_roll": false (with dc: 0, sides: 20, dice_count: 1, mod: 0) for safe, routine, unopposed, or purely conversational/exploratory choices (e.g. questioning a willing ally, examining an unhidden object, moving down a clear hall).
+  * Set "requires_roll": true ONLY when an option involves meaningful risk, active opposition/resistance, stealth, danger, or uncertain stakes (include the stakes briefly in "action").
+  * CHOICE VARIETY RULE: In Story Mode, whenever you offer 3 choices, include at least 1-2 options with "requires_roll": false alongside 1-2 riskier options with "requires_roll": true.
+  * SELECTIVE AUTO-ROLL IN STORY MODE (auto_roll): Only when ${activeChar} enters a new hazard/ambush zone or passive environmental awareness could uncover a hidden clue/trap without stealing player agency, set "auto_roll": { "trigger": true, "skill": "Perception", "mod": <char mod>, "dc": <DC>, "stakes": "<what is noticed or missed>" }. For normal turns, set "auto_roll": { "trigger": false, "skill": "", "mod": 0, "dc": 0, "stakes": "" }.
+- Regular Combat / Story choices: frame 3 distinct tactical risk/reward trade-offs for ${activeChar} (e.g. Reckless/Advantage vs. Shield Wall/Defensive vs. Terrain/Class Skill or Social dialogue when talkable NPCs exist). For ${activeChar}'s Attack rolls, set "dc" to enemy AC.
+- When offering a class feature or maneuver that adds a bonus die to a roll (such as Precision Attack, Bardic Inspiration, or Guidance), state the bonus die clearly in "action" and include "+1dX" in "skill" (e.g. "Attack +1d8") so the dice tray pre-selects the bonus die cleanly.
 
 Return ONLY valid JSON matching schema.
 
@@ -3005,12 +3142,14 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         properties: {
           player_beat: { type: 'STRING' },
           narrative: { type: 'STRING' },
+          // === START: CONDITIONAL ROLL & AUTO-ROLL SCHEMA ===
           suggested_rolls: {
             type: 'ARRAY',
             items: {
               type: 'OBJECT',
               properties: {
                 action: { type: 'STRING' },
+                requires_roll: { type: 'BOOLEAN' },
                 skill: { type: 'STRING' },
                 mod: { type: 'INTEGER' },
                 dc: { type: 'INTEGER' },
@@ -3018,9 +3157,21 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
                 sides: { type: 'INTEGER' },
                 dice_count: { type: 'INTEGER' }
               },
-              required: ['action', 'skill', 'mod', 'dc', 'mode', 'sides', 'dice_count']
+              required: ['action', 'requires_roll', 'skill', 'mod', 'dc', 'mode', 'sides', 'dice_count']
             }
           },
+          auto_roll: {
+            type: 'OBJECT',
+            properties: {
+              trigger: { type: 'BOOLEAN' },
+              skill: { type: 'STRING' },
+              mod: { type: 'INTEGER' },
+              dc: { type: 'INTEGER' },
+              stakes: { type: 'STRING' }
+            },
+            required: ['trigger', 'skill', 'mod', 'dc', 'stakes']
+          },
+          // === END: CONDITIONAL ROLL & AUTO-ROLL SCHEMA ===
           combat: {
             type: 'OBJECT',
             properties: {
@@ -3067,7 +3218,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
           character_note: { type: 'STRING' }
         },
         required: [
-          'player_beat', 'narrative', 'suggested_rolls', 'combat', 'location',
+          'player_beat', 'narrative', 'suggested_rolls', 'auto_roll', 'combat', 'location',
           'current_hp', 'hp_delta', 'current_gold', 'gold_delta', 'resource_updates',
           'campaign_note', 'story_note', 'character_note'
         ]
@@ -3393,6 +3544,7 @@ function resolveNextGold(dmResult, baseGold) {
       } else {
         renderCharacterUI(state.parsedChar);
       }
+      renderInitiativeWindowUI();
       renderCampaignTrackerUI(parseCampaignTracker(state.files.campaign.content, state.files.story.content));
       applyConcentrationAndDeathSaveRules(actionText, dmResult, rollObj);
       saveCampaignMemory(cfg?.profileId);
@@ -4008,7 +4160,29 @@ function resolveNextGold(dmResult, baseGold) {
       const validModes = new Set(['normal', 'advantage', 'disadvantage', 'super_advantage']);
 
       suggestions.slice(0, 3).forEach((opt) => {
+        // === START: CONDITIONAL ROLL BUTTON RENDERING (OPTION A: INSTANT SUBMIT) ===
         const actionLabel = (opt.action || '').trim();
+        const isNoRollChoice = opt.requires_roll === false && !state.combatState?.active;
+        if (isNoRollChoice) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-stone-800/80 hover:bg-stone-700/80 border border-stone-600/80 transition cursor-pointer flex flex-col gap-0.5';
+          btn.innerHTML = `<span class="text-stone-100 text-xs sm:text-sm font-medium leading-snug">${escapeHtml(actionLabel || 'Continue')}</span>
+             <span class="text-stone-400 text-[11px] font-medium tracking-wide">Story Action · No Roll</span>`;
+          btn.addEventListener('click', () => {
+            if (!actionLabel) return;
+            state.pendingRoll = null;
+            const pill = document.getElementById('pending-roll-pill');
+            if (pill) { pill.classList.add('hidden'); pill.classList.remove('flex'); }
+            const input = document.getElementById('action-input');
+            if (input) input.value = '';
+            executeTurnSubmission({ actionText: actionLabel, rollObj: null, isRetry: false });
+          });
+          btnRow.appendChild(btn);
+          return;
+        }
+        // === END: CONDITIONAL ROLL BUTTON RENDERING (OPTION A: INSTANT SUBMIT) ===
+
         const skill = (opt.skill || 'Check').trim();
         const mod = Number(opt.mod) || 0;
         const dc = Number(opt.dc) || 0;
@@ -4040,11 +4214,12 @@ function resolveNextGold(dmResult, baseGold) {
           normalizedMode = isRangedAttack ? 'disadvantage' : 'advantage';
         }
 
+        const effectiveDc = isDamageOrHeal ? 0 : dc;
         const dieTag = (effectiveSides !== 20 || effectiveDiceCount > 1) ? `${effectiveDiceCount}d${effectiveSides}` : '';
         const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
         const rollSpec = `${dieTag}${modStr}`;
         const targetLabel = isAttack ? 'AC' : 'DC';
-        const dcStr = dc > 0 ? ` · ${targetLabel} ${dc}` : '';
+        const dcStr = effectiveDc > 0 ? ` · ${targetLabel} ${effectiveDc}` : '';
         const modeBadge = normalizedMode === 'advantage' ? ' · ADV' : normalizedMode === 'disadvantage' ? ' · DIS' : normalizedMode === 'super_advantage' ? ' · 3D20' : '';
 
         const btn = document.createElement('button');
@@ -4082,9 +4257,9 @@ function resolveNextGold(dmResult, baseGold) {
             sides: effectiveSides,
             diceCount: effectiveDiceCount,
             mod,
-            dc,
+            dc: effectiveDc,
             isAttack,
-            fullLabel: `${skill}${dc > 0 ? ` (${targetLabel} ${dc})` : ''}${modeBadge}`,
+            fullLabel: `${skill}${effectiveDc > 0 ? ` (${targetLabel} ${effectiveDc})` : ''}${modeBadge}`,
           });
           if (inferredBonusSides > 0) {
             const bonusSel = document.getElementById('bonus-die-select');
@@ -4767,13 +4942,29 @@ document.getElementById('btn-clear-roll').addEventListener('click', () => {
               return `${rollObj.label}: ${rollObj.total} [raw ${rollObj.raw}${modStr}${bonusStr}${poolStr}]`;
             })()
           : '';
+        // === START: SELECTIVE STORY MODE AUTO-ROLL HANDLER ===
+        let autoRollBanner = '';
+        if (!state.combatState?.active && dmResult.auto_roll && dmResult.auto_roll.trigger && dmResult.auto_roll.skill) {
+          const arSkill = String(dmResult.auto_roll.skill).trim();
+          const matchedSk = (state.parsedChar?.skills || []).find((s) => s.name.toLowerCase() === arSkill.toLowerCase());
+          const arMod = matchedSk ? Number(matchedSk.mod) : (Number(dmResult.auto_roll.mod) || 0);
+          const arDc = Math.max(1, Number(dmResult.auto_roll.dc) || 12);
+          const arRaw = Math.floor(Math.random() * 20) + 1;
+          const arTotal = arRaw + arMod;
+          const arPassed = arRaw === 20 || (arRaw !== 1 && arTotal >= arDc);
+          const arModStr = arMod >= 0 ? `+${arMod}` : `${arMod}`;
+          autoRollBanner = `Auto ${arSkill}: ${arTotal} [d20(${arRaw})${arModStr}] vs DC ${arDc} — ${arPassed ? 'Success' : 'Failed'}`;
+        }
+        // === END: SELECTIVE STORY MODE AUTO-ROLL HANDLER ===
+
         const structuredNarrative = buildStructuredDmProse(dmResult);
         state.lastFailedRequest = null;
+        const combinedBanner = [turnRollSummary, autoRollBanner].filter(Boolean).join('  |  ');
         pushStoryEntry({
           type: 'dm',
           label: 'Dungeon Master',
-          rollSummary: turnRollSummary,
-          actionNote: hasRoll && actionText ? actionText : '',
+          rollSummary: combinedBanner,
+          actionNote: '',
           playerBeat: dmResult.player_beat || '',
           narrative: structuredNarrative,
           suggestedRolls: safeSuggestions,
