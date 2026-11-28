@@ -1710,7 +1710,14 @@
       }
     }
     // === [END OF PART 1 — PASTE PART 2 IMMEDIATELY BELOW] ===
-     function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+function stripDuplicateRollLines(text) {
+      return String(text || '')
+        .replace(/(?:^|[\n\r]+)[ \t]*(?:\*\*)?(?:Auto\s+)?[A-Za-z][A-Za-z0-9 &/'()-]{1,40}(?:\*\*)?:\s*(?:\*\*)?(?:\d+\s*\[)?d\d+\s*\(\d+\)(?:\s*\+\s*[^\]=\n]+)?\s*(?:\]\s*)?(?:=\s*-?\d+\s*)?vs\.?\s*(?:DC|AC)\s*\d+\s*(?:[—–-]{1,2}\s*(?:Success|Failure|Failed|Hit|Miss|Critical[^!\n.]*)[!.]?)?(?:\*\*)?[ \t]*(?=$|[\n\r])/gim, '')
+        .replace(/[ \t]+(?:\*\*)?(?:Auto\s+)?[A-Za-z][A-Za-z0-9 &/'()-]{1,40}(?:\*\*)?:\s*(?:\*\*)?(?:\d+\s*\[)?d\d+\s*\(\d+\)(?:\s*\+\s*[^\]=\n]+)?\s*(?:\]\s*)?(?:=\s*-?\d+\s*)?vs\.?\s*(?:DC|AC)\s*\d+\s*(?:[—–-]{1,2}\s*(?:Success|Failure|Failed|Hit|Miss|Critical[^!\n.]*)[!.]?)?(?:\*\*)?\s*$/gim, '');
+    }
+
+    function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
     function ensureCombatEconomy() {
       if (!state.combatState || typeof state.combatState !== 'object') state.combatState = { active: false, round: 0, enemies: [] };
@@ -1770,7 +1777,6 @@
       } else if (/\bend\s*turn|hold\s*position|wait\b/.test(text)) {
         econ.actionUsed = true;
       } else {
-        // Unrolled intent (e.g. "attack", "kill", "cast fire bolt", "check traps"): keep action available so roll buttons appear
         econ.actionUsed = false;
       }
       econ.phase = 'player_turn';
@@ -1924,7 +1930,6 @@
         return { ...combatObj, round: Math.max(1, Number(combatObj._prevRoundBeforeTurn) || Number(combatObj.round) || 1), roundActorsActed: Array.from(acted) };
       }
 
-      // Only mark enemies who actually had an explicit turn header or roll bracket (ignore casual flavor chatter)
       activeEnemies.forEach((en) => {
         const enFull = String(en.name || '').trim().toLowerCase();
         const enFirst = enFull.split(/\s+/)[0];
@@ -1957,7 +1962,6 @@
         };
       }
 
-      // If at least one enemy acted in retaliation after player's action, unlock player's next turn cleanly
       const updatedEcon = anyEnemyActedThisTurn && combatObj.economy?.phase !== 'awaiting_damage'
         ? { ...(combatObj.economy || {}), phase: 'player_turn', actionUsed: false, bonusActionUsed: false, movementUsed: false, disengaged: false, dodging: false }
         : combatObj.economy;
@@ -2119,19 +2123,31 @@
       });
     }
 
-    function sanitizeSuggestedRolls(rawList) {
+    function isEnemyTurnOption(item) {
+      const skill = String(item?.skill || item?.label || '').trim().toLowerCase();
+      const action = String(item?.action || '').trim().toLowerCase();
+      if (/^(?:enemy|goblin|sentry|orc|construct|boss)\s*(?:attack|slam|turn|save)\b/.test(skill)) return true;
+      if (/^resolve\s+(?:the\s+)?(?:enemy|goblin|sentry|orc|construct|boss)(?:'s)?\s+(?:attack|turn)\b/.test(action)) return true;
+      const enemies = Array.isArray(state.combatState?.enemies) ? state.combatState.enemies : [];
+      return enemies.some((e) => {
+        const n = String(e?.name || '').trim().toLowerCase();
+        return n && (skill.startsWith(n) || new RegExp(`^resolve\\s+${escapeRegex(n)}\\b`).test(action));
+      });
+    }
+
+    function sanitizeSuggestedRolls(rawList, actionText = '') {
       const econ = ensureCombatEconomy();
       const list = Array.isArray(rawList) ? rawList : [];
       const enemyAc = getPrimaryEnemyAC();
-      const activeCharName = String(state.characterName || '').toLowerCase();
       const inActiveCombat = Boolean(state.combatState?.active);
       const blockMainAction = inActiveCombat && Boolean(econ.actionUsed) && econ.phase !== 'awaiting_damage';
+      const weap = extractPrimaryWeaponProfile(state.files.character.content || '');
 
       const cleaned = list
         .filter((item) => item && typeof item === 'object')
         .filter((item) => {
+          if (isEnemyTurnOption(item)) return false;
           const combined = `${item.label || ''} ${item.skill || ''} ${item.action || ''}`.toLowerCase();
-          if (/\b(sentry|goblin|orc|construct|boss|enemy\s+attack|enemy\s+slam)\b/.test(combined) && (!activeCharName || !combined.includes(activeCharName))) return false;
           if (isDepletedResourceOption(combined)) return false;
           const kind = classifySuggestedRoll(item);
           if (kind === 'damage' && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) return false;
@@ -2150,7 +2166,7 @@
           const copy = { ...item };
           const kind = classifySuggestedRoll(copy);
           const combined = `${copy.label || ''} ${copy.skill || ''} ${copy.action || ''}`.toLowerCase();
-          if (kind === 'healing' || kind === 'damage') copy.dc = 0;
+          if (kind === 'healing' || kind === 'damage' || kind === 'initiative') copy.dc = 0;
 
           if (/\bpotion\s+of\s+healing\b/i.test(combined) && (Number(copy.mod) || 0) === 0) {
             copy.dice_count = Math.max(2, Number(copy.dice_count) || 2);
@@ -2160,7 +2176,7 @@
 
           const isUnrolledCombatUtility = /\b(dodge|disengage|dash|stand\s*up|end\s*turn|drop\s*concentration|action\s*surge)\b/.test(combined)
             && kind !== 'attack' && kind !== 'damage' && kind !== 'save' && kind !== 'healing';
-          const mustRoll = kind === 'attack' || kind === 'damage' || kind === 'save' || kind === 'healing';
+          const mustRoll = kind === 'attack' || kind === 'damage' || kind === 'save' || kind === 'healing' || kind === 'initiative';
 
           if (!mustRoll && (copy.requires_roll === false || isUnrolledCombatUtility)) {
             copy.requires_roll = false;
@@ -2170,6 +2186,9 @@
           copy.requires_roll = true;
 
           if (kind === 'attack') {
+            if (/^(?:athletics|acrobatics)$/i.test(String(copy.skill || '').trim()) && !/\b(grapple|shove|trip|push|climb|leap)\b/i.test(combined)) {
+              copy.skill = /\bjavelin\b/i.test(combined) ? 'Javelin Attack' : /\bbow|arrow\b/i.test(combined) ? 'Bow Attack' : `${weap.name} Attack`;
+            }
             copy.dc = Number(copy.dc) > 0 ? Number(copy.dc) : enemyAc;
             copy._forceAttackAc = true;
             const isRanged = /\b(javelin|bow|crossbow|bolt|arrow|dart|sling|ranged|throw|thrown|fire\s*bolt|eldritch\s*blast|ray)\b/i.test(combined);
@@ -2178,17 +2197,16 @@
           return copy;
         });
 
-      const weap = extractPrimaryWeaponProfile(state.files.character.content || '');
       if (econ.lastRollType === 'attack' && econ.lastRollHit === true && !cleaned.some((c) => classifySuggestedRoll(c) === 'damage')) {
         const modLabel = weap.dmgMod === 0 ? '' : (weap.dmgMod > 0 ? `+${weap.dmgMod}` : `${weap.dmgMod}`);
         cleaned.unshift({ label: 'Damage Roll', requires_roll: true, skill: `Damage (${weap.count}d${weap.sides}${modLabel})`, sides: weap.sides, dice_count: weap.count, mod: weap.dmgMod, dc: 0, action: 'Roll damage against the target.' });
       }
 
-      // 0-button safety net during active combat so the player is never soft-locked
-      if (inActiveCombat && cleaned.length === 0) {
+      const playerAskedToAttack = /\b(attack|strike|slash|shoot|throw|javelin|kill|hit|swing|stab|smite|cast)\b/i.test(String(actionText || ''));
+      if (inActiveCombat && econ.phase !== 'awaiting_damage' && (cleaned.length === 0 || (playerAskedToAttack && !cleaned.some((c) => classifySuggestedRoll(c) === 'attack')))) {
         const targetEnemy = (state.combatState?.enemies || []).find((e) => (Number(e.hp) || 0) > 0);
         const targetName = targetEnemy?.name || 'the target';
-        cleaned.push({
+        cleaned.unshift({
           action: `Strike ${targetName} with your ${weap.name}`,
           requires_roll: true,
           skill: `${weap.name} Attack`,
@@ -2199,9 +2217,6 @@
           dice_count: 1,
           _forceAttackAc: true,
         });
-        if (!econ.dodging) {
-          cleaned.push({ action: 'Take the Dodge action to brace against oncoming attacks', requires_roll: false, skill: 'Dodge', mod: 0, dc: 0, mode: 'normal', sides: 20, dice_count: 1 });
-        }
       }
 
       return cleaned.slice(0, 3);
@@ -2242,42 +2257,42 @@
 Follow DM Instructions strictly. Keep prose vivid, atmospheric, and grounded.
 
 NO AUTO-SUCCESS ON UNROLLED CHECKS:
-- Whenever ${activeChar} types an unrolled action with uncertain or risky outcome (such as checking for traps, disarming a trap, picking a lock, sneaking, searching for hidden details, persuading an NPC, or attacking), NEVER resolve the success or disarm the hazard for free!
-- Stop right as ${activeChar} inspects or begins the attempt, describe the scene up to the point of uncertainty, and prompt the required check (e.g. Investigation/Perception DC X to spot, Sleight of Hand DC X to disarm, or Attack vs AC X) in "suggested_rolls".
+- Whenever ${activeChar} types an unrolled action with uncertain or risky outcome (checking for traps, disarming a trap, picking a lock, sneaking, searching, persuading, or attacking), NEVER resolve success or disarm hazards for free!
+- Stop right as ${activeChar} begins the attempt and prompt the required check (e.g. Investigation/Perception DC X, Sleight of Hand DC X, or Attack vs AC X) in "suggested_rolls".
 
 TWO MODES (Story Mode vs. Turn-Based Combat Mode):
-- STORY MODE (combat.active: false): Freeform roleplay, dialogue, scouting, sneaking, and staging before a threat is visible or engaged. Do NOT call for Initiative while ${activeChar} is still outside an area or scouting—offer 3 distinct approach options until an enemy spots or engages ${activeChar}.
-- AMBUSH / SURPRISE RULE: If ${activeChar} has passed Stealth and attacks an UNAWARE target, the attack roll MUST have "mode": "advantage", and Surprised enemies lose their turn/reactions in Round 1.
-- COMBAT MODE (combat.active: true): Enter ONLY once an enemy is visible/engaged; populate "combat.enemies" with every active enemy's exact AC, HP, max_hp, status, and intent. Stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
-- EXPLICIT TURN TRACKING ("actors_acted"): Whenever combat.active is true, list the exact names of every combatant who took a combat turn/action in this response inside "combat.actors_acted" (e.g. ["${activeChar}", "Ash-Goblin A"]). Do NOT list enemies who merely chatted or reacted in flavor.
+- STORY MODE (combat.active: false): Freeform roleplay, dialogue, scouting, and staging before a threat is engaged.
+- AMBUSH / SURPRISE RULE: If ${activeChar} passed Stealth and attacks an UNAWARE target, the attack roll MUST have "mode": "advantage", and Surprised enemies lose their turn/reactions in Round 1.
+- COMBAT MODE (combat.active: true): Populate "combat.enemies" with every active enemy's exact AC, HP, max_hp, status, and intent, and format "combat.turn_order" as ["Name (Init 12)", ...].
+- EXPLICIT TURN TRACKING ("actors_acted"): List the exact names of every combatant who actually took a combat turn/action in this response inside "combat.actors_acted" (do NOT list enemies who merely chatted).
 
 COMBAT & ENEMY AGENCY:
-- NEVER AUTO-ROLL PLAYER DICE OR INVENT ROLL TOTALS: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves) and resolve NPC/enemy turns completely in prose. Never roll ${activeChar}'s d20/damage/saves, and NEVER override or re-roll the player's submitted roll total.
-- ENEMY INITIATIVE TURN & CLEAR PER-ENEMY TURN MARKERS: Whenever enemies act before or after ${activeChar}, resolve EVERY acting enemy's full turn in "narrative" with a bold turn header and inline roll math—e.g. **Enemy Name's Turn** — [Enemy Name Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d4 (3) + 2 = 5 | ${activeChar} HP: 27 -> 22].
-- FREEFORM ACTION EXECUTION (NO STALLING): When ${activeChar} types an unrolled attack or combat move (like "attack" or "charge"), describe ${activeChar} stepping in and IMMEDIATELY provide the Attack roll button(s) in "suggested_rolls".
+- NEVER AUTO-ROLL PLAYER DICE OR INITIATIVE: You roll NPC/enemy dice only. Never roll ${activeChar}'s Initiative, Attacks, Damage, or Saves—even if ${activeChar} asks a question before rolling Initiative, answer their question and keep "suggested_rolls" on Roll Initiative (dc: 0).
+- ENEMY INITIATIVE TURN & CLEAR PER-ENEMY TURN MARKERS: Resolve acting enemies in "narrative" with bold headers (**Enemy Name's Turn**) and inline roll math ([Enemy Name Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d6 (3) + 2 = 5 | ${activeChar} HP: 28 -> 23]).
+- FREEFORM ACTION EXECUTION (NO STALLING): When ${activeChar} types an unrolled attack or combat move (like "attack" or "throw a javelin"), describe ${activeChar} preparing the strike and IMMEDIATELY provide the Attack roll button(s) in "suggested_rolls".
 - PLAYER ATTACKS & HITS VS. MISSES:
-  * If total < enemy AC -> IT IS A MISS. Describe the miss, resolve any active enemies' turns if ${activeChar}'s turn ends, and then present 3 fresh choices for ${activeChar}'s NEXT turn!
-  * If total >= enemy AC -> IT IS A HIT. Immediately prompt ${activeChar}'s Damage roll right now in "suggested_rolls" (do NOT skip ahead to enemy retaliation before ${activeChar} rolls damage).
-- FRESH NEXT TURN AFTER ENEMY RETALIATION: Whenever ${activeChar} finishes an Action (Miss, Damage roll, Dodge, Disengage) and you resolve the enemies' turns before asking "What does ${activeChar} do next?", ${activeChar}'s NEXT turn has begun—ALWAYS provide 3 fresh Action/Bonus Action options for that new turn!
+  * If total < enemy AC -> IT IS A MISS. Resolve active enemies' turns if ${activeChar}'s turn ends, and present 3 fresh choices for ${activeChar}'s NEXT turn.
+  * If total >= enemy AC -> IT IS A HIT. Immediately prompt ${activeChar}'s Damage roll right now in "suggested_rolls".
+- FRESH NEXT TURN AFTER ENEMY RETALIATION: Whenever ${activeChar} finishes an Action (Miss, Damage roll, Dodge, Disengage) and enemies take their turns before asking "What does ${activeChar} do next?", ${activeChar}'s NEXT turn has begun—ALWAYS provide 3 fresh Action/Bonus Action options!
 - ACCURATE 5E RULES, WEAPON NAMES & RESOURCES:
   * Weapon/spell attacks MUST name the actual weapon or spell in "skill" (e.g. "Longsword Attack", "Javelin Attack", "Fire Bolt"), NEVER "Athletics" (unless Grapple/Shove).
   * NEVER suggest abilities or resources listed at 0 / X on the character sheet (like Second Wind 0/1 or Superiority Dice 0/4).
-  * Bonus Attack Dice vs. Bonus Damage Dice: Features that add a bonus die to an ATTACK roll (e.g. Precision Attack, Bardic Inspiration, Guidance) apply ONLY to the attack roll—never add them to damage.
-  * Healing: Potion of Healing is ALWAYS 2d4+2 (dice_count: 2, sides: 4, mod: 2).
+  * Bonus Attack Dice apply ONLY to the attack roll—never add them to damage.
+  * Potion of Healing is ALWAYS 2d4+2 (dice_count: 2, sides: 4, mod: 2).
 - RECORD ALL ROLLS INLINE (NO TRAILING ROLL SUMMARY LINE): Record enemy/combat rolls inline in brackets. NEVER append a standalone "Skill: d20 (X) + Y = Z vs DC N — Success/Failure!" summary line at the end of "narrative" or "player_beat".
 - "current_hp", "hp_delta", "current_gold", "gold_delta", and "xp_delta" apply STRICTLY to ${activeChar} (NEVER enemy HP!).
 - Treat ${hpStatusLine || 'the character sheet'} as the starting state for this turn.
 - Whenever ${activeChar}'s HP changes, ALWAYS set "hp_delta" AND set "current_hp" to the new HP total; when unchanged, set "hp_delta": 0 and "current_hp": -1.
 - Whenever ${activeChar}'s gold changes, ALWAYS set "gold_delta" and "current_gold"; when unchanged, set "gold_delta": 0 and "current_gold": -1.
-- XP REWARDS ("xp_delta"): Award 5e XP via "xp_delta" whenever enemies are defeated, traps/hazards are overcome, or major story milestones are completed (use 0 otherwise).
+- XP REWARDS ("xp_delta"): Award 5e XP via "xp_delta" when enemies are defeated or milestones completed (0 otherwise).
 - Log expended/recharged class resources in "resource_updates".
 
 WRITING & SUGGESTED ROLLS:
 - Always return 3 distinct options in "suggested_rolls" (except when locked to Initiative or a single forced Saving Throw).
 - Every suggested option MUST be performed by ${activeChar}—NEVER roll on behalf of an enemy.
-- CONDITIONAL ROLLS ("requires_roll"): Set "requires_roll": false (dc: 0, sides: 20, dice_count: 1, mod: 0) for safe/unopposed story actions AND non-roll combat actions (Dodge, Disengage, Dash, Stand Up, Drop Concentration, End Turn). Set "requires_roll": true for attacks, damage, healing dice, saving throws, traps, stealth, or risky checks.
-- SELECTIVE AUTO-ROLL IN STORY MODE ("auto_roll"): Only when ${activeChar} walks into a hidden hazard/ambush without actively checking, set "trigger": true; otherwise "trigger": false.
-- When offering a feature that adds a bonus die to a roll, include "+1dX" in "skill" (e.g. "Longsword Attack +1d8") so the dice tray pre-selects it.
+- CONDITIONAL ROLLS ("requires_roll"): Set "requires_roll": false (dc: 0, sides: 20, dice_count: 1, mod: 0) for safe/unopposed story actions AND non-roll combat actions (Dodge, Disengage, Dash, Stand Up, Drop Concentration, End Turn). Set "requires_roll": true for attacks, damage, healing dice, saving throws, traps, stealth, or risky checks (and always set dc: 0 for Initiative).
+- SELECTIVE AUTO-ROLL IN STORY MODE ("auto_roll"): Only when ${activeChar} walks into a hidden hazard/ambush without checking, set "trigger": true; otherwise "trigger": false.
+- When offering a feature that adds a bonus die to a roll, include "+1dX" in "skill" (e.g. "Javelin Attack +1d8") so the dice tray pre-selects it.
 
 Return ONLY valid JSON matching schema.
 
@@ -3357,7 +3372,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         if (state.combatState && state.combatState.active) { state.combatState = applyDeterministicEnemyDamage(state.combatState, rollObj, dmResult.narrative || ''); renderCombatTrackerUI(); }
 
         const dirtyKeys = applyUpdatesToMarkdown(dmResult, cfg, actionText, rollObj);
-        const safeSuggestions = sanitizeSuggestedRolls(dmResult.suggested_rolls);
+        const safeSuggestions = sanitizeSuggestedRolls(dmResult.suggested_rolls, actionText);
         const turnRollSummary = hasRoll ? (() => {
           const sides = Number(rollObj.sides) || 20, modVal = Number(rollObj.mod) || 0, baseDie = Number(rollObj.raw) || 0;
           const modStr = modVal !== 0 ? ` ${modVal >= 0 ? '+' : '-'} ${Math.abs(modVal)}` : '';
@@ -3436,3 +3451,4 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
   </script>
 </body>
 </html>
+    
