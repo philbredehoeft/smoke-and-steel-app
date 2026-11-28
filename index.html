@@ -595,11 +595,10 @@
         .replace(/[ \t]+(?:\*\*)?(?:Auto\s+)?[A-Za-z][A-Za-z0-9 &/'()-]{1,40}:\s*(?:\d+\s*\[)?d\d+\s*\(\d+\)(?:\s*\+\s*[^\]=\n]+)?\s*(?:\]\s*)?(?:=\s*-?\d+\s*)?vs\.?\s*(?:DC|AC)\s*\d+\s*(?:[—–-]{1,2}\s*(?:Success|Failure|Failed|Hit|Miss|Critical[^!\n.]*)[!.]?)?(?:\*\*)?\s*$/gim, '');
     }
 
-    function buildStructuredDmProse(dmResult) {
+    function buildStructuredDmProse(dmResult, displayRound = 0) {
       const charFirstName = String(state.characterName || 'Adventurer').trim().split(/\s+/)[0] || 'Adventurer';
       const rawNarrative = String(dmResult.narrative || '').trim();
-      const activeCombat = Boolean(state.combatState?.active);
-      const roundNum = activeCombat ? Math.max(1, Number(state.combatState?.round) || 1) : 0;
+      const roundNum = displayRound > 0 ? displayRound : (state.combatState?.active ? Math.max(1, Number(state.combatState?.round) || 1) : 0);
 
       const bracketMath = extractBracketMathLines(rawNarrative);
       const cleanedNarrative = stripDuplicateRollLines(rawNarrative)
@@ -615,7 +614,7 @@
         .trim();
 
       const parts = [];
-      if (activeCombat && roundNum > 0) parts.push(`ROUND ${roundNum}`);
+      if (roundNum > 0) parts.push(`ROUND ${roundNum}`);
       if (cleanedNarrative) parts.push(cleanedNarrative);
       if (bracketMath.length > 0) {
         parts.push(bracketMath.map((l) => l.replace(/\s*\u00b7\s*(?=[A-Za-z0-9_' -]+\s+Initiative:)/gi, '\n')).join('\n'));
@@ -1271,11 +1270,26 @@
       return `${md.trim()}\n- XP: ${nextXp} XP\n`;
     }
 
+    function extractPrimaryWeaponProfile(md) {
+      const fallback = { name: 'Weapon', atkMod: 3, count: 1, sides: 8, dmgMod: 0 };
+      if (!md) return fallback;
+      const scope = extractStatValue(md, 'Weapon|Primary\\s*Weapon|Weapons|Attack') || '';
+      const searchScope = scope || md;
+      const nameMatch = scope.match(/^([A-Za-z][A-Za-z\s'-]{1,24}?)(?:\s*[:(]|$)/);
+      const atkMatch = searchScope.match(/([+-]\d+)\s*(?:to\s*hit|hit|atk|attack)/i);
+      const dmgMatch = searchScope.match(/\b(\d+)d(4|6|8|10|12)\s*([+-]\s*\d+)?\b/i);
+      return {
+        name: nameMatch ? nameMatch[1].trim() : 'Weapon',
+        atkMod: atkMatch ? Number(atkMatch[1]) : 3,
+        count: dmgMatch ? Math.max(1, Number(dmgMatch[1]) || 1) : 1,
+        sides: dmgMatch ? (Number(dmgMatch[2]) || 8) : 8,
+        dmgMod: dmgMatch && dmgMatch[3] ? Number(dmgMatch[3].replace(/\s+/g, '')) : 0,
+      };
+    }
+
     function extractPrimaryWeaponDamage(md) {
-      if (!md) return { count: 1, sides: 8, mod: 0 };
-      const scope = extractStatValue(md, 'Weapon|Primary\\s*Weapon|Weapons|Attack') || md;
-      const m = scope.match(/\b(\d+)d(4|6|8|10|12)\s*([+-]\s*\d+)?\b/i);
-      return m ? { count: Math.max(1, Number(m[1]) || 1), sides: Number(m[2]) || 8, mod: m[3] ? Number(m[3].replace(/\s+/g, '')) : 0 } : { count: 1, sides: 8, mod: 0 };
+      const p = extractPrimaryWeaponProfile(md);
+      return { count: p.count, sides: p.sides, mod: p.dmgMod };
     }
 
     function parseCharacterMarkdown(md) {
@@ -1349,14 +1363,33 @@
       const parsedXp = parseXpFromMarkdown(state.files?.character?.content || '');
       const xp = typeof parsedXp === 'number' ? parsedXp : Math.max(0, Number(state.parsedChar?.xp) || 0);
       if (state.parsedChar) state.parsedChar.xp = xp;
+
       const info = get5eLevelFromXp(xp);
       const declaredLvlMatch = String(state.parsedChar?.subtitle || '').match(/(?:Level|Lvl)\s*(\d+)/i);
-      const declaredLvl = declaredLvlMatch ? Number(declaredLvlMatch[1]) : info.level;
+      const declaredLvl = declaredLvlMatch ? Math.max(1, Math.min(20, Number(declaredLvlMatch[1]))) : info.level;
+      const declaredFloor = DND_5E_XP_THRESHOLDS[declaredLvl - 1] || 0;
+      const nextTarget = declaredLvl < 20 ? DND_5E_XP_THRESHOLDS[declaredLvl] : declaredFloor;
+
       statusEl.textContent = `${xp} XP · Lvl ${declaredLvl}`;
-      barEl.style.width = `${info.pct}%`;
-      if (info.level >= 20) nextEl.textContent = 'Max 5e Level (20) reached';
-      else if (info.level > declaredLvl) nextEl.textContent = `Level Up Ready! (${xp}/${DND_5E_XP_THRESHOLDS[declaredLvl] || info.nextFloor} XP for Lvl ${declaredLvl + 1})`;
-      else nextEl.textContent = `${Math.max(0, info.nextFloor - xp)} XP to Level ${info.level + 1} (${info.nextFloor} XP)`;
+
+      if (declaredLvl >= 20) {
+        barEl.style.width = '100%';
+        nextEl.textContent = 'Max 5e Level (20) reached';
+      } else if (xp < declaredFloor) {
+        const tierSpan = Math.max(1, nextTarget - declaredFloor);
+        const pct = Math.max(0, Math.min(100, Math.round((xp / tierSpan) * 100)));
+        barEl.style.width = `${pct}%`;
+        nextEl.textContent = xp >= tierSpan
+          ? `Level Up Ready! (${xp}/${tierSpan} XP for Lvl ${declaredLvl + 1})`
+          : `${tierSpan - xp} XP to Level ${declaredLvl + 1} (${tierSpan} XP)`;
+      } else {
+        const span = Math.max(1, nextTarget - declaredFloor);
+        const pct = Math.max(0, Math.min(100, Math.round(((xp - declaredFloor) / span) * 100)));
+        barEl.style.width = `${pct}%`;
+        nextEl.textContent = xp >= nextTarget
+          ? `Level Up Ready! (${xp}/${nextTarget} XP for Lvl ${declaredLvl + 1})`
+          : `${nextTarget - xp} XP to Level ${declaredLvl + 1} (${nextTarget} XP)`;
+      }
     }
 
     function renderCharacterSwitcher() {
@@ -1714,7 +1747,7 @@
     function recordTextActionEconomy(actionText) {
       const econ = ensureCombatEconomy();
       const text = String(actionText || '').toLowerCase();
-      econ.lastRollType = 'action';
+      econ.lastRollType = 'intent';
       econ.lastRollHit = null;
       econ.lastRollCrit = false;
       econ.lastRollTotal = null;
@@ -1734,12 +1767,11 @@
         else econ.actionUsed = true;
       } else if (/\baction\s*surge\b/.test(text)) {
         econ.actionSurgeUsed = true; econ.actionUsed = false;
-      } else if (/\bbonus\s*action|misty\s*step|healing\s*word|hunter'?s\s*mark|hex\b/.test(text)) {
-        econ.bonusActionUsed = true;
       } else if (/\bend\s*turn|hold\s*position|wait\b/.test(text)) {
         econ.actionUsed = true;
-      } else if (!/\bstand\s*up|drop\s*concentration|speak|call\s*out\b/.test(text)) {
-        econ.actionUsed = true;
+      } else {
+        // Unrolled intent (e.g. "attack", "kill", "cast fire bolt", "check traps"): keep action available so roll buttons appear
+        econ.actionUsed = false;
       }
       econ.phase = 'player_turn';
     }
@@ -1836,6 +1868,7 @@
           disengaged: freshRoundEcon ? false : Boolean(prevEcon.disengaged),
           dodging: freshRoundEcon ? false : Boolean(prevEcon.dodging),
         },
+        _wasActiveBeforeTurn: wasActive,
         _prevRoundBeforeTurn: prevRound,
       };
     }
@@ -1851,13 +1884,14 @@
       const isDamageFollowup = /\bdamage\b|\bdmg\b/.test(rollLabel) && !/\battack\b/.test(rollLabel);
       const playerNameLower = String(state.characterName || 'Adventurer').trim().toLowerCase();
       const playerFirstLower = playerNameLower.split(/\s+/)[0];
+      let anyEnemyActedThisTurn = false;
 
       if (Array.isArray(rawActorsActed)) {
         rawActorsActed.forEach((actor) => {
           const clean = String(actor || '').trim().toLowerCase();
           if (!clean) return;
           if (clean === 'player' || clean === playerNameLower || (playerFirstLower && clean.includes(playerFirstLower))) {
-            if (!isInitiativeRoll && !isDamageFollowup) acted.add('player');
+            if (!isInitiativeRoll && !isDamageFollowup && combatObj.economy?.lastRollType !== 'intent') acted.add('player');
             return;
           }
           activeEnemies.forEach((en) => {
@@ -1866,6 +1900,7 @@
             if (enFull === clean || enFull.includes(clean) || clean.includes(enFull)) {
               acted.add(enFull);
               if (enFirst) acted.add(enFirst);
+              anyEnemyActedThisTurn = true;
             }
           });
         });
@@ -1879,6 +1914,7 @@
           if (Number(enBoardItem?.initiative ?? 12) > playerInit) {
             acted.add(en.name.toLowerCase());
             acted.add(en.name.split(/\s+/)[0].toLowerCase());
+            anyEnemyActedThisTurn = true;
           }
         });
         return { ...combatObj, round: Math.max(1, Number(combatObj.round) || 1), current_turn: board[0]?.name || combatObj.current_turn || state.characterName || 'Adventurer', roundActorsActed: Array.from(acted) };
@@ -1888,22 +1924,26 @@
         return { ...combatObj, round: Math.max(1, Number(combatObj._prevRoundBeforeTurn) || Number(combatObj.round) || 1), roundActorsActed: Array.from(acted) };
       }
 
-      acted.add('player');
-
+      // Only mark enemies who actually had an explicit turn header or roll bracket (ignore casual flavor chatter)
       activeEnemies.forEach((en) => {
         const enFull = String(en.name || '').trim().toLowerCase();
         const enFirst = enFull.split(/\s+/)[0];
-        const mentioned = (enFull && new RegExp(`\\b${escapeRegex(enFull)}\\b`, 'i').test(dmNarrative || ''))
-          || (enFirst && new RegExp(`\\b${escapeRegex(enFirst)}\\b[^\\n.]{0,110}\\b(?:attack|slash|slam|bite|claw|strike|lunge|fires?|casts?|hurls?|flanks?|darts?|dodg(?:e|es|ing)|dash(?:es|ing)?|disengag(?:e|es|ing)|retreat|moves?|rises?|stands?)\\b`, 'i').test(dmNarrative || ''));
-        if (mentioned) { acted.add(enFull); if (enFirst) acted.add(enFirst); }
+        const explicitHeaderRx = new RegExp(`(?:\\*\\*\\s*${escapeRegex(enFull)}(?:'s)?\\s+turn|\\[${escapeRegex(enFull)}\\s+(?:Attack|Slam|Cast|Save|Action)|\\b${escapeRegex(enFull)}\\s+(?:Attack|Slam)\\b[^\\n]{0,40}vs\\.?\\s*AC)`, 'i');
+        if (explicitHeaderRx.test(dmNarrative || '')) {
+          acted.add(enFull);
+          if (enFirst) acted.add(enFirst);
+          anyEnemyActedThisTurn = true;
+        }
       });
+
+      if (combatObj.economy?.lastRollType !== 'intent') acted.add('player');
 
       const allEnemiesActed = activeEnemies.every((en) => {
         const enFull = String(en.name || '').trim().toLowerCase();
         const enFirst = enFull.split(/\s+/)[0];
         return acted.has(enFull) || (enFirst && acted.has(enFirst));
       });
-      const alreadyTickedByDm = (Number(combatObj.round) || 1) > (Number(combatObj._prevRoundBeforeTurn) || 1);
+      const alreadyTickedByDm = Boolean(combatObj._wasActiveBeforeTurn) && (Number(combatObj.round) || 1) > (Number(combatObj._prevRoundBeforeTurn) || 1);
 
       if ((acted.has('player') && allEnemiesActed) || alreadyTickedByDm) {
         const nextRound = alreadyTickedByDm ? Number(combatObj.round) : (Number(combatObj.round) || 1) + 1;
@@ -1916,7 +1956,13 @@
           economy: { ...(combatObj.economy || {}), phase: 'player_turn', actionUsed: false, actionSurgeUsed: false, bonusActionUsed: false, movementUsed: false, disengaged: false, dodging: false },
         };
       }
-      return { ...combatObj, roundActorsActed: Array.from(acted) };
+
+      // If at least one enemy acted in retaliation after player's action, unlock player's next turn cleanly
+      const updatedEcon = anyEnemyActedThisTurn && combatObj.economy?.phase !== 'awaiting_damage'
+        ? { ...(combatObj.economy || {}), phase: 'player_turn', actionUsed: false, bonusActionUsed: false, movementUsed: false, disengaged: false, dodging: false }
+        : combatObj.economy;
+
+      return { ...combatObj, roundActorsActed: Array.from(acted), economy: updatedEcon };
     }
 
     function applyDeterministicEnemyDamage(combatState, rollObj, dmNarrative = '') {
@@ -2061,6 +2107,18 @@
       renderDeathSavesUI();
     }
 
+    function isDepletedResourceOption(combinedLower) {
+      const resources = Array.isArray(state.parsedChar?.resources) ? state.parsedChar.resources : [];
+      return resources.some((res) => {
+        if ((Number(res.cur) || 0) > 0) return false;
+        const resName = String(res.name || '').trim().toLowerCase();
+        if (!resName) return false;
+        if (combinedLower.includes(resName)) return true;
+        if (resName.includes('superiority') && /\b(precision|trip|riposte|menacing|goading|maneuver|superiority)\b/.test(combinedLower)) return true;
+        return false;
+      });
+    }
+
     function sanitizeSuggestedRolls(rawList) {
       const econ = ensureCombatEconomy();
       const list = Array.isArray(rawList) ? rawList : [];
@@ -2074,6 +2132,7 @@
         .filter((item) => {
           const combined = `${item.label || ''} ${item.skill || ''} ${item.action || ''}`.toLowerCase();
           if (/\b(sentry|goblin|orc|construct|boss|enemy\s+attack|enemy\s+slam)\b/.test(combined) && (!activeCharName || !combined.includes(activeCharName))) return false;
+          if (isDepletedResourceOption(combined)) return false;
           const kind = classifySuggestedRoll(item);
           if (kind === 'damage' && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) return false;
           if (/\(\s*on\s*hit\s*\)/i.test(`${item.label || ''} ${item.action || ''}`) && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) return false;
@@ -2092,6 +2151,12 @@
           const kind = classifySuggestedRoll(copy);
           const combined = `${copy.label || ''} ${copy.skill || ''} ${copy.action || ''}`.toLowerCase();
           if (kind === 'healing' || kind === 'damage') copy.dc = 0;
+
+          if (/\bpotion\s+of\s+healing\b/i.test(combined) && (Number(copy.mod) || 0) === 0) {
+            copy.dice_count = Math.max(2, Number(copy.dice_count) || 2);
+            copy.sides = 4;
+            copy.mod = 2;
+          }
 
           const isUnrolledCombatUtility = /\b(dodge|disengage|dash|stand\s*up|end\s*turn|drop\s*concentration|action\s*surge)\b/.test(combined)
             && kind !== 'attack' && kind !== 'damage' && kind !== 'save' && kind !== 'healing';
@@ -2113,11 +2178,32 @@
           return copy;
         });
 
+      const weap = extractPrimaryWeaponProfile(state.files.character.content || '');
       if (econ.lastRollType === 'attack' && econ.lastRollHit === true && !cleaned.some((c) => classifySuggestedRoll(c) === 'damage')) {
-        const weap = extractPrimaryWeaponDamage(state.files.character.content || '');
-        const modLabel = weap.mod === 0 ? '' : (weap.mod > 0 ? `+${weap.mod}` : `${weap.mod}`);
-        cleaned.unshift({ label: 'Damage Roll', requires_roll: true, skill: `Damage (${weap.count}d${weap.sides}${modLabel})`, sides: weap.sides, dice_count: weap.count, mod: weap.mod, dc: 0, action: 'Roll damage against the target.' });
+        const modLabel = weap.dmgMod === 0 ? '' : (weap.dmgMod > 0 ? `+${weap.dmgMod}` : `${weap.dmgMod}`);
+        cleaned.unshift({ label: 'Damage Roll', requires_roll: true, skill: `Damage (${weap.count}d${weap.sides}${modLabel})`, sides: weap.sides, dice_count: weap.count, mod: weap.dmgMod, dc: 0, action: 'Roll damage against the target.' });
       }
+
+      // 0-button safety net during active combat so the player is never soft-locked
+      if (inActiveCombat && cleaned.length === 0) {
+        const targetEnemy = (state.combatState?.enemies || []).find((e) => (Number(e.hp) || 0) > 0);
+        const targetName = targetEnemy?.name || 'the target';
+        cleaned.push({
+          action: `Strike ${targetName} with your ${weap.name}`,
+          requires_roll: true,
+          skill: `${weap.name} Attack`,
+          mod: weap.atkMod,
+          dc: enemyAc,
+          mode: hasProneEnemyTarget() ? 'advantage' : 'normal',
+          sides: 20,
+          dice_count: 1,
+          _forceAttackAc: true,
+        });
+        if (!econ.dodging) {
+          cleaned.push({ action: 'Take the Dodge action to brace against oncoming attacks', requires_roll: false, skill: 'Dodge', mod: 0, dc: 0, mode: 'normal', sides: 20, dice_count: 1 });
+        }
+      }
+
       return cleaned.slice(0, 3);
     }
 
@@ -2155,49 +2241,43 @@
       const systemPrompt = `You are a Dungeon Master for a solo tabletop RPG campaign ("${cfg.campaignName}").
 Follow DM Instructions strictly. Keep prose vivid, atmospheric, and grounded.
 
+NO AUTO-SUCCESS ON UNROLLED CHECKS:
+- Whenever ${activeChar} types an unrolled action with uncertain or risky outcome (such as checking for traps, disarming a trap, picking a lock, sneaking, searching for hidden details, persuading an NPC, or attacking), NEVER resolve the success or disarm the hazard for free!
+- Stop right as ${activeChar} inspects or begins the attempt, describe the scene up to the point of uncertainty, and prompt the required check (e.g. Investigation/Perception DC X to spot, Sleight of Hand DC X to disarm, or Attack vs AC X) in "suggested_rolls".
+
 TWO MODES (Story Mode vs. Turn-Based Combat Mode):
 - STORY MODE (combat.active: false): Freeform roleplay, dialogue, scouting, sneaking, and staging before a threat is visible or engaged. Do NOT call for Initiative while ${activeChar} is still outside an area or scouting—offer 3 distinct approach options until an enemy spots or engages ${activeChar}.
-- AMBUSH / AWARENESS TRIGGER: If ${activeChar} attacks an UNAWARE target from stealth/surprise, resolve that ambush strike first (or mark enemies "Surprised" in Round 1), and enter COMBAT MODE once aware.
-- COMBAT MODE (combat.active: true): Enter ONLY once an enemy is visible/engaged and Initiative is established; stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
-- EXPLICIT TURN TRACKING ("actors_acted"): Whenever combat.active is true, list the exact names of every combatant (including ${activeChar} and any enemies) who took a turn/action in this response inside "combat.actors_acted" (e.g. ["${activeChar}", "Goblin A"]).
+- AMBUSH / SURPRISE RULE: If ${activeChar} has passed Stealth and attacks an UNAWARE target, the attack roll MUST have "mode": "advantage", and Surprised enemies lose their turn/reactions in Round 1.
+- COMBAT MODE (combat.active: true): Enter ONLY once an enemy is visible/engaged; populate "combat.enemies" with every active enemy's exact AC, HP, max_hp, status, and intent. Stay in strict Initiative turn order until all enemies drop to 0 HP or flee, then set combat.active: false and enemies: [] to return to Story Mode.
+- EXPLICIT TURN TRACKING ("actors_acted"): Whenever combat.active is true, list the exact names of every combatant who took a combat turn/action in this response inside "combat.actors_acted" (e.g. ["${activeChar}", "Ash-Goblin A"]). Do NOT list enemies who merely chatted or reacted in flavor.
 
 COMBAT & ENEMY AGENCY:
-- NEVER AUTO-ROLL PLAYER DICE OR INVENT ROLL TOTALS: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves) and resolve NPC/enemy turns completely in prose. Never roll ${activeChar}'s d20/damage/saves, and NEVER override or re-roll the player's submitted roll total—always treat the exact total shown in the player's roll message as ground truth.
-- ENEMY INITIATIVE TURN & CLEAR PER-ENEMY TURN MARKERS: Whenever one or more enemies have higher Initiative than ${activeChar}, resolve EVERY higher-initiative enemy's full turn right now in "narrative" in initiative order with a bold header and inline roll math—e.g. **Enemy Name's Turn** — [Enemy Name Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d4 (3) + 2 = 5 | ${activeChar} HP: 27 -> 22].
-- FREEFORM ACTION EXECUTION (NO STALLING): When ${activeChar} states a clear combat or movement action in free text, commit directly to that action and immediately prompt the corresponding roll rather than stalling.
-- PLAYER ATTACKS & HITS VS. MISSES: When ${activeChar} initiates an unrolled attack, prompt their Attack roll first. Once submitted:
-  * If total < enemy AC -> IT IS A MISS. Describe the miss in prose, do NOT offer damage rolls, and present ${activeChar}'s next valid turn/reaction options.
-  * If total >= enemy AC -> IT IS A HIT. Immediately prompt ${activeChar}'s Damage roll right now in "suggested_rolls" (do NOT skip ahead to enemy retaliation before ${activeChar} rolls damage for the hit).
-- ACCURATE 5E CONDITIONS, ADVANTAGE & CHARACTER FEATURES:
-  * Prone Condition: While Prone, a creature's attacks have DISADVANTAGE, melee attacks within 5 ft against it have ADVANTAGE, ranged attacks against it have DISADVANTAGE, and standing up costs half its movement.
-  * CHARACTER SHEET FEATURES & SPELLS: Read the active Character sheet carefully for all class features, spells, pact/spell slots, maneuvers, stances, companions, or homebrew mechanics. Enforce their exact trigger timing (before roll vs. on hit vs. Bonus Action vs. Reaction), resource cost ("resource_updates"), and save DCs.
-  * Bonus Attack Dice vs. Bonus Damage Dice: Features that add a bonus die to an ATTACK roll (e.g. Precision Attack, Bardic Inspiration, Guidance) apply ONLY to the attack roll—never add them to damage. Features that trigger ON A HIT apply ONLY after a confirmed hit.
-  * Healing: Potion of Healing is 2d4+2 (dice_count: 2, sides: 4, mod: 2).
-- ACTIVE ENEMIES & TELEGRAPHED INTENT: Active enemies must fight back on their own turns, take Opportunity Attacks when the player moves away without Disengaging, and set a concrete next-turn threat in each enemy's "intent" field.
-- RECORD ALL ROLLS INLINE (NO TRAILING ROLL SUMMARY LINE): Record enemy/combat rolls inline in brackets. NEVER append a standalone "Skill: d20 (X) + Y = Z vs DC N — Success/Failure!" summary line at the end of "narrative" or "player_beat" (the UI header badge already displays the roll result).
-- DIALOGUE & BANTER: Whenever NPCs, allies, enemies, or sentient gear are present, weave natural spoken dialogue ("...") to convey clues, taunts, and warnings.
+- NEVER AUTO-ROLL PLAYER DICE OR INVENT ROLL TOTALS: You roll NPC/enemy dice (Initiative, Attacks, Damage, Saves) and resolve NPC/enemy turns completely in prose. Never roll ${activeChar}'s d20/damage/saves, and NEVER override or re-roll the player's submitted roll total.
+- ENEMY INITIATIVE TURN & CLEAR PER-ENEMY TURN MARKERS: Whenever enemies act before or after ${activeChar}, resolve EVERY acting enemy's full turn in "narrative" with a bold turn header and inline roll math—e.g. **Enemy Name's Turn** — [Enemy Name Attack: d20 (14) + 4 = 18 vs AC 17 — Hit! Damage: 1d4 (3) + 2 = 5 | ${activeChar} HP: 27 -> 22].
+- FREEFORM ACTION EXECUTION (NO STALLING): When ${activeChar} types an unrolled attack or combat move (like "attack" or "charge"), describe ${activeChar} stepping in and IMMEDIATELY provide the Attack roll button(s) in "suggested_rolls".
+- PLAYER ATTACKS & HITS VS. MISSES:
+  * If total < enemy AC -> IT IS A MISS. Describe the miss, resolve any active enemies' turns if ${activeChar}'s turn ends, and then present 3 fresh choices for ${activeChar}'s NEXT turn!
+  * If total >= enemy AC -> IT IS A HIT. Immediately prompt ${activeChar}'s Damage roll right now in "suggested_rolls" (do NOT skip ahead to enemy retaliation before ${activeChar} rolls damage).
+- FRESH NEXT TURN AFTER ENEMY RETALIATION: Whenever ${activeChar} finishes an Action (Miss, Damage roll, Dodge, Disengage) and you resolve the enemies' turns before asking "What does ${activeChar} do next?", ${activeChar}'s NEXT turn has begun—ALWAYS provide 3 fresh Action/Bonus Action options for that new turn!
+- ACCURATE 5E RULES, WEAPON NAMES & RESOURCES:
+  * Weapon/spell attacks MUST name the actual weapon or spell in "skill" (e.g. "Longsword Attack", "Javelin Attack", "Fire Bolt"), NEVER "Athletics" (unless Grapple/Shove).
+  * NEVER suggest abilities or resources listed at 0 / X on the character sheet (like Second Wind 0/1 or Superiority Dice 0/4).
+  * Bonus Attack Dice vs. Bonus Damage Dice: Features that add a bonus die to an ATTACK roll (e.g. Precision Attack, Bardic Inspiration, Guidance) apply ONLY to the attack roll—never add them to damage.
+  * Healing: Potion of Healing is ALWAYS 2d4+2 (dice_count: 2, sides: 4, mod: 2).
+- RECORD ALL ROLLS INLINE (NO TRAILING ROLL SUMMARY LINE): Record enemy/combat rolls inline in brackets. NEVER append a standalone "Skill: d20 (X) + Y = Z vs DC N — Success/Failure!" summary line at the end of "narrative" or "player_beat".
 - "current_hp", "hp_delta", "current_gold", "gold_delta", and "xp_delta" apply STRICTLY to ${activeChar} (NEVER enemy HP!).
 - Treat ${hpStatusLine || 'the character sheet'} as the starting state for this turn.
 - Whenever ${activeChar}'s HP changes, ALWAYS set "hp_delta" AND set "current_hp" to the new HP total; when unchanged, set "hp_delta": 0 and "current_hp": -1.
 - Whenever ${activeChar}'s gold changes, ALWAYS set "gold_delta" and "current_gold"; when unchanged, set "gold_delta": 0 and "current_gold": -1.
-- XP REWARDS ("xp_delta"): Award 5e XP via "xp_delta" whenever enemies are defeated, traps/hazards are overcome, or major story milestones are completed (use 0 when no XP is earned this turn).
+- XP REWARDS ("xp_delta"): Award 5e XP via "xp_delta" whenever enemies are defeated, traps/hazards are overcome, or major story milestones are completed (use 0 otherwise).
 - Log expended/recharged class resources in "resource_updates".
 
 WRITING & SUGGESTED ROLLS:
-- HONOR PLAYER POSTURE & INTENT: Explicitly reflect ${activeChar}'s posture and approach in "player_beat" and let it shape how the scene and enemies respond in "narrative".
-- For "player_beat": embellish the player's action in 1-2 paragraphs (stop right before impact on unrolled attacks).
-- For "narrative": write 1-3 concise paragraphs as DM (no Markdown tables or numbered lists—the UI handles those).
-- For "suggested_rolls" — MANDATORY PHASE LOCK & PLAYER-ONLY RULE:
-  * Every suggested option MUST be an action or roll performed by ${activeChar}—NEVER roll or act on behalf of an enemy.
-  * Initiative called -> ALL 3 options MUST roll Initiative for ${activeChar} (dc: 0, sides: 20, dice_count: 1, requires_roll: true).
-  * Attack just HIT (player roll >= enemy AC) -> ALL options (1–3) MUST roll ${activeChar}'s Damage (dc: 0, requires_roll: true).
-  * Attack just MISSED (player roll < enemy AC) -> Do NOT offer Damage rolls.
-  * Saving Throw forced on ${activeChar} -> ALL options MUST roll ${activeChar}'s Saving Throw (dc: <save DC>, requires_roll: true).
-- CONDITIONAL ROLLS ("requires_roll"):
-  * In BOTH Story Mode and Combat Mode, set "requires_roll": false (with dc: 0, sides: 20, dice_count: 1, mod: 0) for safe/unopposed story actions AND for non-roll combat actions (Dodge, Disengage, Dash, Stand Up, Drop Concentration, End Turn, or guaranteed utility spells).
-  * Set "requires_roll": true ONLY when an option involves an attack, damage, healing dice, saving throw, contested check, stealth, or meaningful risk.
-  * SELECTIVE AUTO-ROLL IN STORY MODE (auto_roll): Only when ${activeChar} enters a new hazard/ambush zone or passive awareness could uncover a hidden clue/trap, set "auto_roll": { "trigger": true, "skill": "Perception", "mod": <char mod>, "dc": <DC>, "stakes": "<what is noticed or missed>" }. Otherwise set "trigger": false.
-- When offering a feature that adds a bonus die to a roll (e.g. Guidance, Bardic Inspiration, Precision Attack), state the bonus die clearly in "action" and include "+1dX" in "skill" (e.g. "Attack +1d8") so the dice tray pre-selects it.
+- Always return 3 distinct options in "suggested_rolls" (except when locked to Initiative or a single forced Saving Throw).
+- Every suggested option MUST be performed by ${activeChar}—NEVER roll on behalf of an enemy.
+- CONDITIONAL ROLLS ("requires_roll"): Set "requires_roll": false (dc: 0, sides: 20, dice_count: 1, mod: 0) for safe/unopposed story actions AND non-roll combat actions (Dodge, Disengage, Dash, Stand Up, Drop Concentration, End Turn). Set "requires_roll": true for attacks, damage, healing dice, saving throws, traps, stealth, or risky checks.
+- SELECTIVE AUTO-ROLL IN STORY MODE ("auto_roll"): Only when ${activeChar} walks into a hidden hazard/ambush without actively checking, set "trigger": true; otherwise "trigger": false.
+- When offering a feature that adds a bonus die to a roll, include "+1dX" in "skill" (e.g. "Longsword Attack +1d8") so the dice tray pre-selects it.
 
 Return ONLY valid JSON matching schema.
 
@@ -2298,6 +2378,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
 
           if (parsed.combat && typeof parsed.combat === 'object') {
             state.combatState = normalizeCombatStateMachine(parsed.combat, state.combatState);
+            parsed._turnRound = state.combatState?.active ? Math.max(1, Number(state.combatState.round) || 1) : 0;
             const extractedBoard = extractCombatantInitiatives(parsed.combat, parsed.narrative || '', rollObj);
             if (extractedBoard.length > 0) state.initiativeBoard = extractedBoard;
             state.combatState = advanceRoundAfterTurn(state.combatState, parsed.narrative || '', rollObj, parsed.combat.actors_acted || []);
@@ -3308,7 +3389,7 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
         state.lastFailedRequest = null;
         pushStoryEntry({
           type: 'dm', label: 'Dungeon Master', rollSummary: [turnRollSummary, autoRollBanner].filter(Boolean).join('  |  '),
-          actionNote: '', playerBeat: dmResult.player_beat || '', narrative: buildStructuredDmProse(dmResult), suggestedRolls: safeSuggestions,
+          actionNote: '', playerBeat: dmResult.player_beat || '', narrative: buildStructuredDmProse(dmResult, dmResult._turnRound || 0), suggestedRolls: safeSuggestions,
         }, true);
 
         sendBtn.disabled = false; await endBusyState();
