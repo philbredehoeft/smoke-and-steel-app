@@ -1711,10 +1711,47 @@
     }
     // === [END OF PART 1 — PASTE PART 2 IMMEDIATELY BELOW] ===
 
-function stripDuplicateRollLines(text) {
+
+        function stripDuplicateRollLines(text) {
       return String(text || '')
         .replace(/(?:^|[\n\r]+)[ \t]*(?:\*\*)?(?:Auto\s+)?[A-Za-z][A-Za-z0-9 &/'()-]{1,40}(?:\*\*)?:\s*(?:\*\*)?(?:\d+\s*\[)?d\d+\s*\(\d+\)(?:\s*\+\s*[^\]=\n]+)?\s*(?:\]\s*)?(?:=\s*-?\d+\s*)?vs\.?\s*(?:DC|AC)\s*\d+\s*(?:[—–-]{1,2}\s*(?:Success|Failure|Failed|Hit|Miss|Critical[^!\n.]*)[!.]?)?(?:\*\*)?[ \t]*(?=$|[\n\r])/gim, '')
         .replace(/[ \t]+(?:\*\*)?(?:Auto\s+)?[A-Za-z][A-Za-z0-9 &/'()-]{1,40}(?:\*\*)?:\s*(?:\*\*)?(?:\d+\s*\[)?d\d+\s*\(\d+\)(?:\s*\+\s*[^\]=\n]+)?\s*(?:\]\s*)?(?:=\s*-?\d+\s*)?vs\.?\s*(?:DC|AC)\s*\d+\s*(?:[—–-]{1,2}\s*(?:Success|Failure|Failed|Hit|Miss|Critical[^!\n.]*)[!.]?)?(?:\*\*)?\s*$/gim, '');
+    }
+
+    function buildStructuredDmProse(dmResult, displayRound = 0) {
+      const charFullName = String(state.characterName || 'Adventurer').trim();
+      const charFirstName = charFullName.split(/\s+/)[0] || 'Adventurer';
+      const rawNarrative = String(dmResult.narrative || '').trim();
+      const roundNum = displayRound > 0 ? displayRound : (state.combatState?.active ? Math.max(1, Number(state.combatState?.round) || 1) : 0);
+
+      const playerEchoRx = new RegExp(`^${escapeRegex(charFirstName)}(?:\\s+${escapeRegex(charFullName.split(/\\s+/)[1] || '')})?\\s+(?:[A-Za-z]+\\s+)?(?:Attack|Damage)`, 'i');
+      const bracketMath = extractBracketMathLines(rawNarrative).filter((line) => {
+        if (playerEchoRx.test(line) && !/->|→|\bHP:/i.test(line)) return false;
+        return true;
+      });
+
+      const cleanedNarrative = stripDuplicateRollLines(rawNarrative)
+        .replace(/\[[^\]]*(?:Attack|Damage|Slam|Hit|Miss|HP|Initiative|Save|DC|AC)[^\]]*\]/gi, '')
+        .replace(/\*\*\s*ROUND\s+\d+[^*\n]*\*\*/gi, '')
+        .replace(/\bROUND\s+\d+\s*[—–-]\s*Turn\s+\d+\s*\([^)]+\)\s*/gi, '')
+        .replace(/\bROUND\s+\d+\s*:?\s*/gi, '')
+        .replace(new RegExp(`^.*\\bwhat\\s+does\\s+${escapeRegex(charFirstName)}(?:\\s+[A-Za-z'-]+)?\\s+do\\s+next\\??.*$`, 'gim'), '')
+        .replace(/^\*{3,}\s*$/gm, '')
+        .replace(/^[ \t]*[.,;:]+[ \t]*/gm, '')
+        .replace(/\s+([.,!?;:])/g, '$1')
+        .replace(/([.!?])\s*\.(?=\s|$)/g, '$1')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+      const parts = [];
+      if (roundNum > 0) parts.push(`ROUND ${roundNum}`);
+      if (cleanedNarrative) parts.push(cleanedNarrative);
+      if (bracketMath.length > 0) {
+        parts.push(bracketMath.map((l) => l.replace(/\s*\u00b7\s*(?=[A-Za-z0-9_' -]+\s+Initiative:)/gi, '\n')).join('\n'));
+      }
+      parts.push(`What does ${charFirstName} do next?`);
+      return parts.join('\n\n').trim();
     }
 
     function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
@@ -2140,7 +2177,8 @@ function stripDuplicateRollLines(text) {
       const list = Array.isArray(rawList) ? rawList : [];
       const enemyAc = getPrimaryEnemyAC();
       const inActiveCombat = Boolean(state.combatState?.active);
-      const blockMainAction = inActiveCombat && Boolean(econ.actionUsed) && econ.phase !== 'awaiting_damage';
+      const awaitingDamage = econ.lastRollType === 'attack' && econ.lastRollHit === true;
+      const blockMainAction = inActiveCombat && Boolean(econ.actionUsed) && !awaitingDamage;
       const weap = extractPrimaryWeaponProfile(state.files.character.content || '');
 
       const cleaned = list
@@ -2149,9 +2187,15 @@ function stripDuplicateRollLines(text) {
           if (isEnemyTurnOption(item)) return false;
           const combined = `${item.label || ''} ${item.skill || ''} ${item.action || ''}`.toLowerCase();
           if (isDepletedResourceOption(combined)) return false;
-          const kind = classifySuggestedRoll(item);
-          if (kind === 'damage' && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) return false;
-          if (/\(\s*on\s*hit\s*\)/i.test(`${item.label || ''} ${item.action || ''}`) && !(econ.lastRollType === 'attack' && econ.lastRollHit === true)) return false;
+
+          // If we just landed a hit, allow ONLY Damage (or on-hit rider damage) choices
+          const isOnHitRider = /\b(trip\s*attack|menacing\s*attack|goading\s*attack|disarming\s*attack|pushing\s*attack|divine\s*smite|sneak\s*attack)\b/i.test(combined);
+          let kind = classifySuggestedRoll(item);
+          if (awaitingDamage && isOnHitRider) kind = 'damage';
+
+          if (awaitingDamage) return kind === 'damage';
+          if (kind === 'damage') return false;
+          if (/\(\s*on\s*hit\s*\)/i.test(`${item.label || ''} ${item.action || ''}`)) return false;
           if (econ.dodging && /\bdodge\b/.test(combined)) return false;
           if (econ.disengaged && /\bdisengage\b/.test(combined)) return false;
           if (econ.bonusActionUsed && /\b(bonus\s*action|second\s*wind|cunning\s*action|misty\s*step|healing\s*word)\b/.test(combined)) return false;
@@ -2164,9 +2208,26 @@ function stripDuplicateRollLines(text) {
         })
         .map((item) => {
           const copy = { ...item };
-          const kind = classifySuggestedRoll(copy);
           const combined = `${copy.label || ''} ${copy.skill || ''} ${copy.action || ''}`.toLowerCase();
+          const isOnHitRider = /\b(trip\s*attack|menacing\s*attack|goading\s*attack|disarming\s*attack|pushing\s*attack|divine\s*smite|sneak\s*attack)\b/i.test(combined);
+          let kind = classifySuggestedRoll(copy);
+          if (awaitingDamage && isOnHitRider) kind = 'damage';
+
           if (kind === 'healing' || kind === 'damage' || kind === 'initiative') copy.dc = 0;
+
+          if (kind === 'damage' && awaitingDamage && isOnHitRider) {
+            const bonusSides = extractBonusDieSidesFromText(combined) || 8;
+            copy.sides = weap.sides;
+            copy.dice_count = weap.count + (bonusSides === weap.sides ? 1 : 0);
+            copy.mod = weap.dmgMod;
+            copy.requires_roll = true;
+            copy.dc = 0;
+            const modLabel = weap.dmgMod === 0 ? '' : (weap.dmgMod > 0 ? `+${weap.dmgMod}` : `${weap.dmgMod}`);
+            copy.skill = bonusSides === weap.sides
+              ? `${weap.name} Damage + Rider (${copy.dice_count}d${weap.sides}${modLabel})`
+              : `${weap.name} Damage (${weap.count}d${weap.sides}${modLabel}) + 1d${bonusSides}`;
+            return copy;
+          }
 
           if (/\bpotion\s+of\s+healing\b/i.test(combined) && (Number(copy.mod) || 0) === 0) {
             copy.dice_count = Math.max(2, Number(copy.dice_count) || 2);
@@ -2197,13 +2258,13 @@ function stripDuplicateRollLines(text) {
           return copy;
         });
 
-      if (econ.lastRollType === 'attack' && econ.lastRollHit === true && !cleaned.some((c) => classifySuggestedRoll(c) === 'damage')) {
+      if (awaitingDamage && !cleaned.some((c) => classifySuggestedRoll(c) === 'damage')) {
         const modLabel = weap.dmgMod === 0 ? '' : (weap.dmgMod > 0 ? `+${weap.dmgMod}` : `${weap.dmgMod}`);
-        cleaned.unshift({ label: 'Damage Roll', requires_roll: true, skill: `Damage (${weap.count}d${weap.sides}${modLabel})`, sides: weap.sides, dice_count: weap.count, mod: weap.dmgMod, dc: 0, action: 'Roll damage against the target.' });
+        cleaned.unshift({ label: 'Damage Roll', requires_roll: true, skill: `${weap.name} Damage (${weap.count}d${weap.sides}${modLabel})`, sides: weap.sides, dice_count: weap.count, mod: weap.dmgMod, dc: 0, action: 'Roll damage against the target.' });
       }
 
       const playerAskedToAttack = /\b(attack|strike|slash|shoot|throw|javelin|kill|hit|swing|stab|smite|cast)\b/i.test(String(actionText || ''));
-      if (inActiveCombat && econ.phase !== 'awaiting_damage' && (cleaned.length === 0 || (playerAskedToAttack && !cleaned.some((c) => classifySuggestedRoll(c) === 'attack')))) {
+      if (inActiveCombat && !awaitingDamage && (cleaned.length === 0 || (playerAskedToAttack && !cleaned.some((c) => classifySuggestedRoll(c) === 'attack')))) {
         const targetEnemy = (state.combatState?.enemies || []).find((e) => (Number(e.hp) || 0) > 0);
         const targetName = targetEnemy?.name || 'the target';
         cleaned.unshift({
@@ -2263,7 +2324,7 @@ NO AUTO-SUCCESS ON UNROLLED CHECKS:
 TWO MODES (Story Mode vs. Turn-Based Combat Mode):
 - STORY MODE (combat.active: false): Freeform roleplay, dialogue, scouting, and staging before a threat is engaged.
 - AMBUSH / SURPRISE RULE: If ${activeChar} passed Stealth and attacks an UNAWARE target, the attack roll MUST have "mode": "advantage", and Surprised enemies lose their turn/reactions in Round 1.
-- COMBAT MODE (combat.active: true): Populate "combat.enemies" with every active enemy's exact AC, HP, max_hp, status, and intent, and format "combat.turn_order" as ["Name (Init 12)", ...].
+- COMBAT MODE (combat.active: true): Populate "combat.enemies" with every active enemy's exact AC, HP, max_hp, status, and intent, and format "combat.turn_order" as ["Name (Init 12)", ...]. Only mark an enemy "Defeated" when its HP drops to 0 (if it has 1+ HP left, it is still alive!).
 - EXPLICIT TURN TRACKING ("actors_acted"): List the exact names of every combatant who actually took a combat turn/action in this response inside "combat.actors_acted" (do NOT list enemies who merely chatted).
 
 COMBAT & ENEMY AGENCY:
@@ -2272,23 +2333,23 @@ COMBAT & ENEMY AGENCY:
 - FREEFORM ACTION EXECUTION (NO STALLING): When ${activeChar} types an unrolled attack or combat move (like "attack" or "throw a javelin"), describe ${activeChar} preparing the strike and IMMEDIATELY provide the Attack roll button(s) in "suggested_rolls".
 - PLAYER ATTACKS & HITS VS. MISSES:
   * If total < enemy AC -> IT IS A MISS. Resolve active enemies' turns if ${activeChar}'s turn ends, and present 3 fresh choices for ${activeChar}'s NEXT turn.
-  * If total >= enemy AC -> IT IS A HIT. Immediately prompt ${activeChar}'s Damage roll right now in "suggested_rolls".
+  * If total >= enemy AC -> IT IS A HIT. Immediately prompt ONLY ${activeChar}'s Damage roll options right now in "suggested_rolls" (do NOT offer Attack, Dodge, or Shove buttons until damage is rolled!).
 - FRESH NEXT TURN AFTER ENEMY RETALIATION: Whenever ${activeChar} finishes an Action (Miss, Damage roll, Dodge, Disengage) and enemies take their turns before asking "What does ${activeChar} do next?", ${activeChar}'s NEXT turn has begun—ALWAYS provide 3 fresh Action/Bonus Action options!
 - ACCURATE 5E RULES, WEAPON NAMES & RESOURCES:
   * Weapon/spell attacks MUST name the actual weapon or spell in "skill" (e.g. "Longsword Attack", "Javelin Attack", "Fire Bolt"), NEVER "Athletics" (unless Grapple/Shove).
   * NEVER suggest abilities or resources listed at 0 / X on the character sheet (like Second Wind 0/1 or Superiority Dice 0/4).
   * Bonus Attack Dice apply ONLY to the attack roll—never add them to damage.
   * Potion of Healing is ALWAYS 2d4+2 (dice_count: 2, sides: 4, mod: 2).
-- RECORD ALL ROLLS INLINE (NO TRAILING ROLL SUMMARY LINE): Record enemy/combat rolls inline in brackets. NEVER append a standalone "Skill: d20 (X) + Y = Z vs DC N — Success/Failure!" summary line at the end of "narrative" or "player_beat".
+- RECORD ONLY ENEMY/STATE ROLLS IN BRACKETS (NO DUPLICATE PLAYER ROLL LINE): Record enemy attacks and enemy HP changes inline in brackets. Do NOT repeat ${activeChar}'s own attack/skill roll line in prose or at the end (the UI header already displays it), and NEVER write "What does ${activeChar} do next?" inside "narrative" (the UI appends it automatically).
 - "current_hp", "hp_delta", "current_gold", "gold_delta", and "xp_delta" apply STRICTLY to ${activeChar} (NEVER enemy HP!).
 - Treat ${hpStatusLine || 'the character sheet'} as the starting state for this turn.
 - Whenever ${activeChar}'s HP changes, ALWAYS set "hp_delta" AND set "current_hp" to the new HP total; when unchanged, set "hp_delta": 0 and "current_hp": -1.
 - Whenever ${activeChar}'s gold changes, ALWAYS set "gold_delta" and "current_gold"; when unchanged, set "gold_delta": 0 and "current_gold": -1.
-- XP REWARDS ("xp_delta"): Award 5e XP via "xp_delta" when enemies are defeated or milestones completed (0 otherwise).
+- XP REWARDS ("xp_delta"): Award 5e XP via "xp_delta" consistently when enemies are defeated or milestones completed (0 otherwise).
 - Log expended/recharged class resources in "resource_updates".
 
 WRITING & SUGGESTED ROLLS:
-- Always return 3 distinct options in "suggested_rolls" (except when locked to Initiative or a single forced Saving Throw).
+- Always return 3 distinct options in "suggested_rolls" (except when locked to Initiative, Damage after a Hit, or a single forced Saving Throw).
 - Every suggested option MUST be performed by ${activeChar}—NEVER roll on behalf of an enemy.
 - CONDITIONAL ROLLS ("requires_roll"): Set "requires_roll": false (dc: 0, sides: 20, dice_count: 1, mod: 0) for safe/unopposed story actions AND non-roll combat actions (Dodge, Disengage, Dash, Stand Up, Drop Concentration, End Turn). Set "requires_roll": true for attacks, damage, healing dice, saving throws, traps, stealth, or risky checks (and always set dc: 0 for Initiative).
 - SELECTIVE AUTO-ROLL IN STORY MODE ("auto_roll"): Only when ${activeChar} walks into a hidden hazard/ambush without checking, set "trigger": true; otherwise "trigger": false.
@@ -3451,4 +3512,5 @@ ${trimMarkdownNotes(state.files.character.content, 10)}`;
   </script>
 </body>
 </html>
+
     
